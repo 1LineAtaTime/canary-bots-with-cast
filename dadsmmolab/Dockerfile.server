@@ -1,0 +1,50 @@
+# Canary + bot engine server image. Two selectable final targets:
+#   target: prebuilt  -> download compiled canary + libbot_engine.so (fast)
+#   target: compile   -> build from source with vcpkg (token-free, ~30-60 min)
+# Select via compose: build.target = ${SERVER_BUILD_TARGET}
+# syntax=docker/dockerfile:1.7
+
+# ============================ compile path ============================
+FROM ubuntu:24.04 AS builder
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      cmake git build-essential ca-certificates curl zip unzip tar \
+      pkg-config ninja-build autoconf automake libtool python3 tzdata \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /srv/canary
+COPY . .
+# Pin vcpkg to the baseline committed in vcpkg.json (reproducible, no token/feed).
+RUN vcpkgCommitId=$(grep '.builtin-baseline' vcpkg.json | awk -F: '{print $2}' | tr -d '," ' | tr -d '\r\n') \
+    && git clone https://github.com/microsoft/vcpkg.git \
+    && cd vcpkg && git checkout "$vcpkgCommitId" && ./bootstrap-vcpkg.sh
+ENV VCPKG_ROOT=/srv/canary/vcpkg
+RUN cmake --preset linux-release -DTOGGLE_BIN_FOLDER=ON \
+    && cmake --build --preset linux-release -j"$(nproc)"
+
+FROM ubuntu:24.04 AS compile
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates wget default-mysql-client tzdata libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /srv/canary
+COPY . /srv/canary
+COPY --from=builder /srv/canary/build/linux-release/bin/canary /srv/canary/canary
+COPY --from=builder /srv/canary/build/linux-release/bin/libbot_engine.so /srv/canary/libbot_engine.so
+RUN chmod +x /srv/canary/canary /srv/canary/dadsmmolab/server-entrypoint.sh
+ENTRYPOINT ["/srv/canary/dadsmmolab/server-entrypoint.sh"]
+
+# ============================ prebuilt path ===========================
+# Runtime matches the Release build environment (Ubuntu 22.04 glibc).
+FROM ubuntu:22.04 AS prebuilt
+ARG DEBIAN_FRONTEND=noninteractive
+ARG RELEASE_ASSETS_URL
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates wget default-mysql-client tzdata libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /srv/canary
+COPY . /srv/canary
+RUN wget -O /srv/canary/canary "${RELEASE_ASSETS_URL}/canary" \
+    && wget -O /srv/canary/libbot_engine.so "${RELEASE_ASSETS_URL}/libbot_engine.so" \
+    && chmod +x /srv/canary/canary /srv/canary/dadsmmolab/server-entrypoint.sh
+ENTRYPOINT ["/srv/canary/dadsmmolab/server-entrypoint.sh"]

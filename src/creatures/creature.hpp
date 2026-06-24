@@ -16,6 +16,7 @@
 #include "map/map_const.hpp"
 #include "utils/utils_definitions.hpp"
 
+class BotEngine;
 class CreatureEvent;
 class Condition;
 class Map;
@@ -118,6 +119,22 @@ public:
 	virtual void setID() = 0;
 	void setRemoved() {
 		isInternalRemoved = true;
+	}
+	// Bot hibernation v5: clear the removed flag when waking a Player from the
+	// hibernation pool. Without this, woken bots retain isInternalRemoved=true
+	// (set by removeCreature during hibernate), which makes them invisible to
+	// monster targeting and excludes them from the cast viewer list filter
+	// (protocollogin.cpp filters by `!p->isRemoved()`).
+	void setNotRemoved() {
+		isInternalRemoved = false;
+	}
+	// Bot hibernation v5: reset the tile parent ref. Game::removeCreature does
+	// NOT clear m_tile, and setParent(empty) is a no-op (no else-branch in
+	// creature.cpp:1593). Without this, getParent() keeps returning the old tile,
+	// and Game::internalPlaceCreature (game.cpp:1162) rejects the placement —
+	// causing every pool-hit wake to fall back to the slow DB-load path.
+	void clearTileParent() {
+		m_tile.reset();
 	}
 
 	uint32_t getID() const {
@@ -847,6 +864,7 @@ protected:
 	friend class Game;
 	friend class Map;
 	friend class CreatureFunctions;
+	friend class BotEngine;
 
 	void addAsyncTask(std::function<void()> &&fnc) {
 		asyncTasks.emplace_back(std::move(fnc));

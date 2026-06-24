@@ -57,6 +57,8 @@
 #include "server/server.hpp"
 #include "utils/tools.hpp"
 #include "utils/wildcardtree.hpp"
+#include "creatures/players/bot/bot_engine.hpp"
+#include "creatures/players/bot/bot_engine_loader.hpp"
 #include "creatures/players/vocations/vocation.hpp"
 #include "creatures/players/components/wheel/wheel_definitions.hpp"
 
@@ -566,6 +568,38 @@ void Game::start(ServiceManager* manager) {
 	[[maybe_unused]] auto eventId8 = g_dispatcher().cycleEvent(
 		UPDATE_PLAYERS_ONLINE_DB, [this] { updatePlayersOnline(); }, "Game::updatePlayersOnline"
 	);
+
+	// Bot AI engine — load shared library, then start batch tick
+	auto& botLoader = BotEngineLoader::getInstance();
+	if (botLoader.load("./libbot_engine.so")) {
+		g_botEngine().loadHuntData();
+		restartBotTickLoop();
+	} else {
+		g_logger().error("[Game] Failed to load bot engine — bots disabled");
+	}
+}
+
+// JITTER FIX 2026-06-10: single owner for the BotEngine::tick cycleEvent.
+// Game.botStartTickLoop() (called on every /cavebot reload) used to create a new
+// 100ms loop WITHOUT stopping the previous one — leaked loops accumulated (3 were
+// measured live: VT_HEARTBEAT 14,649 advances/s = 3x the 487-hibernated x 10Hz
+// single-loop ceiling), so every bot AI cadence ran 3x fast. All creation paths
+// now route through here; the previous loop is cancelled first. Dispatcher-thread
+// callers only (boot init + Lua reload path), so the static needs no locking.
+void Game::restartBotTickLoop() {
+	static uint64_t botTickEventId = 0;
+	if (botTickEventId != 0) {
+		g_dispatcher().stopEvent(botTickEventId);
+		g_logger().info("[BotEngine] Stopped previous tick loop (eventId={})", botTickEventId);
+	}
+	botTickEventId = g_dispatcher().cycleEvent(
+		100, [] {
+			if (BotEngineLoader::getInstance().isLoaded()) {
+				g_botEngine().tick();
+			}
+		}, "BotEngine::tick"
+	);
+	g_logger().info("[BotEngine] Tick loop started (eventId={})", botTickEventId);
 }
 
 GameState_t Game::getGameState() const {
@@ -2926,6 +2960,15 @@ ReturnValue Game::internalTeleport(const std::shared_ptr<Thing> &thing, const Po
 		}
 
 		map.moveCreature(creature, toTile, !pushMove);
+
+		// Pre-wake hibernated bots near a real player's teleport destination so the
+		// world looks populated immediately (instead of trickling in over 1-2s once the
+		// 300ms-cadence hibernation monitor catches up). Combined with BotState::wakeQuietTicks
+		// stagger, the AI burst spreads across multiple dispatcher windows. The !isBotPlayer
+		// guard prevents recursion (wakeBot itself calls internalTeleport for the bot creature).
+		if (auto p = creature->getPlayer(); p && !p->isBotPlayer()) {
+			g_botEngine().wakeBotsInRadius(newPos, 100);
+		}
 
 		return RETURNVALUE_NOERROR;
 	} else if (const auto &item = thing->getItem()) {
@@ -6452,6 +6495,12 @@ void Game::playerSay(uint32_t playerId, uint16_t channelId, SpeakClasses type, c
 	switch (type) {
 		case TALKTYPE_SAY:
 			internalCreatureSay(player, TALKTYPE_SAY, text, false);
+			// BOT_CHAT_LIVENESS_V2 Phase F: a real player spoke in local chat —
+			// let the bot engine keyword-match it and maybe schedule one nearby
+			// idle bot to answer (delayed, throttled). Bots never react to bots.
+			if (!player->isBotPlayer()) {
+				g_botEngine().onPlayerSayNearBots(player->getID(), player->getPosition(), text);
+			}
 			break;
 
 		case TALKTYPE_WHISPER:
@@ -6553,8 +6602,20 @@ bool Game::playerYell(const std::shared_ptr<Player> &player, const std::string &
 bool Game::playerSpeakTo(const std::shared_ptr<Player> &player, SpeakClasses type, const std::string &receiver, const std::string &text) {
 	std::shared_ptr<Player> toPlayer = getPlayerByName(receiver);
 	if (!toPlayer) {
-		player->sendTextMessage(MESSAGE_FAILURE, "A player with this name is not online.");
-		return false;
+		// PMs to hibernated bots (ported from feat/bot-llm-chat Phase 6). Hibernated
+		// bots are removed from g_game().getPlayers() but their Player object lives in
+		// the bot engine's hibernation pool with full state preserved. Check there
+		// before declaring not-online so PMs route to the bot's onCreatureSay handler.
+		// exiva is intentionally left alone — hibernated bots remain spatially absent,
+		// matching the Edron Library "ignore exiva" social pattern.
+		uint32_t hibGuid = g_botEngine().getHibernatedBotGuidByName(receiver);
+		if (hibGuid != 0) {
+			toPlayer = g_botEngine().getHibernatedBotPlayer(hibGuid);
+		}
+		if (!toPlayer) {
+			player->sendTextMessage(MESSAGE_FAILURE, "A player with this name is not online.");
+			return false;
+		}
 	}
 
 	if (type == TALKTYPE_PRIVATE_RED_TO && (player->hasFlag(PlayerFlags_t::CanTalkRedPrivate) || player->getAccountType() >= AccountType::ACCOUNT_TYPE_GAMEMASTER)) {
@@ -6565,6 +6626,16 @@ bool Game::playerSpeakTo(const std::shared_ptr<Player> &player, SpeakClasses typ
 
 	toPlayer->sendPrivateMessage(player, type, text);
 	toPlayer->onCreatureSay(player, type, text);
+
+	// BOT_CHAT_LIVENESS_V2 Phase F: real player PMed a bot (awake or hibernated
+	// — the pool lookup above already resolved hibernated receivers). The engine
+	// schedules a delayed keyword reply back via sendPrivateMessage.
+	// Ghost-mode guard: the sender is about to be told "not online" below — a
+	// bot reply seconds later would contradict that. (Bots are never ghosted in
+	// practice; this is belt-and-braces.)
+	if (toPlayer->isBotPlayer() && !player->isBotPlayer() && !toPlayer->isInGhostMode()) {
+		g_botEngine().onPlayerPmToBot(toPlayer->getGUID(), player->getID(), text);
+	}
 
 	if (toPlayer->isInGhostMode() && !player->isAccessPlayer()) {
 		player->sendTextMessage(MESSAGE_FAILURE, "A player with this name is not online.");
@@ -6701,6 +6772,14 @@ void Game::checkCreatures() {
 	metrics::method_latency measure(__METRICS_METHOD_NAME__);
 	static size_t index = 0;
 
+	// JITTER DIAGNOSTIC (internal jitter root-cause analysis):
+	// log if this checkCreatures bucket pass exceeds 30ms. Fires every 100ms (10 buckets × 100ms
+	// = 1s full sweep); each bucket processes ~1/10 of registered creatures. 30ms cap is 30% of
+	// the 100ms scheduler budget.
+	int64_t jitter_ccStart = OTSYS_TIME();
+	size_t jitter_ccIndex = index;
+	size_t jitter_ccCount = checkCreatureLists[index].size();
+
 	std::erase_if(checkCreatureLists[index], [this](const std::weak_ptr<Creature> &weak) {
 		if (const auto creature = weak.lock()) {
 			if (creature->creatureCheck && creature->isAlive()) {
@@ -6727,6 +6806,15 @@ void Game::checkCreatures() {
 	});
 
 	index = (index + 1) % EVENT_CREATURECOUNT;
+
+	// JITTER DIAGNOSTIC: threshold lowered 30→5ms per Sonnet review — bot players
+	// short-circuit onThink but iteration overhead per creature is still paid. With 200 bots
+	// in checkCreatureLists, even sub-30ms buckets are suspicious. 5ms = 5% tick budget.
+	int64_t jitter_ccDt = OTSYS_TIME() - jitter_ccStart;
+	if (jitter_ccDt > 5) {
+		g_logger().warn("[CHECKCREATURES_SLOW] bucket={} count={} duration={}ms",
+			jitter_ccIndex, jitter_ccCount, jitter_ccDt);
+	}
 }
 
 void Game::changeSpeed(const std::shared_ptr<Creature> &creature, int32_t varSpeedDelta) {
@@ -8460,6 +8548,31 @@ void Game::dieSafely(const std::string &errorMsg /* = "" */) {
 }
 
 void Game::shutdown() {
+	// Stop the dispatcher from firing scheduled events BEFORE we clear collections
+	// whose elements are referenced by [this]-capturing lambdas in queued tasks
+	// (SpawnMonster::checkSpawnMonster at spawn_monster.cpp:166-170,
+	// SpawnNpc::checkSpawnNpc at spawn_npc.cpp:249-260, etc).
+	//
+	// Background: Game::shutdown() runs as a serial dispatcher task (enqueued via
+	// addEvent in Game::setGameState GAME_STATE_SHUTDOWN). PR #3527 (upstream,
+	// May 2025) added Dispatcher::shuttingDown to refuse NEW enqueues, but
+	// CanaryServer::shutdown() — which actually flips the flag — runs only
+	// AFTER Game::shutdown() returns. That left a window where map.spawnsMonster.clear()
+	// destroyed SpawnMonster instances while their queued [this]{checkSpawnMonster();}
+	// lambdas were still pending in scheduledTasks. The dispatcher then fired them
+	// on dangling pointers → "corrupted double-linked list" SIGABRT in glibc.
+	// 13 of 14 recent shutdowns crashed (including the daily 06:00 globalServerSave
+	// path — verified identical to systemctl SIGTERM, both routing through
+	// Game::setGameState(GAME_STATE_SHUTDOWN)).
+	//
+	// Calling shutdown() here is safe because Game::shutdown() runs ON the
+	// dispatcher thread (single-threaded serial path). The flag flip is a
+	// thread-local-safe write. Combined with the early-return guard in
+	// dispatcher.cpp::executeScheduledEvents, no further [this] lambdas execute
+	// after this point. The friend class Game declaration in dispatcher.hpp
+	// permits this private-method call.
+	g_dispatcher().shutdown();
+
 	g_webhook().sendMessage(":red_circle: Server is shutting down...");
 
 	g_logger().info("Shutting down...");
@@ -11225,45 +11338,51 @@ const std::unordered_map<uint16_t, std::string> &Game::getHirelingOutfits() {
 }
 
 void Game::updatePlayersOnline() const {
-	// Function to be executed within the transaction
 	auto updateOperation = [this]() {
+		// PERF_INVESTIGATION_2026-05-28: drop bots from this 10-min sync.
+		// Previously this enumerated every active bot guid into both the INSERT
+		// VALUES list and the DELETE NOT IN list, producing a sync DB blockage
+		// on the dispatcher that scaled linearly with bot count (~240ms at
+		// bots=100, ~500-800ms expected at bots=500). Bot rows are stable
+		// between server restarts and reloads, so they're synced via
+		// bot_manager.lua's async DB calls on the (rare) bot-load events.
+		// This periodic sweep now only manages real-player rows; the DELETE
+		// clause is filtered by account_id to leave bot rows untouched.
+		std::vector<uint32_t> guids;
 		const auto &m_players = getPlayers();
-		bool changesMade = false;
-
-		// g_metrics().addUpDownCounter("players_online", 1);
-		// g_metrics().addUpDownCounter("players_online", -1);
-
-		if (m_players.empty()) {
-			std::string query = "SELECT COUNT(*) AS count FROM players_online;";
-			auto result = g_database().storeQuery(query);
-			int count = result->getNumber<int>("count");
-			if (count > 0) {
-				g_database().executeQuery("DELETE FROM `players_online`;");
-				changesMade = true;
+		guids.reserve(m_players.size());
+		for (const auto &[id, player] : m_players) {
+			if (player->isBotPlayer()) {
+				continue;
 			}
-		} else {
-			// Insert the current players
-			DBInsert stmt("INSERT IGNORE INTO `players_online` (player_id) VALUES ");
-			for (const auto &[key, player] : m_players) {
-				std::ostringstream playerQuery;
-				playerQuery << "(" << player->getGUID() << ")";
-				stmt.addRow(playerQuery.str());
-			}
-			stmt.execute();
-			changesMade = true;
-
-			// Remove players who are no longer online
-			std::ostringstream cleanupQuery;
-			cleanupQuery << "DELETE FROM `players_online` WHERE `player_id` NOT IN (";
-			for (const auto &[key, player] : m_players) {
-				cleanupQuery << player->getGUID() << ",";
-			}
-			cleanupQuery.seekp(-1, std::ostringstream::cur); // Remove the last comma
-			cleanupQuery << ");";
-			g_database().executeQuery(cleanupQuery.str());
+			guids.push_back(player->getGUID());
 		}
 
-		return changesMade;
+		if (!guids.empty()) {
+			DBInsert stmt("INSERT IGNORE INTO `players_online` (player_id) VALUES ");
+			for (uint32_t guid : guids) {
+				stmt.addRow(std::to_string(guid));
+			}
+			stmt.execute();
+		}
+
+		// Always run the cleanup so disconnected real-player rows get purged.
+		// account_id filter (subquery against tiny players_online table is
+		// negligible at <1000 rows) prevents this from touching bot rows.
+		std::ostringstream cleanupQuery;
+		cleanupQuery << "DELETE FROM `players_online` WHERE";
+		if (!guids.empty()) {
+			cleanupQuery << " `player_id` NOT IN (";
+			for (uint32_t guid : guids) {
+				cleanupQuery << guid << ",";
+			}
+			cleanupQuery.seekp(-1, std::ostringstream::cur); // Remove the trailing comma
+			cleanupQuery << ") AND";
+		}
+		cleanupQuery << " `player_id` NOT IN (SELECT `id` FROM `players` WHERE `account_id` = 65000);";
+		g_database().executeQuery(cleanupQuery.str());
+
+		return true;
 	};
 
 	const bool success = DBTransaction::executeWithinTransaction(updateOperation);

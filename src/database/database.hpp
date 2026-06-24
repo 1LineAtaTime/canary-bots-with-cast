@@ -91,6 +91,16 @@ private:
 
 constexpr auto g_database = Database::getInstance;
 
+// JITTER telemetry (bundle 4, 2026-06-11): cumulative time the DISPATCHER thread
+// spent inside synchronous DB calls (databaseLock wait + query round-trip),
+// accumulated by database.cpp's SyncDbTimer and drained once per dispatcher
+// cycle into the CYCLE_SLOW `dbsync=` field. Lets a slow cycle composed of many
+// individually-sub-threshold sync queries name DB convoying as its cause.
+namespace DbDispatcherStats {
+	void addSyncDbUs(int64_t us);
+	int64_t fetchResetSyncDbUs();
+}
+
 class DBResult {
 public:
 	explicit DBResult(MYSQL_RES* res);

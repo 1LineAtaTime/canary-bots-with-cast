@@ -245,7 +245,11 @@ void SpawnNpc::checkSpawnNpc() {
 		}
 	}
 
-	if (spawnedNpcMap.size() < spawnNpcMap.size()) {
+	// Defense in depth: skip re-scheduling during shutdown — Game::shutdown()
+	// is about to destroy this SpawnNpc via map.spawnsNpc.clear(), which would
+	// dangle the [this] capture. See the matching pattern in
+	// SpawnMonster::checkSpawnMonster.
+	if (spawnedNpcMap.size() < spawnNpcMap.size() && !g_dispatcher().isShuttingDown()) {
 		checkSpawnNpcEvent = g_dispatcher().scheduleEvent(
 			getInterval(), [this] { checkSpawnNpc(); }, __FUNCTION__
 		);
@@ -256,6 +260,12 @@ void SpawnNpc::scheduleSpawnNpc(uint32_t spawnId, spawnBlockNpc_t &sb, uint16_t 
 	if (interval <= 0) {
 		spawnNpc(spawnId, sb.npcType, sb.pos, sb.direction);
 	} else {
+		// Don't re-schedule during shutdown — the lambda captures [&sb] which
+		// is a reference into spawnNpcMap. If this SpawnNpc is destroyed before
+		// the task fires, both `this` and `sb` dangle.
+		if (g_dispatcher().isShuttingDown()) {
+			return;
+		}
 		g_game().addMagicEffect(sb.pos, CONST_ME_TELEPORT);
 		g_dispatcher().scheduleEvent(
 			1400, [=, this, &sb] { scheduleSpawnNpc(spawnId, sb, interval - NONBLOCKABLE_SPAWN_NPC_INTERVAL); }, __FUNCTION__

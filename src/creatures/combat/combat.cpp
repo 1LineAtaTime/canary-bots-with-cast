@@ -105,7 +105,7 @@ CombatDamage Combat::getCombatDamage(const std::shared_ptr<Creature> &creature, 
 
 					damage.secondary.type = weapon->getElementType();
 					damage.secondary.value = weapon->getElementDamage(player, target, tool);
-					if (params.useCharges) {
+					if (params.useCharges && !player->isBotPlayer()) {
 						auto charges = tool->getAttribute<uint16_t>(ItemAttribute_t::CHARGES);
 						if (charges != 0) {
 							g_game().transformItem(tool, tool->getID(), charges - 1);

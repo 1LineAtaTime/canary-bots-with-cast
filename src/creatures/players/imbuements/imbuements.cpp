@@ -515,7 +515,12 @@ void ImbuementDecay::checkImbuementDecay() {
 	for (auto it = m_itemsToDecay.begin(); it != m_itemsToDecay.end();) {
 		auto item = it->second.item.lock();
 		if (!item) {
-			g_logger().error("[{}] item is nullptr", __FUNCTION__);
+			// Stale weak_ptr — Item was destroyed without calling
+			// stopImbuementDecay (e.g., container destruction, logout flush,
+			// store rollback). The erase below is the correct cleanup; this
+			// is not an error condition. Downgraded from error to debug
+			// 2026-05-28 to remove benign noise from steady-state logs.
+			g_logger().debug("[{}] item is nullptr", __FUNCTION__);
 			it = m_itemsToDecay.erase(it);
 			continue;
 		}
@@ -524,6 +529,21 @@ void ImbuementDecay::checkImbuementDecay() {
 		auto player = item->getHoldingPlayer();
 		if (!player) {
 			g_logger().debug("Item {} is not held by any player. Skipping decay.", item->getName());
+			it = m_itemsToDecay.erase(it);
+			continue;
+		}
+
+		// PERF_INVESTIGATION_2026-05-24 Tier 1-B: bot players carry effectively-permanent
+		// imbuements (BOT_IMBUE_DURATION = 0xFFFFFF ≈ 194 days, set by applyBotImbuements
+		// at bot_engine.cpp:11517). The 1Hz scan over their ~7500 imbued subslots
+		// (500 bots × ~15 slots) drives ItemAttribute::getCustomAttribute up to 49.77%
+		// and ImbuementDecay::checkImbuementDecay up to 35.23% of post-stall CPU.
+		// Erase (not just skip) so the scan list shrinks permanently — if the bot
+		// later swaps gear, movement.cpp:550 re-registers via startImbuementDecay
+		// and this guard catches the new entry on the next tick.
+		// isBotPlayer() is a single `bool botPlayer` field read in player.hpp; stable
+		// for the entire bot lifetime (never destroyed, only set isRemoved on hibernate).
+		if (player->isBotPlayer()) {
 			it = m_itemsToDecay.erase(it);
 			continue;
 		}

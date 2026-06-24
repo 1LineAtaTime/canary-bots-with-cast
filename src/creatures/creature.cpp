@@ -162,7 +162,12 @@ void Creature::onAttacking(uint32_t interval) {
 
 	if (attackedCreature->getType() == CreatureType_t::CREATURETYPE_PLAYER) {
 		const auto &player = attackedCreature->getPlayer();
-		if (player && player->isDisconnected() && !player->isProtected()) {
+		// Bot players have client=nullptr so isDisconnected() is always true. Without
+		// the isBotPlayer guard, the first monster attack after wake grants the bot 30s
+		// of login-protection, during which Monster::doAttacking and Monster::selectTarget
+		// both return early — monsters can't damage or aggro the bot. Symptom reported:
+		// bot attacks monsters fine, but monsters don't hit back for ~30s after wake.
+		if (player && !player->isBotPlayer() && player->isDisconnected() && !player->isProtected()) {
 			player->setProtection(true);
 			player->setLoginProtection(30000);
 		}

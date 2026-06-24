@@ -1,0 +1,75 @@
+name: canary-bots
+services:
+  database:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${MYSQL_DATABASE}
+      MARIADB_USER: ${MYSQL_USER}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD}
+    networks: [canary-net]
+    ports:
+      - '${MYSQL_PORT}:3306'
+    volumes:
+      - db-volume:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  server:
+    build:
+      context: ..
+      dockerfile: dadsmmolab/Dockerfile.server
+      target: ${SERVER_BUILD_TARGET:-prebuilt}
+      args:
+        RELEASE_ASSETS_URL: ${RELEASE_ASSETS_URL}
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      SERVER_IP: ${SERVER_IP}
+      MAP_URL: ${MAP_URL}
+      BOT_PLAYERS_ONLINE: ${BOT_PLAYERS_ONLINE}
+    networks: [canary-net]
+    ports:
+      - '${GAME_PORT}:7172'
+      - '${STATUS_PORT}:7171'
+    depends_on:
+      database:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: dadsmmolab/Dockerfile.web
+      args:
+        MYAAC_GIT: ${MYAAC_GIT}
+        MYAAC_BRANCH: ${MYAAC_BRANCH}
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      SERVER_NAME: ${SERVER_NAME}
+      CLIENT_ASSETS_URL: ${CLIENT_ASSETS_URL}
+    networks: [canary-net]
+    ports:
+      - '${WEB_HTTP_PORT}:80'
+    depends_on:
+      database:
+        condition: service_healthy
+
+volumes:
+  db-volume:
+
+networks:
+  canary-net:
+    driver: bridge

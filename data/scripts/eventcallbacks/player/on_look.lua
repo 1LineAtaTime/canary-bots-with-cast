@@ -114,6 +114,13 @@ local function appendAdminDetails(descriptionText, inspectedThing, inspectedPosi
 
 		if inspectedThing:isPlayer() then
 			descriptionText = string.format("%s\nIP: %s", descriptionText, Game.convertIpToString(inspectedThing:getIp()))
+
+			if inspectedThing:isBotPlayer() then
+				local statusText = Game.botGetStatusText(inspectedThing:getGuid())
+				if statusText and statusText ~= "" then
+					descriptionText = string.format("%s\nBot Status: %s", descriptionText, statusText)
+				end
+			end
 		end
 	end
 
@@ -139,3 +146,16 @@ function callback.playerOnLook(player, inspectedThing, inspectedPosition, lookDi
 end
 
 callback:register()
+
+-- Battle list look: same logic for when player clicks a creature in the battle list
+local battleListCallback = EventCallback("PlayerOnLookInBattleListBaseEvent")
+
+function battleListCallback.playerOnLookInBattleList(player, creature, lookDistance)
+	local descriptionText = handleCreatureDescription(creature, lookDistance)
+	if player:getGroup():getAccess() then
+		descriptionText = appendAdminDetails(descriptionText, creature, creature:getPosition())
+	end
+	player:sendTextMessage(MESSAGE_LOOK, descriptionText)
+end
+
+battleListCallback:register()

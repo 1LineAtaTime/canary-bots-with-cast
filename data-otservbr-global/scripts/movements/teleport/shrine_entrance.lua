@@ -76,7 +76,7 @@ function shrineEntrance.onStepIn(creature, item, position, fromPosition)
 	if not player then
 		return true
 	end
-	if player:getLevel() < 30 then
+	if not player:isBotPlayer() and player:getLevel() < 30 then
 		player:teleportTo(fromPosition, true)
 		player:getPosition():sendMagicEffect(CONST_ME_TELEPORT)
 		player:say("Only players of level 30 or higher may enter this portal.", TALKTYPE_MONSTER_SAY)

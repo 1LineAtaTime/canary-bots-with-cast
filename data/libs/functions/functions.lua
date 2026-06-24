@@ -75,19 +75,29 @@ function getLootRandom(modifier)
 	return randomValue * 100 / multi
 end
 
-local start = os.time()
-local linecount = 0
-debug.sethook(function(event, line)
-	linecount = linecount + 1
-	if systemTime() - start >= 1 then
-		if linecount >= 30000 then
-			logger.warn("[debug.sethook] - Possible infinite loop in file [{}] near line [{}]", debug.getinfo(2).source, line)
-			debug.sethook()
+-- PERF_INVESTIGATION_2026-05-24 (Tier 1-A): upstream Lua per-instruction debug
+-- hook is the single largest CPU sink at scale. perf samples showed
+-- lj_dispatch_ins 57.74%, lj_vm_inshook 48.30%, lj_vm_exit_interp 59.20%,
+-- hookf 22-33% — all driven by this hook firing on every Lua line and
+-- forcing LuaJIT to abort traces. Nothing in the codebase reads hook state
+-- (no lua_gethook callers). Upstream PR opentibiabr/canary#3968 already
+-- made this configurable; we just gate it off by default. Set env var
+-- CANARY_ENABLE_LUA_LINE_HOOK=1 to re-enable for dev infinite-loop debugging.
+if os.getenv("CANARY_ENABLE_LUA_LINE_HOOK") == "1" then
+	local start = os.time()
+	local linecount = 0
+	debug.sethook(function(event, line)
+		linecount = linecount + 1
+		if systemTime() - start >= 1 then
+			if linecount >= 30000 then
+				logger.warn("[debug.sethook] - Possible infinite loop in file [{}] near line [{}]", debug.getinfo(2).source, line)
+				debug.sethook()
+			end
+			linecount = 0
+			start = os.time()
 		end
-		linecount = 0
-		start = os.time()
-	end
-end, "l")
+	end, "l")
+end
 
 -- OTServBr-Global functions
 function getJackLastMissionState(player)

@@ -22,7 +22,11 @@ function Creature:onTargetCombat(target)
 	if not IsRetroPVP() or ADVANCED_SECURE_MODE ~= 0 then
 		if self:isPlayer() and target:isPlayer() then
 			if self:hasSecureMode() then
-				return RETURNVALUE_YOUMAYNOTATTACKTHISPLAYER
+				local selfPlayer = Player(self:getId())
+				local targetPlayer = Player(target:getId())
+				if selfPlayer and targetPlayer and selfPlayer:getSkullClient(targetPlayer) == SKULL_NONE then
+					return RETURNVALUE_YOUMAYNOTATTACKTHISPLAYER
+				end
 			end
 		end
 	end

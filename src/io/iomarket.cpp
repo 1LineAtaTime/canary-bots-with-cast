@@ -287,6 +287,35 @@ MarketOfferEx IOMarket::getOfferByCounter(uint32_t timestamp, uint16_t counter) 
 	return offer;
 }
 
+MarketOfferEx IOMarket::getOfferById(uint32_t offerId) {
+	MarketOfferEx offer;
+	offer.id = 0;
+
+	std::ostringstream query;
+	query << "SELECT `id`, `sale`, `itemtype`, `amount`, `created`, `price`, `player_id`, `anonymous`, `tier`, (SELECT `name` FROM `players` WHERE `id` = `player_id`) AS `player_name` FROM `market_offers` WHERE `id` = " << offerId << " LIMIT 1";
+
+	DBResult_ptr result = Database::getInstance().storeQuery(query.str());
+	if (!result) {
+		return offer;
+	}
+
+	offer.id = result->getNumber<uint32_t>("id");
+	offer.type = static_cast<MarketAction_t>(result->getNumber<uint16_t>("sale"));
+	offer.amount = result->getNumber<uint16_t>("amount");
+	offer.counter = (offer.id ^ 0xABCDEF) & 0xFFFF;
+	offer.timestamp = result->getNumber<uint32_t>("created");
+	offer.price = result->getNumber<uint64_t>("price");
+	offer.itemId = result->getNumber<uint16_t>("itemtype");
+	offer.playerId = result->getNumber<uint32_t>("player_id");
+	offer.tier = getTierFromDatabaseTable(result->getString("tier"));
+	if (result->getNumber<uint16_t>("anonymous") == 0) {
+		offer.playerName = result->getString("player_name");
+	} else {
+		offer.playerName = "Anonymous";
+	}
+	return offer;
+}
+
 void IOMarket::createOffer(uint32_t playerId, MarketAction_t action, uint32_t itemId, uint16_t amount, uint64_t price, uint8_t tier, bool anonymous) {
 	std::ostringstream query;
 	query << "INSERT INTO `market_offers` (`player_id`, `sale`, `itemtype`, `amount`, `created`, `anonymous`, `price`, `tier`) VALUES (" << playerId << ',' << action << ',' << itemId << ',' << amount << ',' << getTimeNow() << ',' << anonymous << ',' << price << ',' << std::to_string(tier) << ')';

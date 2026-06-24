@@ -103,6 +103,11 @@ public:
 	void loadBoostedCreature();
 	void start(ServiceManager* manager);
 
+	// JITTER FIX 2026-06-10: single owner for the BotEngine::tick 100ms cycleEvent.
+	// Stops the previous loop before creating a new one — Game.botStartTickLoop()
+	// used to leak one loop per /cavebot reload (3 concurrent loops measured live).
+	void restartBotTickLoop();
+
 	void forceRemoveCondition(uint32_t creatureId, ConditionType_t type, ConditionId_t conditionId);
 
 	void logCyclopediaStats();
@@ -403,6 +408,14 @@ public:
 	void playerCreateMarketOffer(uint32_t playerId, uint8_t type, uint16_t itemId, uint16_t amount, uint64_t price, uint8_t tier, bool anonymous);
 	void playerCancelMarketOffer(uint32_t playerId, uint32_t timestamp, uint16_t counter);
 	void playerAcceptMarketOffer(uint32_t playerId, uint32_t timestamp, uint16_t counter, uint16_t amount);
+
+	// Bot market wrappers — see src/game/game_bot_market.cpp.
+	// Mirror the inner work of playerCreateMarketOffer / playerAcceptMarketOffer / playerCancelMarketOffer
+	// but skip UI gates (isInMarket, isUIExhausted) and depot prerequisites bots can't satisfy.
+	// Real-player counterparties receive money/items via the same primitives as the user-facing flow.
+	bool botCreateMarketOffer(uint32_t botGuid, uint8_t action, uint16_t itemId, uint16_t amount, uint64_t price, uint8_t tier, bool anonymous);
+	bool botAcceptMarketOffer(uint32_t botGuid, uint32_t offerId, uint16_t amount);
+	bool botCancelMarketOffer(uint32_t botGuid, uint32_t offerId);
 
 	void parsePlayerExtendedOpcode(uint32_t playerId, uint8_t opcode, const std::string &buffer);
 

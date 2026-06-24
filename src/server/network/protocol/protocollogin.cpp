@@ -16,6 +16,8 @@
 #include "io/iologindata.hpp"
 #include "creatures/players/management/ban.hpp"
 #include "game/game.hpp"
+#include "creatures/players/player.hpp"
+#include "creatures/players/bot/bot_engine.hpp"
 #include "core.hpp"
 #include "enums/account_errors.hpp"
 
@@ -30,6 +32,75 @@ void ProtocolLogin::disconnectClient(const std::string &message) const {
 }
 
 void ProtocolLogin::getCharacterList(const std::string &accountDescriptor, const std::string &password) const {
+	// Cast viewer — return list of broadcasting players
+	if (accountDescriptor == "@cast" || accountDescriptor == "@livestream") {
+		auto output = OutputMessagePool::getOutputMessage();
+
+		output->addByte(0x14); // MOTD
+		output->addString(fmt::format("{}\nCast Viewer - Select a player to watch", g_game().getMotdNum()));
+
+		output->addByte(0x28); // Session key
+		output->addString(fmt::format("@cast\n{}", password));
+
+		output->addByte(0x00); // char list header
+		output->addByte(1); // 1 world
+		output->addByte(0); // world id
+		output->addString(g_configManager().getString(SERVER_NAME));
+		output->addString(g_configManager().getString(IP));
+		output->add<uint16_t>(g_configManager().getNumber(GAME_PORT));
+		output->addByte(0);
+
+		// Phase 6: toggle for whether bots appear in the cast viewer character list.
+		// Set to false to revert to pre-hibernation behavior (only currently-broadcasting
+		// in-world players). When true, ALL registered active bots appear in the list
+		// regardless of hibernation state — selecting a hibernated bot wakes it on
+		// connect (see castViewerLogin in protocolgame.cpp).
+		static constexpr bool kShowBotsInCastList = true;
+
+		std::vector<std::string> casters;
+		if (kShowBotsInCastList) {
+			// All registered active bots, regardless of hibernation/broadcasting state.
+			// `bot.active` is set at registerBot and never cleared until unregisterBot,
+			// so this is stable across hibernate/wake transitions — avoids the cast list
+			// flicker observed during user testing.
+			for (auto &name : g_botEngine().getActiveBotNames()) {
+				casters.push_back(name);
+			}
+			// Plus any non-bot real players who voluntarily enabled broadcasting.
+			for (const auto &[id, p] : g_game().getPlayers()) {
+				if (p && !p->isBotPlayer() && p->isCastBroadcasting() && !p->isRemoved()) {
+					casters.push_back(p->getName());
+				}
+			}
+		} else {
+			// Original behavior: only currently-broadcasting in-world players.
+			for (const auto &[id, p] : g_game().getPlayers()) {
+				if (p && p->isCastBroadcasting() && !p->isRemoved()) {
+					casters.push_back(p->getName());
+				}
+			}
+		}
+		std::sort(casters.begin(), casters.end());
+		g_logger().info("[Cast] Character list: {} broadcasting players found", casters.size());
+
+		uint8_t size = std::min<size_t>(std::numeric_limits<uint8_t>::max(), casters.size());
+		output->addByte(size);
+		for (uint8_t i = 0; i < size; i++) {
+			output->addByte(0); // world id
+			output->addString(casters[i]);
+		}
+
+		// Footer (matches working livestream implementation)
+		output->addByte(0);
+		output->addByte(0);
+		output->add<uint32_t>(0);
+		output->add<uint16_t>(0);
+
+		send(output);
+		disconnect();
+		return;
+	}
+
 	Account account(accountDescriptor);
 	account.setProtocolCompat(oldProtocol);
 
@@ -161,6 +232,20 @@ void ProtocolLogin::onRecvFirstMessage(NetworkMessage &msg) {
 	}
 
 	std::string accountDescriptor = msg.getString();
+	g_logger().info("[ProtocolLogin] accountDescriptor='{}' len={}", accountDescriptor, accountDescriptor.length());
+
+	// Cast viewer — skip password validation
+	if (accountDescriptor == "@cast" || accountDescriptor == "@livestream") {
+		std::string password = msg.getString(); // consume password field
+		g_dispatcher().addEvent(
+			[self = std::static_pointer_cast<ProtocolLogin>(shared_from_this()), accountDescriptor, password] {
+				self->getCharacterList(accountDescriptor, password);
+			},
+			__FUNCTION__
+		);
+		return;
+	}
+
 	if (accountDescriptor.empty()) {
 		std::ostringstream ss;
 		ss << "Invalid " << (oldProtocol ? "username" : "email") << ".";

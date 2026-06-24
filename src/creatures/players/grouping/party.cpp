@@ -365,6 +365,11 @@ bool Party::joinParty(const std::shared_ptr<Player> &player) {
 
 	memberList.emplace_back(player);
 
+	// Seed fight ticks for bot players so shared exp works immediately
+	if (player->isBotPlayer()) {
+		ticksMap[player->getID()] = OTSYS_TIME();
+	}
+
 	updateMantraHolder();
 
 	g_game().updatePlayerHelpers(player);

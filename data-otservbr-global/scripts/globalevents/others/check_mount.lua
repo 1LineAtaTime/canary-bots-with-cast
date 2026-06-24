@@ -10,6 +10,9 @@ function rentedMounts.onThink(interval)
 	local player, outfit
 	for i = 1, #players do
 		player = players[i]
+		if player:isBotPlayer() then
+			goto continue_mount
+		end
 		if player:getStorageValue(Storage.Quest.U9_1.HorseStationWorldChange.Timer) < 1 or player:getStorageValue(Storage.Quest.U9_1.HorseStationWorldChange.Timer) >= os.time() then
 			break
 		end
@@ -26,6 +29,7 @@ function rentedMounts.onThink(interval)
 
 		player:setStorageValue(Storage.Quest.U9_1.HorseStationWorldChange.Timer, -1)
 		player:sendTextMessage(MESSAGE_EVENT_ADVANCE, "Your contract with your horse expired and it returned back to the horse station.")
+		::continue_mount::
 	end
 	return true
 end
