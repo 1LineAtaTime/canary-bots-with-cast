@@ -590,6 +590,15 @@ void Tile::onUpdateTile(const CreatureVector &spectators) {
 	}
 }
 
+// Scripted-teleporter tiles (glowing-dirt / rift portals driven by MoveEvent action IDs that
+// carry NO TILESTATE_TELEPORT flag) that a hunting bot must never pathfind onto — otherwise
+// bot A* AND server chase/follow route through them and the bot is teleport-ejected mid-hunt
+// (Gold Tokens: portal at 32131,31361,12 → 33158,32634,8). Add new portal tiles here as found.
+static inline bool tileIsBotAvoidTeleporter(const Position &p) {
+	return (p.x == 32131 && p.y == 31361 && p.z == 12)  // Gold Tokens rift portal (item 23154, AID 48064)
+		|| (p.x == 33158 && p.y == 32634 && p.z == 8);  // Gold Tokens return portal (item 23154, AID 48065)
+}
+
 ReturnValue Tile::queryAdd(int32_t, const std::shared_ptr<Thing> &thing, uint32_t, uint32_t tileFlags, const std::shared_ptr<Creature> &) {
 	if (!thing) {
 		return RETURNVALUE_NOTPOSSIBLE;
@@ -607,8 +616,21 @@ ReturnValue Tile::queryAdd(int32_t, const std::shared_ptr<Thing> &thing, uint32_
 			}
 		}
 
-		if (hasBitSet(FLAG_PATHFINDING, tileFlags) && hasFlag(TILESTATE_FLOORCHANGE | TILESTATE_TELEPORT)) {
-			return RETURNVALUE_NOTPOSSIBLE;
+		if (hasBitSet(FLAG_PATHFINDING, tileFlags)) {
+			if (hasFlag(TILESTATE_FLOORCHANGE) || hasFlag(TILESTATE_TELEPORT)) {
+				const auto &player = creature->getPlayer();
+				if (!player || !player->isBotAllowFcPos(getPosition())) {
+					return RETURNVALUE_NOTPOSSIBLE;
+				}
+				// Bot waypoint navigation: A* can only path onto the specific FC/teleport tile
+				// that is the intended destination — not through other FC tiles as intermediate steps
+			}
+			// Bot-only: scripted teleporter tiles (glowing-dirt / rift portals WITHOUT the
+			// TILESTATE_TELEPORT flag) — reject during pathfinding so bot A* AND server
+			// chase/follow route around them instead of stepping on and getting ejected mid-hunt.
+			if (const auto &botPl = creature->getPlayer(); botPl && botPl->isBotPlayer() && tileIsBotAvoidTeleporter(getPosition())) {
+				return RETURNVALUE_NOTPOSSIBLE;
+			}
 		}
 
 		if (creature->isMoveLocked() || ground == nullptr) {
@@ -693,8 +715,19 @@ ReturnValue Tile::queryAdd(int32_t, const std::shared_ptr<Thing> &thing, uint32_
 				}
 			}
 
-			if (hasBitSet(FLAG_PATHFINDING, tileFlags) && hasFlag(TILESTATE_BLOCKPATH)) {
-				return RETURNVALUE_NOTPOSSIBLE;
+			if (hasBitSet(FLAG_PATHFINDING, tileFlags)) {
+				if (hasBitSet(FLAG_IGNOREBLOCKITEM, tileFlags)) {
+					// Bot players: ignore all blocking items (will push them aside)
+				} else if (hasBitSet(FLAG_IGNOREFIELDDAMAGE, tileFlags)) {
+					// Ignoring field damage: only check non-field blocking items
+					if (hasFlag(TILESTATE_NOFIELDBLOCKPATH)) {
+						return RETURNVALUE_NOTPOSSIBLE;
+					}
+				} else {
+					if (hasFlag(TILESTATE_BLOCKPATH)) {
+						return RETURNVALUE_NOTPOSSIBLE;
+					}
+				}
 			}
 
 			if (player->getParent() == nullptr && hasFlag(TILESTATE_NOLOGOUT)) {

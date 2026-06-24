@@ -64,7 +64,7 @@ Spells::~Spells() = default;
 TalkActionResult_t Spells::playerSaySpell(const std::shared_ptr<Player> &player, std::string &words) {
 	auto maxOnline = g_configManager().getNumber(MAX_PLAYERS_PER_ACCOUNT);
 	const auto &tile = player->getTile();
-	if (maxOnline > 1 && player->getAccountType() < ACCOUNT_TYPE_GAMEMASTER && tile && !tile->hasFlag(TILESTATE_PROTECTIONZONE)) {
+	if (maxOnline > 1 && player->getAccountType() < ACCOUNT_TYPE_GAMEMASTER && !player->isBotPlayer() && tile && !tile->hasFlag(TILESTATE_PROTECTIONZONE)) {
 		auto maxOutsizePZ = g_configManager().getNumber(MAX_PLAYERS_OUTSIDE_PZ_PER_ACCOUNT);
 		auto accountPlayers = g_game().getPlayersByAccount(player->getAccount());
 		int countOutsizePZ = 0;
@@ -537,7 +537,7 @@ bool Spell::playerSpellCheck(const std::shared_ptr<Player> &player) const {
 	}
 
 	if (isInstant() && getNeedLearn()) {
-		if (!player->hasLearnedInstantSpell(getName())) {
+		if (!player->isBotPlayer() && !player->hasLearnedInstantSpell(getName())) {
 			player->sendCancelMessage(RETURNVALUE_YOUNEEDTOLEARNTHISSPELL);
 			g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
 			return false;
@@ -1478,7 +1478,7 @@ bool RuneSpell::executeUse(const std::shared_ptr<Player> &player, const std::sha
 	}
 
 	postCastSpell(player);
-	if (hasCharges && item && g_configManager().getBoolean(REMOVE_RUNE_CHARGES)) {
+	if (hasCharges && item && g_configManager().getBoolean(REMOVE_RUNE_CHARGES) && !player->isBotPlayer()) {
 		int32_t newCount = std::max<int32_t>(0, item->getItemCount() - 1);
 		g_game().transformItem(item, item->getID(), newCount);
 		player->updateSupplyTracker(item);

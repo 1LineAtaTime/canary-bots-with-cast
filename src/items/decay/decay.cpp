@@ -33,6 +33,16 @@ void Decay::startDecay(const std::shared_ptr<Item> &item) {
 		return;
 	}
 
+	// Bot-worn dwarven ring (3099): freeze its duration permanently — same intent as the
+	// ammo/charge/rune isBotPlayer skips elsewhere. The id check runs first so the parent
+	// walk (getHoldingPlayer) never touches the hot ground-decay path (corpses/splashes).
+	if (item->getID() == 3099) {
+		if (const auto &holder = item->getHoldingPlayer(); holder && holder->isBotPlayer()) {
+			item->setDuration(3600 * 1000); // pin timer at full (ms); never enroll in decayMap
+			return;
+		}
+	}
+
 	g_logger().trace("Try decay item {}", item->getName());
 
 	const auto duration = item->getAttribute<int64_t>(ItemAttribute_t::DURATION);

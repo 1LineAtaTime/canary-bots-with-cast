@@ -31,6 +31,12 @@ class PlayerFunctions {
 	static int luaPlayerGetCharmChance(lua_State* L);
 	static int luaPlayerResetOldCharms(lua_State* L);
 	static int luaPlayerIsPlayer(lua_State* L);
+	static int luaPlayerIsBotPlayer(lua_State* L);
+	static int luaPlayerSetBotPlayer(lua_State* L);
+
+	static int luaPlayerIsCastBroadcasting(lua_State* L);
+	static int luaPlayerSetCastBroadcasting(lua_State* L);
+	static int luaPlayerGetCastViewerCount(lua_State* L);
 
 	static int luaPlayerGetGuid(lua_State* L);
 	static int luaPlayerGetIp(lua_State* L);
@@ -86,6 +92,7 @@ class PlayerFunctions {
 
 	static int luaPlayerGetSkullTime(lua_State* L);
 	static int luaPlayerSetSkullTime(lua_State* L);
+	static int luaPlayerGetSkullClient(lua_State* L);
 	static int luaPlayerGetDeathPenalty(lua_State* L);
 
 	static int luaPlayerGetExperience(lua_State* L);
@@ -201,6 +208,8 @@ class PlayerFunctions {
 	static int luaPlayerOpenChannel(lua_State* L);
 
 	static int luaPlayerGetSlotItem(lua_State* L);
+	static int luaPlayerSetSlotItem(lua_State* L);
+	static int luaPlayerCastSpell(lua_State* L);
 
 	static int luaPlayerGetParty(lua_State* L);
 
@@ -273,8 +282,10 @@ class PlayerFunctions {
 	static int luaPlayerCanCast(lua_State* L);
 
 	static int luaPlayerHasChaseMode(lua_State* L);
+	static int luaPlayerSetChaseMode(lua_State* L);
 	static int luaPlayerHasSecureMode(lua_State* L);
 	static int luaPlayerGetFightMode(lua_State* L);
+	static int luaPlayerSetFightMode(lua_State* L);
 
 	static int luaPlayerGetBaseXpGain(lua_State* L);
 	static int luaPlayerSetBaseXpGain(lua_State* L);

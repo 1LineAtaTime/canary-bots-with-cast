@@ -52,6 +52,9 @@ SERVER_MOTD = configManager.getString(configKeys.SERVER_MOTD)
 
 AUTH_TYPE = configManager.getString(configKeys.AUTH_TYPE)
 
+-- Bot player system
+BotPlayers = {} -- {[guid] = playerRef}
+
 -- Event Schedule
 SCHEDULE_LOOT_RATE = 100
 SCHEDULE_EXP_RATE = 100

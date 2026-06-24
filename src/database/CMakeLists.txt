@@ -1,6 +1,7 @@
 target_sources(
     ${CORE_TARGET_NAME}
-    PRIVATE database.cpp
+    PRIVATE botdatabasetasks.cpp
+            database.cpp
             databasemanager.cpp
             databasetasks.cpp
 )

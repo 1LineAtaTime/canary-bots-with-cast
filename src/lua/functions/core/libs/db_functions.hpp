@@ -16,6 +16,8 @@ public:
 private:
 	static int luaDatabaseAsyncExecute(lua_State* L);
 	static int luaDatabaseAsyncStoreQuery(lua_State* L);
+	static int luaDatabaseBotAsyncExecute(lua_State* L);
+	static int luaDatabaseBotAsyncStoreQuery(lua_State* L);
 	static int luaDatabaseEscapeBlob(lua_State* L);
 	static int luaDatabaseEscapeString(lua_State* L);
 	static int luaDatabaseExecute(lua_State* L);

@@ -1,6 +1,10 @@
 -- Function to perform database cleanup tasks
 local function cleanupDatabase()
 	db.query("TRUNCATE TABLE `players_online`")
+	-- bot_active_players mirrors the in-memory BotEngine bots_ vector. TRUNCATE here so
+	-- a crash that left stale rows doesn't pollute the @cast list — bots will re-INSERT
+	-- via bot_engine.cpp::registerBot as BotStartup loads them.
+	db.query("TRUNCATE TABLE `bot_active_players`")
 
 	local currentTime = os.time()
 	db.asyncQuery("DELETE FROM `guild_wars` WHERE `status` IN (0, 2, 3) OR (`status` = 0 AND (`started` + 72 * 60 * 60) <= " .. currentTime .. ")")

@@ -103,6 +103,8 @@ private:
 
 	static int luaCreatureGetPathTo(lua_State* L);
 	static int luaCreatureMove(lua_State* L);
+	static int luaCreatureStartAutoWalk(lua_State* L);
+	static int luaCreatureIsWalking(lua_State* L);
 
 	static int luaCreatureGetZoneType(lua_State* L);
 

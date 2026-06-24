@@ -77,15 +77,27 @@ function callback.creatureOnCombat(caster, target, damage)
 		return true
 	end
 
+	-- BOT PERF FIX 2026-06-10 (same pattern as the ImbuementDecay bot skip):
+	-- this callback fires on EVERY combat damage event in the game, and
+	-- getTaintNameByNumber() does a kv_store lookup. Bots never have soul-war
+	-- taints, so the key never exists, nothing gets cached, and every hit
+	-- by/against a hunting bot became a SYNCHRONOUS kv SELECT on the
+	-- dispatcher (measured 13-466ms each behind the shared DB connection,
+	-- stacking to an 867ms and a 2246ms dispatcher cycle -> 3 lagmarks on
+	-- 2026-06-10 21:46-21:56). Skip the taint logic entirely for bot players.
+
 	-- Second taint
 	local attackerPlayer = caster:getPlayer()
-	if attackerPlayer and target:isMonster() then
+	if attackerPlayer and not attackerPlayer:isBotPlayer() and target:isMonster() then
 		onPlayerAttackMonster(attackerPlayer, target)
 	end
 
 	-- Third taint
 	if caster:getMonster() then
-		damage.primary.value, damage.secondary.value = onMonsterAttackPlayer(target, damage.primary.value, damage.secondary.value)
+		local targetPlayer = target:getPlayer()
+		if not targetPlayer or not targetPlayer:isBotPlayer() then
+			damage.primary.value, damage.secondary.value = onMonsterAttackPlayer(target, damage.primary.value, damage.secondary.value)
+		end
 	end
 end
 
@@ -96,7 +108,7 @@ callback = EventCallback("PlayerOnThinkTaint")
 local accumulatedTime = {}
 
 function callback.playerOnThink(player, interval)
-	if not player then
+	if not player or player:isBotPlayer() then -- BOT PERF FIX 2026-06-10: see creatureOnCombat above
 		return
 	end
 

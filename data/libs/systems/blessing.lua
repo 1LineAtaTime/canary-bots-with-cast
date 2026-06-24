@@ -14,6 +14,7 @@ Blessings.Config = {
 	HasToF = not configManager.getBoolean(configKeys.TOGGLE_SERVER_IS_RETRO), -- Enables/disables twist of fate
 	InquisitonBlessPriceMultiplier = 1.1, -- Bless price multiplier by henricus
 	SkulledDeathLoseStoreItem = configManager.getBoolean(configKeys.SKULLED_DEATH_LOSE_STORE_ITEM), -- Destroy all items on store when dying with red/blackskull
+	PlayerLoseItemsOnDeath = configManager.getBoolean(configKeys.PLAYER_LOSE_ITEMS_ON_DEATH), -- false = non-skulled players never drop equipment/backpack on death
 }
 
 Blessings.Types = {
@@ -86,7 +87,7 @@ Blessings.PlayerDeath = function(player, corpse, killer)
 
 	if hasSkull then
 		Blessings.DropLoot(player, corpse, 100, true)
-	elseif #currBlessCount < 5 and not hasAol then
+	elseif Blessings.Config.PlayerLoseItemsOnDeath and #currBlessCount < 5 and not hasAol then
 		local equipLossChance = Blessings.LossPercent[#currBlessCount].item
 		Blessings.DropLoot(player, corpse, equipLossChance)
 	end

@@ -147,4 +147,48 @@
 			<flag canmapclickteleport="1" />
 		</flags>
 	</group>
+	<group id="7" name="bot" access="1" maxdepotitems="0" maxvipentries="0">
+		<flags>
+			<flag cannotusecombat="0" />
+			<flag cannotattackplayer="0" />
+			<flag cannotattackmonster="0" />
+			<flag cannotbeattacked="1" />
+			<flag canconvinceall="0" />
+			<flag cansummonall="0" />
+			<flag canillusionall="0" />
+			<flag cansenseinvisibility="1" />
+			<flag ignoredbymonsters="1" />
+			<flag ignoredbynpcs="1" />
+			<flag notgaininfight="1" />
+			<flag hasinfinitemana="0" />
+			<flag hasinfinitesoul="0" />
+			<flag hasnoexhaustion="0" />
+			<flag cannotusespells="0" />
+			<flag cannotpickupitem="0" />
+			<flag canalwayslogin="0" />
+			<flag canbroadcast="0" />
+			<flag canedithouses="0" />
+			<flag cannotbebanned="1" />
+			<flag cannotbepushed="1" />
+			<flag hasinfinitecapacity="0" />
+			<flag canpushallcreatures="1" />
+			<flag cantalkredprivate="0" />
+			<flag cantalkredchannel="0" />
+			<flag talkorangehelpchannel="0" />
+			<flag notgainexperience="1" />
+			<flag notgainmana="1" />
+			<flag notgainhealth="1" />
+			<flag notgainskill="1" />
+			<flag setmaxspeed="0" />
+			<flag specialvip="0" />
+			<flag notgenerateloot="1" />
+			<flag cantalkredchannelanonymous="0" />
+			<flag ignoreprotectionzone="0" />
+			<flag ignorespellcheck="0" />
+			<flag ignoreweaponcheck="0" />
+			<flag cannotbemuted="1" />
+			<flag isalwayspremium="1" />
+			<flag canmapclickteleport="0" />
+		</flags>
+	</group>
 </groups>

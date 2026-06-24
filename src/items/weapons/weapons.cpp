@@ -358,6 +358,11 @@ void Weapon::onUsedWeapon(const std::shared_ptr<Player> &player, const std::shar
 		player->changeSoul(-static_cast<int32_t>(soul));
 	}
 
+	// Bot players never consume ammo, charges, or break weapons
+	if (player->isBotPlayer()) {
+		return;
+	}
+
 	bool skipRemoveBeginningWeaponAmmo = !g_configManager().getBoolean(REMOVE_BEGINNING_WEAPON_AMMO) && (item->getName() == "arrow" || item->getName() == "bolt" || item->getName() == "spear");
 	if (!skipRemoveBeginningWeaponAmmo && breakChance != 0 && uniform_random(1, 100) <= breakChance) {
 		Weapon::decrementItemCount(item);
@@ -470,7 +475,7 @@ bool Weapon::calculateSkillFormula(const std::shared_ptr<Player> &player, int32_
 		attackValue += elementAttack;
 	}
 
-	if (useCharges) {
+	if (useCharges && !player->isBotPlayer()) {
 		const auto charges = tool->getAttribute<uint16_t>(ItemAttribute_t::CHARGES);
 		if (charges != 0) {
 			g_game().transformItem(tool, tool->getID(), charges - 1);

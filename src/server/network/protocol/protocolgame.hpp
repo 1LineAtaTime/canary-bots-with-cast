@@ -107,6 +107,12 @@ public:
 
 	void login(const std::string &name, uint32_t accnumber, OperatingSystem_t operatingSystem);
 	void logout(bool displayEffect, bool forced);
+	void castViewerLogin(const std::string &characterName);
+	void sendCastViewerInit();
+	size_t getKnownCreatureCount() const { return knownCreatureSet.size(); }
+	uint64_t getCastPacketsSent() const { return m_castPacketsSent; }
+	uint32_t getCastViewerNumber() const { return m_castViewerNumber; }
+	std::string getCastViewerName() const { return "Viewer-" + std::to_string(m_castViewerNumber); }
 
 	void AddItem(NetworkMessage &msg, const std::shared_ptr<Item> &item);
 	void AddItem(NetworkMessage &msg, uint16_t id, uint8_t count, uint8_t tier) const;
@@ -597,6 +603,12 @@ private:
 
 	void sendTakeScreenshot(Screenshot_t screenshotType);
 	void sendDisableLoginMusic();
+
+	bool m_isCastViewer = false;
+	uint32_t m_castViewerNumber = 0;
+	uint64_t m_castPacketsSent = 0;
+	// Last /lagmark from this viewer — used to debounce a viewer spamming the cmd
+	int64_t m_lastLagmarkMs = 0;
 
 	uint8_t m_playerDeathTime = 0;
 

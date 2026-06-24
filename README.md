@@ -1,68 +1,154 @@
-# OpenTibiaBR - Canary
+# Canary Bots with Cast
 
-[![Discord Channel](https://img.shields.io/discord/528117503952551936.svg?style=flat-square&logo=discord)](https://discord.gg/gvTj5sh9Mp)
-[![CI](https://github.com/opentibiabr/canary/actions/workflows/ci.yml/badge.svg)](https://github.com/opentibiabr/canary/actions/workflows/ci.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=opentibiabr_canary&metric=alert_status)](https://sonarcloud.io/dashboard?id=opentibiabr_canary)
-![GitHub repo size](https://img.shields.io/github/repo-size/opentibiabr/canary)
-[![GitHub license](https://img.shields.io/github/license/opentibiabr/canary.svg)](https://github.com/opentibiabr/canary/blob/main/LICENSE)
+A ready-to-run fork of the [OpenTibiaBR / Canary](https://github.com/opentibiabr/canary)
+MMORPG server that adds **autonomous bot players** and a **cast (spectator)
+system** — so a fresh server feels populated, and anyone can watch a live
+character (including bots) without an account.
 
-OpenTibiaBR - Canary is a free and open-source MMORPG server emulator written in C++. It is a fork of the [OTServBR-Global](https://github.com/opentibiabr/otservbr-global) project. To connect to the server and to take a stable experience, you can use [mehah's otclient](https://github.com/mehah/otclient)
-or [tibia client](https://github.com/dudantas/tibia-client/releases/latest) and if you want to edit something, check
-our [customized tools](https://docs.opentibiabr.com/opentibiabr/downloads/tools). If you want to edit the map, use our own [remere's map editor](https://github.com/opentibiabr/remeres-map-editor/).
+- **Bot players** hunt, travel between cities, chat, trade on the market, own
+  houses, form parties, and defend themselves. You choose how many are online
+  (0 → ~997).
+- **Cast** lets spectators log in with the account name `@cast` and watch any
+  broadcasting character; bots broadcast automatically and wake on click.
 
-## Getting Started
+Behavior, commands, and tuning: **[data/scripts/lib/BOT_SYSTEM_DOCS.md](data/scripts/lib/BOT_SYSTEM_DOCS.md)**.
+Complete developer documentation (architecture, behavior internals, performance,
+and tuning) for continuing development: **[data/scripts/lib/BOT_SYSTEM_DOCS_EXTENDED.md](data/scripts/lib/BOT_SYSTEM_DOCS_EXTENDED.md)**.
 
-- [Gitbook](https://docs.opentibiabr.com/opentibiabr/projects/canary).
-- [Wiki](https://github.com/opentibiabr/canary/wiki).
+> [!NOTE]
+> **Base version.** This repository is forked from `opentibiabr/canary` at commit
+> **`ded10949d`** (2026-02-19) and adds the bot + cast features on top. Use that
+> commit as the reference point for the underlying Canary version/protocol.
 
-## Running Tests
+## Tested on
 
-Tests can be run directly from the repository root using CMake test presets:
+| | |
+|---|---|
+| Host | Proxmox LXC container |
+| OS | Ubuntu 22.04.5 LTS (kernel 6.8.x) |
+| CPU | Intel Core i5-6260U (4 vCPU) |
+| RAM | 8 GB |
+| DB | MySQL / MariaDB |
+| Web | nginx + php-fpm 8.1 + MyAAC |
+| Client | OTClient Redemption (protocol 13+) |
+
+It runs comfortably with a few hundred bots online on this modest spec.
+
+---
+
+## Quick start
+
+> The build toolchain (vcpkg + CMake) is identical to upstream Canary. If you are
+> new to building Canary, follow the official
+> [build guides](https://github.com/opentibiabr/canary/tree/main/docs/building)
+> for the vcpkg/`VCPKG_ROOT` setup first — then build **this** repo (it already
+> contains the bot engine source).
+
+### 1. Build
 
 ```bash
-# Configure and build tests for your platform
-cmake --preset linux-debug && cmake --build --preset linux-debug
-
-# Run all tests
-ctest --preset linux-debug
-
-# For other platforms use:
-# ctest --preset macos-debug
-# ctest --preset windows-debug
+git clone <this-repo-url> canary-bots
+cd canary-bots
+cmake --preset linux-release -DTOGGLE_BIN_FOLDER=ON
+cmake --build --preset linux-release -j4
+# Low-RAM machines: build with fewer jobs, e.g.
+#   cmake --build build/linux-release -j2
 ```
 
-For detailed testing information including adding tests and framework usage, see [tests/README.md](tests/README.md).
+Outputs `canary` and `libbot_engine.so` under `build/linux-release/bin/`. Copy
+both next to your server working directory.
 
-## Support
+> Prefer not to compile? Prebuilt Linux binaries (`canary` + `libbot_engine.so`)
+> are attached to the GitHub **Releases** for this repo.
 
-If you need help, please visit our [discord](https://discord.gg/gvTj5sh9Mp). Our issue tracker is not a support forum, and using it as one will result in your issue being closed.
+### 2. Database
 
-## Contributing
+```bash
+mysql -u root -p -e "CREATE DATABASE canary DEFAULT CHARSET=utf8mb3;"
+mysql -u root -p canary < schema.sql
+# Seed the bot data (god account, bot account, bots, hunts, market, …):
+cd database/bots && DB_USER=root DB_PASS=yourpass DB_NAME=canary ./import.sh
+```
 
-Here are some ways you can contribute:
+See [database/bots/README.md](database/bots/README.md) for the manual import
+order and details. Default admin login afterwards is account **`@god`** /
+password **`god12345`** — change it after first login.
 
-- [Issue Tracker](https://github.com/opentibiabr/canary/issues/new/choose).
-- [Pull Request](https://github.com/opentibiabr/canary/pulls).
+### 3. Configure
 
-You are subject to our code of conduct, read at [this link](https://github.com/opentibiabr/canary/blob/main/CODE_OF_CONDUCT.md).
+```bash
+cp config.lua.dist config.lua
+```
 
-## Special Thanks
+Edit `config.lua`: set your `mysql*` connection, `ip = "127.0.0.1"` for a local
+install, and the bot keys (see below). Then download the world map
+[`otservbr.otbm`](https://github.com/opentibiabr/canary/releases) from the
+upstream Canary release matching the base version and place it per `mapName`.
 
-- Our contributors ([Canary](https://github.com/opentibiabr/canary/graphs/contributors) | [OTServBR-Global](https://github.com/opentibiabr/otservbr-global/graphs/contributors)).
+### 4. Run
 
-## Sponsors
+Start `canary` (the `.so` is loaded automatically). On first boot the migrations
+finish setting up the bot tables. Connect with an OTClient (protocol 13+).
 
-See our [donate page](https://docs.opentibiabr.com/home/donate).
+### 5. (Optional) Website + cast + client
 
-## Project supported by JetBrains
+- **Website / cast login:** install [MyAAC](https://github.com/slawkens/myaac)
+  and drop in our cast-aware `deployment/web/login.php` (it intercepts the
+  `@cast` account). See [deployment/client/README.md](deployment/client/README.md)
+  for the OTClient `init.lua` (`Services` / `Servers_init`) settings.
+- **Client:** [OTClient Redemption](https://github.com/opentibiabr/otclient).
 
-We extend our heartfelt gratitude to Jetbrains for generously granting us licenses to collaborate on this and various
-other open-source initiatives.
+---
 
-<a href="https://jb.gg/OpenSourceSupport/?from=https://github.com/opentibiabr/canary/">
-  <img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.svg" alt="JetBrains" width="150" />
-</a>
+## Bots at a glance
 
-## Partners
+- **How many:** `botPlayersOnline` in `config.lua` (default `500`, range `0`–~997).
+- **What they do:** idle/wander, walk to POIs (depot/temple/shops/NPCs), hunt,
+  travel by boat, chat (observer-gated banter + trade ads + keyword replies),
+  trade on the market, own & furnish houses, form parties, defend themselves,
+  and occasionally run gang raids. Bots no one can see **hibernate** to keep CPU
+  flat and **wake** when a player or cast viewer comes near.
+- **Geared & alive:** level/vocation-appropriate equipment with forge tiers and
+  imbuements, mounts, human-like mid-walk pauses, and the occasional dropped item.
 
-[![Supported by OTServ Brasil](https://raw.githubusercontent.com/otbr/otserv-brasil/main/otbr.png)](https://forums.otserv.com.br)
+### Key commands
+
+| Command | Who | Purpose |
+|---|---|---|
+| `/cavebot active` / `population` | god | list active bots / population |
+| `/cavebot reload` | god | hot-reload the bot engine (no restart) |
+| `/cavebot reload debug,N` | god | debug mode with N bots + telemetry |
+| `/cavebot claim` | player | reserve the hunt spawn you're standing in (bots won't take it; ~1h) |
+| `/cavebot release` | player | release a hunt spawn you claimed |
+| `/party` | player | summon nearby bots into your party |
+| `/cast on` · `/cast off` | player | start/stop broadcasting your character |
+| `/house "<name>" owner\|sub-owner\|release` | player | claim / sub-own / release a bot house |
+
+Spectate: log in with account name **`@cast`** (no password) and pick a character.
+
+Full command list: [BOT_SYSTEM_DOCS.md §12](data/scripts/lib/BOT_SYSTEM_DOCS.md).
+
+### Common config (`config.lua`)
+
+```lua
+botPlayersOnline       = 500    -- how many bots load at startup (0 disables)
+botPlayersShowAsOnline = true   -- count bots in the online list
+botDensityCapEnabled   = true   -- cap how many bots wake around a player
+botTelemetryEnabled    = false  -- leave off in production
+```
+
+All `bot*` keys are documented inline in `config.lua.dist` and grouped in
+[BOT_SYSTEM_DOCS.md §13](data/scripts/lib/BOT_SYSTEM_DOCS.md). They hot-reload via
+`/cavebot reload`.
+
+---
+
+## License & credits
+
+GPL-2.0 (inherited from Canary) — see [LICENSE](LICENSE). Bundled bot/market data
+is attributed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): community
+forum routes/ideas (incl. the Gesior Thais bot post), Gunzodus (house NPCs +
+decoration items), and Tibia Wiki / Fandom market data (CC BY-SA 3.0).
+
+Built on the upstream [Canary](https://github.com/opentibiabr/canary) server.
+Thanks to the Canary contributors and community ([Discord](https://discord.gg/gvTj5sh9Mp)).

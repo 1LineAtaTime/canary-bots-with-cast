@@ -1,3 +1,17 @@
+Canary Bot Players
+Copyright (C) 2024-2026 OpenTibiaBR Organization and Contributors
+
+This project is a fork of the Canary server (https://github.com/opentibiabr/canary)
+and is licensed under the GNU General Public License v2.0 (see below).
+
+This project incorporates data (hunt waypoints, target definitions, and script
+configurations) parsed from the third-party repositories listed in the
+THIRD-PARTY NOTICES section at the end of this file. The imported data resides
+in the project database and was generated using the tools in
+tools/bot_script_importer/.
+
+==============================================================================
+
                     GNU GENERAL PUBLIC LICENSE
                        Version 2, June 1991
 
@@ -337,3 +351,46 @@ proprietary programs.  If your program is a subroutine library, you may
 consider it more useful to permit linking proprietary applications with the
 library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.
+
+==============================================================================
+                        THIRD-PARTY NOTICES
+==============================================================================
+
+This project bundles bot data (hunt waypoints, target definitions, and
+city-navigation routes in database/bots/) derived from publicly available
+community information, and market price data derived in part from the Tibia
+community wiki. Full attribution is in THIRD_PARTY_NOTICES.md.
+
+------------------------------------------------------------------------------
+1. Tibia Wiki / Fandom (market prices)
+------------------------------------------------------------------------------
+   Source:     tibia.fandom.com
+   License:    Creative Commons Attribution-ShareAlike 3.0 (CC BY-SA 3.0)
+               https://creativecommons.org/licenses/by-sa/3.0/
+   Usage:      Item market price references in
+               database/bots/11_bot_market_item_prices.sql.
+
+------------------------------------------------------------------------------
+2. Gunzodus (house content)
+------------------------------------------------------------------------------
+   Source:     Gunzodus (community content)
+   Usage:      House NPCs and house decoration items used by the bot house
+               system. Redistributors should verify upstream licensing/terms.
+
+------------------------------------------------------------------------------
+3. Community forums (bot routes / ideas)
+------------------------------------------------------------------------------
+   Source:     Community forum posts, incl. the Gesior Thais bot forum post
+   Usage:      Some bot waypoint routes/ideas were adapted from publicly posted
+               content. Attribution to respective authors where known.
+
+==============================================================================
+                     UPSTREAM PROJECT NOTICE
+==============================================================================
+
+This project is a fork of the Canary server:
+   Repository: https://github.com/opentibiabr/canary
+   License:    GNU General Public License v2.0 (GPL-2.0)
+
+The original Canary server code and all modifications in this fork are
+distributed under the same GPL-2.0 license reproduced above.

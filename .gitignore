@@ -371,7 +371,11 @@ tasks.json
 
 ## CUSTOM
 # Files
-config.lua
+# config.lua is now tracked (single-deployment project — LXC config = repo config).
+# Upstream Canary leaves it gitignored as a per-deployment file; we override that
+# so changes to runtime config flow through git like code: edit locally → push →
+# pull on LXC → systemctl restart canary. config.lua.dist remains the
+# upstream-merge surface for diffing new upstream keys.
 config_canary.lua
 client_assertions.txt
 .env
@@ -406,3 +410,32 @@ cmake-build-*
 compile_commands.json
 /plan
 /enc_temp_folder
+
+/tools/*
+!/tools/bot_population_generator/
+/tools/bot_population_generator/__pycache__/
+!/tools/house_tile_extractor/
+/tools/house_tile_extractor/house_tiles.lua
+/tools/house_tile_extractor/house_tiles.json
+!/tools/bot_chat_generator/
+/tools/bot_chat_generator/__pycache__/
+/tools/bot_chat_generator/generated/
+!/tools/house_ingestion/
+/tools/house_ingestion/house_dump_data.lua
+/tools/house_ingestion/__pycache__/
+/tools/house_ingestion/snapshots/
+/implementation_plans/
+# Per-machine Claude Code config + secrets — stay local.
+# (Project-shared .claude/CLAUDE.md and .claude/skills/ are committed.)
+.claude/settings.local.json
+.claude/secrets.local
+.claude/secrets.local.*
+# Raw multi-agent investigation reports (2026-06-10 lagmark root cause) — local
+# reference only; durable conclusions live in memory + the soak history.
+.claude/tmp_lagmark/
+!CPP_BOT_ENGINE_PROGRESS.md
+/research/
+_backup/
+
+# dadsmmolab one-install generated env
+/.env

@@ -19,6 +19,7 @@
 #include "lua/callbacks/events_callbacks.hpp"
 #include "map/spectators.hpp"
 #include "utils/astarnodes.hpp"
+#include "config/configmanager.hpp"
 
 void Map::load(const std::string &identifier, const Position &pos) {
 	try {
@@ -661,7 +662,17 @@ std::shared_ptr<Tile> Map::canWalkTo(const std::shared_ptr<Creature> &creature, 
 
 	const auto &tile = getTile(pos.x, pos.y, pos.z);
 	if (creature->getTile() != tile) {
-		if (!tile || tile->queryAdd(0, creature, 1, FLAG_PATHFINDING | FLAG_IGNOREFIELDDAMAGE) != RETURNVALUE_NOERROR) {
+		uint32_t flags = FLAG_PATHFINDING | FLAG_IGNOREFIELDDAMAGE;
+		// Bot players can push items like strong monsters — let A* path through blocked tiles
+		const auto &player = creature->getPlayer();
+		if (player && player->isBotPlayer()) {
+			flags |= FLAG_IGNOREBLOCKITEM;
+			// Allow bots to path through creatures in PZ (push behavior, like real Tibia)
+			if (tile && tile->hasFlag(TILESTATE_PROTECTIONZONE)) {
+				flags |= FLAG_IGNOREBLOCKCREATURE;
+			}
+		}
+		if (!tile || tile->queryAdd(0, creature, 1, flags) != RETURNVALUE_NOERROR) {
 			return nullptr;
 		}
 	}

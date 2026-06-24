@@ -283,6 +283,172 @@ autoLoot = false
 autoBank = false
 toggleGoldPouchAllowAnything = false
 toggleGoldPouchQuickLootOnly = false
+
+-- NOTE: botPlayersOnline sets how many bot players to load on startup (drawn
+-- stratified by level/vocation/town from the bot pool in MySQL). Capped at the
+-- total bots seeded in the players table (account_id=65000). Default 500.
+botPlayersOnline = 500
+
+-- NOTE: botPlayersShowAsOnline includes bot players (both hibernated and awake)
+-- in the website's online list / player count. Set to false to only show real
+-- players + awake bots (pre-hibernation behavior).
+botPlayersShowAsOnline = true
+
+-- NOTE: Phase B density-capped wake — limits how many hibernated bots can wake
+-- within proximity rings of a real-player anchor (or cast-watched bot anchor).
+-- Real players + cast-watched bots within `botDensityAnchorClusterRadius` tiles
+-- merge into a single anchor cluster (centroid). Per cluster, bots that would
+-- wake near the centroid are gated against three concentric ring caps:
+--   inner ring (botDensityCapInnerRadius)  — ~screen-visible (7 tiles) / 0.6% of botPlayersOnline
+--   mid ring   (botDensityCapMidRadius)    — 50 tiles / 2.0%
+--   outer ring (botDensityCapOuterRadius)  — 100 tiles / 3.0%
+-- Ring LIMITS are PERCENTAGES of botPlayersOnline, truncated to whole bots
+-- (at 500: 0.6% -> 3, 2.0% -> 10, 3.0% -> 15). NOTE the truncation: the inner
+-- pct floors to 0 below ~167 total bots, which gates ALL wakes near players.
+-- Radii stay absolute tile distances.
+-- When a cap is hit, the would-be-woken bot stays hibernated (passive cap; no
+-- force-hibernate of already-awake bots). Party-leader cascades are EXEMPT —
+-- a granted leader wakes all party members regardless of cap.
+-- Set `botDensityCapEnabled = false` to disable all gating (telemetry still fires).
+botDensityCapEnabled = true
+botDensityCapInnerRadius = 7
+botDensityCapInnerLimitPct = 0.6
+botDensityCapMidRadius = 50
+botDensityCapMidLimitPct = 2.0
+botDensityCapOuterRadius = 100
+botDensityCapOuterLimitPct = 3.0
+botDensityAnchorClusterRadius = 50
+
+-- NOTE: Bot Liveness Pack tuning knobs. See data/scripts/lib/BOT_SYSTEM_DOCS.md
+-- for the full design. All bot* keys are load-once (configmanager reads them inside
+-- the initial-load block only) — edit config.lua and RESTART the server; /reload
+-- config does NOT re-read them. Do not touch unless you understand the trade-offs
+-- documented in the plan.
+-- ---- POI selection weights (relative) ----
+-- Higher value = bots roll this POI type more often during activity reroll.
+botPoiWeightDepot           = 40
+botPoiWeightDepotOutside    = 20
+botPoiWeightTemple          = 10
+botPoiWeightBoat            = 20
+botPoiWeightShop            = 10  -- bumped 5->10 to populate shop fronts
+botPoiWeightNpc             = 8   -- bumped 3->8 to populate banks / quest NPCs
+botPoiWeightAdventurerStone = 10
+-- ---- Top-level activity reroll weights (must sum to 100) ----
+botRerollWeightIdle   = 15
+botRerollWeightPoi    = 35   -- bumped 25->35 (deducted from hunt)
+botRerollWeightHunt   = 25   -- trimmed 35->25
+botRerollWeightTravel = 25
+-- ---- Dwell / cooldown durations (seconds) ----
+botRerollCooldownSec   = 30
+botDwellRerollMinSec   = 60
+botDwellRerollMaxSec   = 300
+botDwellPoiMinSec      = 180  -- widened from 120 — bots linger long enough to be noticed
+botDwellPoiMaxSec      = 900  -- widened from 600
+botDwellNpcMinSec      = 15
+botDwellNpcMaxSec      = 60
+botDwellPostTravelSec  = 60
+-- ---- Adventurer's Stone dwell ranges (seconds) ----
+botAdvStoneDwellIdleMinSec   = 60
+botAdvStoneDwellIdleMaxSec   = 300
+botAdvStoneDwellChestMinSec  = 300   -- NEW: chest dwell distinct from idle (was 60-300)
+botAdvStoneDwellChestMaxSec  = 1200
+botAdvStoneDwellDummyMinSec  = 180
+botAdvStoneDwellDummyMaxSec  = 1800
+-- Max % of botPlayersOnline concurrently in the reward-chest + training-dummy
+-- sub-activities (live + hibernated trips both count; capped bots demote to
+-- waypoint idling). 2.5% of 500 -> floor(12.5) = 12. Floors to 0 below 40 bots.
+botAdvStoneChestDummyCapPct  = 2.5
+-- ---- Visual identity ----
+botMountChancePct                = 60     -- chance a bot is mounted at activation (was dead-code 30)
+botPersonalityRerollOnRestart    = true   -- shuffle mount+outfit+colors at every server restart
+-- ---- POI crowd cap ----
+-- Skip a POI if >= count bots are already within radius tiles. Exempts AdvStone island.
+botPoiCrowdCapCount  = 3
+botPoiCrowdCapRadius = 2
+-- ---- Idle micro-actions ----
+-- Halved from 20 to 10 after observation showed turning was too frequent.
+botTurnInPlaceChancePct     = 10
+botTurnInPlaceIntervalTicks = 25
+-- Idle litter drop (drop-only): bots that stop for >=1s while idle/dwelling roll a
+-- chance to drop one cheap NPC-buyable item on the floor (never picked back up).
+-- Chance is scaled per-bot then clamped to 95%, and capped at one drop per awake session.
+botFidgetChancePct          = 38
+botFidgetIntervalMinSec     = 60   -- unused (legacy timer-based fidget); kept for compat
+botFidgetIntervalMaxSec     = 300  -- unused (legacy timer-based fidget); kept for compat
+botFidgetMaxItemValueGp     = 1000 -- max NPC buy price (gp): item drops if 0 < buyPrice < this
+-- ---- Gang-PK alpha-strike ----
+-- Idle bots in a PZ jump an exposed victim just outside it: stage, step out together, surround +
+-- magic-wall-box, burst with single-target nukes only (no AoE = no collateral). EDs paralyze a
+-- fleeing victim. Very rare, observer-gated, 5%-skull-cap bounded. 50/50 nuke-first vs trap-first.
+botGangEnable            = true
+botGangRequireObserver   = true   -- only form near a real player / cast-viewer
+botGangTargetPlayers     = true   -- include real players as victims (false = bots-only)
+botGangMinSize           = 5      -- attackers required for a raid (summoned from town)
+botGangMaxSize           = 6      -- (unused — raids gather exactly botGangMinSize)
+botGangRecruitRadius     = 5      -- tiles: pull idle bots in the same PZ to join
+botGangVictimBand        = 3      -- tiles outside the PZ edge the victim must be within
+botGangStageWindowMs     = 2500   -- barrier timeout before forced burst
+botGangScanCooldownMs    = 4000
+botGangOddsVsPlayer      = 660    -- 1-in-N per eligible scan vs a real player (~0.15%) — 1/5 chance
+botGangOddsVsBot         = 400    -- 1-in-N per eligible scan vs a bot (~0.25%)
+botGangWallChancePct     = 80     -- chance to magic-wall a claimed open escape tile
+botGangParalyzeChancePct = 75     -- chance an ED paralyzes a moving victim
+botGangVictimCooldownSec = 86400  -- seconds before the SAME victim can be jumped again (default 1 day)
+-- ---- PZ-blocked roaming ----
+botPzRoamEnable          = true
+botPzRoamIntervalMinSec  = 20
+botPzRoamIntervalMaxSec  = 60
+botPzRoamStayPct         = 40     -- stay+turn vs walk to a non-PZ tile
+-- ---- Mid-walk pause ----
+-- Hard cap per route avoids the clustering that motivated removing the old
+-- LOITER_CHANCE feature in commit ead32465d. Pauses fire ONLY in IDLE/DWELLING/
+-- TRAVELING states (never hunting/patrolling/party/PvP/PK/flee/floor-change).
+-- Unobserved tier (nobody watching): short, modest, no personality gate.
+botWalkPauseChancePct   = 2
+botWalkPauseMinMs       = 400
+botWalkPauseMaxMs       = 5000
+botWalkPauseMaxPerRoute = 3
+-- Observed tier (a real player or cast-watched bot is on screen): longer, more
+-- frequent pauses so bots look human while someone is actually watching. Gated by
+-- each bot's personality (walkBias trait): ~bottom 25% of bots never pause this way,
+-- and the rest scale their chance up with the trait, so some bots reliably pause
+-- near players while others ignore it. Tune frequency via ObservedChancePct without
+-- a rebuild (hot-reloadable via /cavebot reload).
+botWalkPauseObservedChancePct   = 12
+botWalkPauseObservedMinMs       = 500
+botWalkPauseObservedMaxMs       = 20000
+botWalkPauseObservedMaxPerRoute = 8
+-- ---- Local chat ----
+botChatCooldownMinMs = 30000
+botChatCooldownMaxMs = 300000
+-- ---- World Chat + Advertising channel posting ----
+-- World Chat: per-bot 20-40 min => ~1 post/min server-wide at 30 awake bots.
+botWorldChatIntervalMinMs = 1200000
+botWorldChatIntervalMaxMs = 2400000
+-- Advertising: server-side script enforces 2-min mute condition regardless.
+botAdvertisingIntervalMinMs = 300000
+botAdvertisingIntervalMaxMs = 600000
+-- ---- Anti-repeat ring ----
+botChatAntiRepeatRingSize = 8  -- Playerbots doesn't have anti-repeat; this is our addition
+-- ---- Master chat-rate knob ----
+-- Multiplier on overall chat rate (Local Chat + World Chat + Advertising combined).
+-- 100 = no-op (per-category chance values stand alone). 50 = halve overall rate.
+-- 0 = silence all chat. Useful as a single dial without re-tuning per-category.
+botChatMasterChancePct = 100
+-- ---- Hibernated bot channel chat ----
+-- When true, hibernated bots (off-world) can still post to World Chat (channel 3)
+-- and Advertising (channel 5). They never post Local Chat (TALKTYPE_SAY) since
+-- they're not physically in the world. Set false to silence hibernated traffic.
+botHibernatedChatEnabled = true
+-- ---- Verbose chat logging ----
+botChatVerboseLog = false  -- set true to log every chat emission to journalctl
+-- ---- Telemetry (off by default) ----
+-- When true, bots write a row to bot_chat_emissions on every confirmed chat line
+-- (offline dup-rate measurement only). These tables are NEVER read by runtime logic
+-- — chat anti-repeat/throttle is fully in-memory — so leaving this false has no
+-- behavioral effect. Hot-reloadable via /cavebot reload.
+botTelemetryEnabled = false
+
 toggleServerIsRetroPVP = false
 toggleTravelsFree = false
 buyAolCommandFee = 0
@@ -378,6 +544,14 @@ housePurchasedShowPrice = false
 houseLoseAfterInactivity = 30 -- days; 0 = never
 onlyInvitedCanMoveHouseItems = true
 togglehouseTransferOnRestart = true
+
+-- House backfill (used by the /housebackfill admin talkaction)
+-- houseOccupancyTargetPct        — % of total houses bots should own + decorate. Remaining % stays unowned for real players to rent.
+-- houseBackfillHirelingChancePct — per-house chance to receive a random fantasy-seller hireling during backfill. Deterministic: floor(N * pct/100) houses get one.
+-- houseBackfillTileDecorationPct — per-tile chance, inside a backfilled house, to place a random decoration template drawn from the existing dump.
+houseOccupancyTargetPct = 80
+houseBackfillHirelingChancePct = 5
+houseBackfillTileDecorationPct = 75
 
 -- Item Usage
 timeBetweenActions = 200
@@ -608,6 +782,11 @@ metricsPrometheusAddress = "0.0.0.0:9464"
 --- OStream
 metricsEnableOstream = false
 metricsOstreamInterval = 1000
+
+-- Cast/Livestream System
+castEnabled = true
+castMaxViewers = 50
+castMaxViewersPerIp = 3
 
 -- OTC Features
 -- NOTE: Features added in this list will be forced to be used on OTCR

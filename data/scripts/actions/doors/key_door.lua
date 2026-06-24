@@ -27,6 +27,24 @@ end
 
 local keyDoor = Action()
 function keyDoor.onUse(player, item, fromPosition, target, toPosition, isHotkey)
+	-- Bot players bypass all key requirements — open any locked door directly
+	if player:isBotPlayer() then
+		for index, value in ipairs(KeyDoorTable) do
+			if value.lockedDoor == item.itemid or value.closedDoor == item.itemid then
+				item:transform(value.openDoor)
+				local pos = item:getPosition()
+				if pos then
+					pos:sendSingleSoundEffect(SOUND_EFFECT_TYPE_ACTION_OPEN_DOOR)
+				end
+				return true
+			end
+			if value.openDoor == item.itemid then
+				return true -- already open, do nothing
+			end
+		end
+		return true
+	end
+
 	-- It is locked msg
 	if table.contains(keyLockedDoor, item.itemid) or (table.contains(keyUnlockedDoor, item.itemid) and table.contains({ 1001, 101 }, item.actionid)) then
 		player:sendTextMessage(MESSAGE_LOOK, "It is locked.")
@@ -37,7 +55,10 @@ function keyDoor.onUse(player, item, fromPosition, target, toPosition, isHotkey)
 	for index, value in ipairs(KeyDoorTable) do
 		if value.closedDoor == item.itemid then
 			item:transform(value.openDoor)
-			item:getPosition():sendSingleSoundEffect(SOUND_EFFECT_TYPE_ACTION_OPEN_DOOR)
+			local pos = item:getPosition()
+			if pos then
+				pos:sendSingleSoundEffect(SOUND_EFFECT_TYPE_ACTION_OPEN_DOOR)
+			end
 			return true
 		end
 	end
@@ -47,7 +68,10 @@ function keyDoor.onUse(player, item, fromPosition, target, toPosition, isHotkey)
 				return false
 			end
 			item:transform(value.closedDoor)
-			item:getPosition():sendSingleSoundEffect(SOUND_EFFECT_TYPE_ACTION_CLOSE_DOOR)
+			local pos = item:getPosition()
+			if pos then
+				pos:sendSingleSoundEffect(SOUND_EFFECT_TYPE_ACTION_CLOSE_DOOR)
+			end
 			return true
 		end
 	end

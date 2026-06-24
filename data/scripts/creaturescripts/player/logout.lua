@@ -25,6 +25,13 @@ function playerLogout.onLogout(player)
 		_G.OnExerciseTraining[playerId] = nil
 		player:setTraining(false)
 	end
+
+	-- Clean up cast broadcasting on logout
+	if player:isCastBroadcasting() then
+		player:setCastBroadcasting(false)
+		db.query("DELETE FROM `cast_broadcasters` WHERE `player_id` = " .. player:getGuid())
+	end
+
 	return true
 end
 

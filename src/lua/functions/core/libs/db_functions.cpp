@@ -9,6 +9,7 @@
 
 #include "lua/functions/core/libs/db_functions.hpp"
 
+#include "database/botdatabasetasks.hpp"
 #include "database/databasemanager.hpp"
 #include "database/databasetasks.hpp"
 #include "lua/scripts/lua_environment.hpp"
@@ -20,6 +21,11 @@ void DBFunctions::init(lua_State* L) {
 	Lua::registerMethod(L, "db", "asyncQuery", DBFunctions::luaDatabaseAsyncExecute);
 	Lua::registerMethod(L, "db", "storeQuery", DBFunctions::luaDatabaseStoreQuery);
 	Lua::registerMethod(L, "db", "asyncStoreQuery", DBFunctions::luaDatabaseAsyncStoreQuery);
+	// Bundle 6 (2026-06-11): bot variants route to the dedicated BotDatabaseTasks
+	// worker (own thread + own connection) instead of the shared pool — see
+	// botdatabasetasks.hpp for the worker-theft rationale. Bot Lua only.
+	Lua::registerMethod(L, "db", "botAsyncQuery", DBFunctions::luaDatabaseBotAsyncExecute);
+	Lua::registerMethod(L, "db", "botAsyncStoreQuery", DBFunctions::luaDatabaseBotAsyncStoreQuery);
 	Lua::registerMethod(L, "db", "escapeString", DBFunctions::luaDatabaseEscapeString);
 	Lua::registerMethod(L, "db", "escapeBlob", DBFunctions::luaDatabaseEscapeBlob);
 	Lua::registerMethod(L, "db", "lastInsertId", DBFunctions::luaDatabaseLastInsertId);
@@ -57,6 +63,70 @@ int DBFunctions::luaDatabaseAsyncExecute(lua_State* L) {
 		};
 	}
 	g_databaseTasks().execute(Lua::getString(L, -1), callback);
+	return 0;
+}
+
+int DBFunctions::luaDatabaseBotAsyncExecute(lua_State* L) {
+	// Mirror of luaDatabaseAsyncExecute targeting g_botDatabaseTasks() (bundle 6).
+	std::function<void(DBResult_ptr, bool)> callback;
+	if (lua_gettop(L) > 1) {
+		int32_t ref = luaL_ref(L, LUA_REGISTRYINDEX);
+		auto scriptId = Lua::getScriptEnv()->getScriptId();
+		callback = [ref, scriptId](const DBResult_ptr &, bool success) {
+			lua_State* luaState = g_luaEnvironment().getLuaState();
+			if (!luaState) {
+				return;
+			}
+
+			if (!Lua::reserveScriptEnv()) {
+				luaL_unref(luaState, LUA_REGISTRYINDEX, ref);
+				return;
+			}
+
+			lua_rawgeti(luaState, LUA_REGISTRYINDEX, ref);
+			Lua::pushBoolean(luaState, success);
+			const auto env = Lua::getScriptEnv();
+			env->setScriptId(scriptId, &g_luaEnvironment());
+			g_luaEnvironment().callFunction(1);
+
+			luaL_unref(luaState, LUA_REGISTRYINDEX, ref);
+		};
+	}
+	g_botDatabaseTasks().execute(Lua::getString(L, -1), callback);
+	return 0;
+}
+
+int DBFunctions::luaDatabaseBotAsyncStoreQuery(lua_State* L) {
+	// Mirror of luaDatabaseAsyncStoreQuery targeting g_botDatabaseTasks() (bundle 6).
+	std::function<void(DBResult_ptr, bool)> callback;
+	if (lua_gettop(L) > 1) {
+		int32_t ref = luaL_ref(L, LUA_REGISTRYINDEX);
+		auto scriptId = Lua::getScriptEnv()->getScriptId();
+		callback = [ref, scriptId](const DBResult_ptr &result, bool) {
+			lua_State* luaState = g_luaEnvironment().getLuaState();
+			if (!luaState) {
+				return;
+			}
+
+			if (!Lua::reserveScriptEnv()) {
+				luaL_unref(luaState, LUA_REGISTRYINDEX, ref);
+				return;
+			}
+
+			lua_rawgeti(luaState, LUA_REGISTRYINDEX, ref);
+			if (result) {
+				lua_pushnumber(luaState, ScriptEnvironment::addResult(result));
+			} else {
+				Lua::pushBoolean(luaState, false);
+			}
+			const auto env = Lua::getScriptEnv();
+			env->setScriptId(scriptId, &g_luaEnvironment());
+			g_luaEnvironment().callFunction(1);
+
+			luaL_unref(luaState, LUA_REGISTRYINDEX, ref);
+		};
+	}
+	g_botDatabaseTasks().store(Lua::getString(L, -1), callback);
 	return 0;
 }
 

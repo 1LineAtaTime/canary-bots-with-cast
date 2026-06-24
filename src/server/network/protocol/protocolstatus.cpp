@@ -11,6 +11,7 @@
 
 #include "config/configmanager.hpp"
 #include "core.hpp"
+#include "creatures/players/bot/bot_engine.hpp"
 #include "creatures/players/player.hpp"
 #include "game/game.hpp"
 #include "game/scheduling/dispatcher.hpp"
@@ -106,23 +107,15 @@ void ProtocolStatus::sendStatusString() {
 	owner.append_attribute("email") = g_configManager().getString(OWNER_EMAIL).c_str();
 
 	pugi::xml_node players = tsqp.append_child("players");
-	uint32_t real = 0;
-	std::map<uint32_t, uint32_t> listIP;
-	for (const auto &[key, player] : g_game().getPlayers()) {
-		if (player->getIP() != 0) {
-			auto ip = listIP.find(player->getIP());
-			if (ip != listIP.end()) {
-				listIP[player->getIP()]++;
-				if (listIP[player->getIP()] < 5) {
-					real++;
-				}
-			} else {
-				listIP[player->getIP()] = 1;
-				real++;
-			}
-		}
+	// Unified with sendInfo()'s binary 0x20 path: same formula so the XML probe,
+	// binary probe, and the players_online DB table all report the same count.
+	// (The prior IP-dedup-cap-5 anti-multiclient filter was dropped — it excluded
+	// awake bots, which have IP=0, causing the sidebar widget to undercount.)
+	size_t playerCount = g_game().getPlayersOnline();
+	if (g_configManager().getBoolean(BOT_PLAYERS_SHOW_AS_ONLINE)) {
+		playerCount += g_botEngine().getHibernatedBotCount();
 	}
-	players.append_attribute("online") = std::to_string(real).c_str();
+	players.append_attribute("online") = std::to_string(playerCount).c_str();
 	players.append_attribute("max") = std::to_string(g_configManager().getNumber(MAX_PLAYERS)).c_str();
 	players.append_attribute("peak") = std::to_string(g_game().getPlayersRecord()).c_str();
 
@@ -186,7 +179,11 @@ void ProtocolStatus::sendInfo(uint16_t requestedInfo, const std::string &charact
 
 	if (requestedInfo & REQUEST_PLAYERS_INFO) {
 		output->addByte(0x20);
-		output->add<uint32_t>(static_cast<uint32_t>(g_game().getPlayersOnline()));
+		size_t playerCount = g_game().getPlayersOnline();
+		if (g_configManager().getBoolean(BOT_PLAYERS_SHOW_AS_ONLINE)) {
+			playerCount += g_botEngine().getHibernatedBotCount();
+		}
+		output->add<uint32_t>(static_cast<uint32_t>(playerCount));
 		output->add<uint32_t>(g_configManager().getNumber(MAX_PLAYERS));
 		output->add<uint32_t>(g_game().getPlayersRecord());
 	}

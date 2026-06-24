@@ -71,6 +71,10 @@ private:
 	friend class Dispatcher;
 };
 
+// Forward declaration so Dispatcher can friend Game without including game.hpp
+// (avoids circular include — game.hpp transitively pulls dispatcher.hpp via many paths).
+class Game;
+
 /**
  * Dispatcher allow you to dispatch a task async to be executed
  * in the dispatching thread. You can dispatch with an expiration
@@ -80,7 +84,16 @@ class Dispatcher {
 public:
 	explicit Dispatcher(ThreadPool &threadPool) :
 		threadPool(threadPool) {
-		threads.reserve(threadPool.get_thread_count() + 1);
+		// INVARIANT: one ThreadTask slot for EVERY thread that ever calls
+		// addEvent/addWalkEvent/scheduleEvent/asyncEvent — ThreadPool::getThreadId()
+		// hands out global sequential ids to ANY first-calling thread, and
+		// getThreadTask() indexes this vector with it unchecked.
+		// HOTFIX 2026-06-11 (bundle 6 SEGV): "+1" covered pool threads + the main/asio
+		// thread exactly; the new dedicated BotDatabaseTasks worker claimed id
+		// pool_count+1 -> threads[OOB] -> garbage mutex (0x389) -> SIGSEGV ~2min into
+		// every boot. "+4" = main/asio + BotDatabaseTasks + 2 headroom slots for any
+		// future dedicated thread that needs to talk to the dispatcher.
+		threads.reserve(threadPool.get_thread_count() + 4);
 		for (uint_fast16_t i = 0; i < threads.capacity(); ++i) {
 			threads.emplace_back(std::make_unique<ThreadTask>());
 		}
@@ -145,6 +158,22 @@ public:
 		return dispacherContext;
 	}
 
+	// PERF_INVESTIGATION_2026-05-24 pre-flight telemetry. Returns true when called
+	// from the dispatcher main loop thread. Used by database.cpp to detect sync
+	// MariaDB queries firing on the dispatcher (which block all other tasks).
+	// Compares std::this_thread::get_id() against the id captured in init().
+	// Gated by env var BOT_PERF_TELEMETRY=1 in callers — this accessor itself is free.
+	[[nodiscard]] static bool isOnDispatcherThread();
+
+	// Public read-only access to the shutdown flag set by Dispatcher::shutdown().
+	// Used by SpawnMonster::checkSpawnMonster, SpawnNpc::checkSpawnNpc, and
+	// similar re-scheduling lambdas to bail before re-enqueuing a [this]
+	// capture during shutdown. See dispatcher.cpp::executeScheduledEvents
+	// for the corresponding early-return guard. Background:
+	// upstream PR #3527 added the flag for new enqueues; this exposes it so
+	// callers can avoid scheduling at all during the shutdown window.
+	[[nodiscard]] bool isShuttingDown() const { return shuttingDown; }
+
 private:
 	thread_local static DispatcherContext dispacherContext;
 
@@ -157,6 +186,14 @@ private:
 	}
 
 	void init();
+	// Sets the shuttingDown flag; called from CanaryServer::shutdown() at process
+	// teardown AND from Game::shutdown() at the start of game shutdown to close
+	// the queued-task race window. Once set:
+	//   - All scheduleEvent/addEvent/asyncEvent calls silently drop (existing PR #3527 behavior).
+	//   - Dispatcher::executeScheduledEvents() short-circuits without firing any
+	//     queued tasks (see dispatcher.cpp). This prevents [this]-capturing
+	//     lambdas in SpawnMonster/SpawnNpc/etc from executing on objects that
+	//     Game::shutdown() is about to destroy via map.spawnsMonster.clear().
 	void shutdown() {
 		signalSchedule.notify_all();
 		shuttingDown = true;
@@ -239,6 +276,13 @@ private:
 	bool shuttingDown = false;
 
 	friend class CanaryServer;
+	// Game::shutdown() needs to call Dispatcher::shutdown() at the START of game
+	// shutdown (BEFORE map.spawnsMonster.clear() destroys SpawnMonster instances).
+	// Without this ordering, queued [this]{checkSpawnMonster();} lambdas execute
+	// on dangling pointers → glibc "corrupted double-linked list" abort.
+	// See spawn_monster.cpp:166-170 for the unsafe raw-this capture and
+	// game.cpp::Game::shutdown() for the ordering fix.
+	friend class Game;
 };
 
 constexpr auto g_dispatcher = Dispatcher::getInstance;

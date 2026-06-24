@@ -48,6 +48,12 @@ void PlayerFunctions::init(lua_State* L) {
 	Lua::registerMethod(L, "Player", "getCharmChance", PlayerFunctions::luaPlayerGetCharmChance);
 	Lua::registerMethod(L, "Player", "resetOldCharms", PlayerFunctions::luaPlayerResetOldCharms);
 	Lua::registerMethod(L, "Player", "isPlayer", PlayerFunctions::luaPlayerIsPlayer);
+	Lua::registerMethod(L, "Player", "isBotPlayer", PlayerFunctions::luaPlayerIsBotPlayer);
+	Lua::registerMethod(L, "Player", "setBotPlayer", PlayerFunctions::luaPlayerSetBotPlayer);
+
+	Lua::registerMethod(L, "Player", "isCastBroadcasting", PlayerFunctions::luaPlayerIsCastBroadcasting);
+	Lua::registerMethod(L, "Player", "setCastBroadcasting", PlayerFunctions::luaPlayerSetCastBroadcasting);
+	Lua::registerMethod(L, "Player", "getCastViewerCount", PlayerFunctions::luaPlayerGetCastViewerCount);
 
 	Lua::registerMethod(L, "Player", "getGuid", PlayerFunctions::luaPlayerGetGuid);
 	Lua::registerMethod(L, "Player", "getIp", PlayerFunctions::luaPlayerGetIp);
@@ -103,6 +109,7 @@ void PlayerFunctions::init(lua_State* L) {
 
 	Lua::registerMethod(L, "Player", "getSkullTime", PlayerFunctions::luaPlayerGetSkullTime);
 	Lua::registerMethod(L, "Player", "setSkullTime", PlayerFunctions::luaPlayerSetSkullTime);
+	Lua::registerMethod(L, "Player", "getSkullClient", PlayerFunctions::luaPlayerGetSkullClient);
 	Lua::registerMethod(L, "Player", "getDeathPenalty", PlayerFunctions::luaPlayerGetDeathPenalty);
 
 	Lua::registerMethod(L, "Player", "getExperience", PlayerFunctions::luaPlayerGetExperience);
@@ -216,6 +223,8 @@ void PlayerFunctions::init(lua_State* L) {
 	Lua::registerMethod(L, "Player", "openChannel", PlayerFunctions::luaPlayerOpenChannel);
 
 	Lua::registerMethod(L, "Player", "getSlotItem", PlayerFunctions::luaPlayerGetSlotItem);
+	Lua::registerMethod(L, "Player", "setSlotItem", PlayerFunctions::luaPlayerSetSlotItem);
+	Lua::registerMethod(L, "Player", "castSpell", PlayerFunctions::luaPlayerCastSpell);
 
 	Lua::registerMethod(L, "Player", "getParty", PlayerFunctions::luaPlayerGetParty);
 
@@ -286,8 +295,10 @@ void PlayerFunctions::init(lua_State* L) {
 	Lua::registerMethod(L, "Player", "canCast", PlayerFunctions::luaPlayerCanCast);
 
 	Lua::registerMethod(L, "Player", "hasChaseMode", PlayerFunctions::luaPlayerHasChaseMode);
+	Lua::registerMethod(L, "Player", "setChaseMode", PlayerFunctions::luaPlayerSetChaseMode);
 	Lua::registerMethod(L, "Player", "hasSecureMode", PlayerFunctions::luaPlayerHasSecureMode);
 	Lua::registerMethod(L, "Player", "getFightMode", PlayerFunctions::luaPlayerGetFightMode);
+	Lua::registerMethod(L, "Player", "setFightMode", PlayerFunctions::luaPlayerSetFightMode);
 
 	Lua::registerMethod(L, "Player", "getBaseXpGain", PlayerFunctions::luaPlayerGetBaseXpGain);
 	Lua::registerMethod(L, "Player", "setBaseXpGain", PlayerFunctions::luaPlayerSetBaseXpGain);
@@ -666,6 +677,64 @@ int PlayerFunctions::luaPlayerAddMinorCharmEchoes(lua_State* L) {
 int PlayerFunctions::luaPlayerIsPlayer(lua_State* L) {
 	// player:isPlayer()
 	Lua::pushBoolean(L, Lua::getUserdataShared<Player>(L, 1, "Player") != nullptr);
+	return 1;
+}
+
+int PlayerFunctions::luaPlayerIsBotPlayer(lua_State* L) {
+	// player:isBotPlayer()
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (player) {
+		Lua::pushBoolean(L, player->isBotPlayer());
+	} else {
+		lua_pushnil(L);
+	}
+	return 1;
+}
+
+int PlayerFunctions::luaPlayerSetBotPlayer(lua_State* L) {
+	// player:setBotPlayer(value)
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (player) {
+		player->setBotPlayer(Lua::getBoolean(L, 2));
+		Lua::pushBoolean(L, true);
+	} else {
+		lua_pushnil(L);
+	}
+	return 1;
+}
+
+int PlayerFunctions::luaPlayerIsCastBroadcasting(lua_State* L) {
+	// player:isCastBroadcasting()
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (player) {
+		Lua::pushBoolean(L, player->isCastBroadcasting());
+	} else {
+		lua_pushnil(L);
+	}
+	return 1;
+}
+
+int PlayerFunctions::luaPlayerSetCastBroadcasting(lua_State* L) {
+	// player:setCastBroadcasting(value)
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (player) {
+		bool enable = Lua::getBoolean(L, 2);
+		player->setCastBroadcasting(enable);
+		Lua::pushBoolean(L, true);
+	} else {
+		lua_pushnil(L);
+	}
+	return 1;
+}
+
+int PlayerFunctions::luaPlayerGetCastViewerCount(lua_State* L) {
+	// player:getCastViewerCount()
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (player) {
+		lua_pushnumber(L, player->getCastViewerCount());
+	} else {
+		lua_pushnil(L);
+	}
 	return 1;
 }
 
@@ -1261,6 +1330,18 @@ int PlayerFunctions::luaPlayerGetSkullTime(lua_State* L) {
 	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
 	if (player) {
 		lua_pushnumber(L, player->getSkullTicks());
+	} else {
+		lua_pushnil(L);
+	}
+	return 1;
+}
+
+int PlayerFunctions::luaPlayerGetSkullClient(lua_State* L) {
+	// player:getSkullClient(target)
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	const auto &target = Lua::getCreature(L, 2);
+	if (player && target) {
+		lua_pushnumber(L, player->getSkullClient(target));
 	} else {
 		lua_pushnil(L);
 	}
@@ -2688,6 +2769,95 @@ int PlayerFunctions::luaPlayerGetSlotItem(lua_State* L) {
 	return 1;
 }
 
+int PlayerFunctions::luaPlayerSetSlotItem(lua_State* L) {
+	// player:setSlotItem(slot, itemId[, count])
+	// Directly sets an item in a player's equipment slot, bypassing all checks
+	// (vocation, level, onEquip hooks). Used for bot player equipment.
+	// Removes any existing item in the slot first.
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (!player) {
+		Lua::pushBoolean(L, false);
+		return 1;
+	}
+
+	const auto slot = Lua::getNumber<Slots_t>(L, 2);
+	const auto itemId = Lua::getNumber<uint16_t>(L, 3);
+	const auto count = Lua::getNumber<uint16_t>(L, 4, 1); // Optional count, default 1
+
+	if (slot < CONST_SLOT_FIRST || slot > CONST_SLOT_LAST) {
+		Lua::pushBoolean(L, false);
+		return 1;
+	}
+
+	// Remove existing item in slot
+	const auto &existingItem = player->getInventoryItem(slot);
+	if (existingItem) {
+		g_game().internalRemoveItem(existingItem);
+	}
+
+	if (itemId == 0) {
+		// Just clear the slot
+		Lua::pushBoolean(L, true);
+		return 1;
+	}
+
+	// Create the item and directly assign it to the inventory slot
+	const auto &item = Item::CreateItem(itemId, std::max<uint16_t>(count, 1));
+	if (!item) {
+		Lua::pushBoolean(L, false);
+		return 1;
+	}
+
+	// Direct assignment bypassing queryAdd/onEquip checks
+	player->addThing(static_cast<int32_t>(slot), item);
+
+	Lua::pushBoolean(L, true);
+	return 1;
+}
+
+int PlayerFunctions::luaPlayerCastSpell(lua_State* L) {
+	// player:castSpell(words[, target])
+	// Casts a spell through the real spell system (same as when a player types it).
+	// Optionally sets attack target and faces toward it before casting.
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (!player) {
+		Lua::pushBoolean(L, false);
+		return 1;
+	}
+
+	std::string words = Lua::getString(L, 2);
+
+	// Optional: set attack target and face direction before casting
+	if (lua_gettop(L) >= 3 && !lua_isnil(L, 3)) {
+		const auto &target = Lua::getCreature(L, 3);
+		if (target && player->getAttackedCreature() != target) {
+			player->setAttackedCreature(target);
+		}
+		if (target) {
+			// Face toward target for directional spells (ice wave, etc.)
+			const auto &pPos = player->getPosition();
+			const auto &tPos = target->getPosition();
+			const int32_t dx = tPos.x - pPos.x;
+			const int32_t dy = tPos.y - pPos.y;
+			Direction dir;
+			if (std::abs(dx) >= std::abs(dy)) {
+				dir = dx > 0 ? DIRECTION_EAST : DIRECTION_WEST;
+			} else {
+				dir = dy > 0 ? DIRECTION_SOUTH : DIRECTION_NORTH;
+			}
+			g_game().internalCreatureTurn(player, dir);
+		}
+	}
+
+	auto result = g_spells().playerSaySpell(player, words);
+	if (result == TALKACTION_BREAK) {
+		// Broadcast spell text to nearby players (same as Game::playerSaySpell)
+		player->saySpell(TALKTYPE_SAY, words, false);
+	}
+	Lua::pushBoolean(L, result == TALKACTION_BREAK);
+	return 1;
+}
+
 int PlayerFunctions::luaPlayerGetParty(lua_State* L) {
 	// player:getParty()
 	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
@@ -3596,6 +3766,18 @@ int PlayerFunctions::luaPlayerHasChaseMode(lua_State* L) {
 	return 1;
 }
 
+int PlayerFunctions::luaPlayerSetChaseMode(lua_State* L) {
+	// player:setChaseMode(enabled)
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (!player) {
+		Lua::pushBoolean(L, false);
+		return 1;
+	}
+	player->setChaseMode(Lua::getBoolean(L, 2));
+	Lua::pushBoolean(L, true);
+	return 1;
+}
+
 int PlayerFunctions::luaPlayerHasSecureMode(lua_State* L) {
 	// player:hasSecureMode()
 	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
@@ -3615,6 +3797,19 @@ int PlayerFunctions::luaPlayerGetFightMode(lua_State* L) {
 	} else {
 		lua_pushnil(L);
 	}
+	return 1;
+}
+
+int PlayerFunctions::luaPlayerSetFightMode(lua_State* L) {
+	// player:setFightMode(mode) -- 1=attack, 2=balanced, 3=defense
+	const auto &player = Lua::getUserdataShared<Player>(L, 1, "Player");
+	if (!player) {
+		Lua::pushBoolean(L, false);
+		return 1;
+	}
+	auto mode = static_cast<FightMode_t>(Lua::getNumber<uint8_t>(L, 2));
+	player->setFightMode(mode);
+	Lua::pushBoolean(L, true);
 	return 1;
 }
 
@@ -4420,6 +4615,11 @@ int PlayerFunctions::luaPlayerUpgradeSpellWOD(lua_State* L) {
 
 	const std::string name = Lua::getString(L, 2);
 	if (lua_gettop(L) == 2) {
+		// Bots have all WoD spells at grade 1 (base)
+		if (player->isBotPlayer()) {
+			lua_pushnumber(L, 1);
+			return 1;
+		}
 		lua_pushnumber(L, static_cast<lua_Number>(player->wheel().getSpellUpgrade(name)));
 		return 1;
 	}
@@ -4450,6 +4650,11 @@ int PlayerFunctions::luaPlayerRevelationStageWOD(lua_State* L) {
 
 	const std::string name = Lua::getString(L, 2);
 	if (lua_gettop(L) == 2) {
+		// Bots have all WoD revelation spells at stage 1 (base)
+		if (player->isBotPlayer()) {
+			lua_pushnumber(L, 1);
+			return 1;
+		}
 		lua_pushnumber(L, static_cast<lua_Number>(player->wheel().getStage(name)));
 		return 1;
 	}

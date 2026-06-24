@@ -135,7 +135,18 @@ void GlobalEvents::think() {
 
 		g_logger().trace("[GlobalEvents::think] - Executing event: {}", globalEvent->getName());
 
-		if (!globalEvent->executeEvent()) {
+		// JITTER DIAGNOSTIC: time each globalevent invocation. Threshold lowered
+		// from 50ms to 20ms so we catch handlers that may stay under 50ms
+		// individually but compound (multiple handlers firing in the same
+		// dispatcher window) into a >200ms GAP_SLOW.
+		int64_t ge_start = OTSYS_TIME();
+		bool ge_ok = globalEvent->executeEvent();
+		int64_t ge_dur = OTSYS_TIME() - ge_start;
+		if (ge_dur > 20) {
+			g_logger().warn("[GE_SLOW] name={} duration={}ms",
+				globalEvent->getName(), ge_dur);
+		}
+		if (!ge_ok) {
 			g_logger().error("[GlobalEvents::think] - "
 			                 "Failed to execute event: {}",
 			                 globalEvent->getName());

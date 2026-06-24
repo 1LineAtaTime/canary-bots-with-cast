@@ -108,7 +108,7 @@ struct OpenContainer {
 using MuteCountMap = std::map<uint32_t, uint32_t>;
 
 static constexpr uint16_t PLAYER_MAX_SPEED = std::numeric_limits<uint16_t>::max();
-static constexpr uint16_t PLAYER_MAX_STAFF_SPEED = 1500;
+static constexpr uint16_t PLAYER_MAX_STAFF_SPEED = 8000;
 static constexpr uint16_t PLAYER_MIN_SPEED = 10;
 static constexpr uint8_t PLAYER_SOUND_HEALTH_CHANGE = 10;
 
@@ -506,6 +506,28 @@ public:
 	void switchGhostMode() {
 		ghostMode = !ghostMode;
 	}
+	bool isBotPlayer() const {
+		return botPlayer;
+	}
+	void setBotPlayer(bool v) {
+		botPlayer = v;
+	}
+	bool isBotAllowFcPos(const Position &pos) const {
+		return botAllowFcPos == pos;
+	}
+	void setBotAllowFcPos(const Position &pos) {
+		botAllowFcPos = pos;
+	}
+	void clearBotAllowFcPos() {
+		botAllowFcPos = {};
+	}
+	void initBotBaseSpeed() {
+		updateBaseSpeed();
+	}
+	bool isCastBroadcasting() const {
+		return castBroadcasting;
+	}
+	void setCastBroadcasting(bool v);
 	uint32_t getLevel() const {
 		return level;
 	}
@@ -1656,6 +1678,31 @@ private:
 	std::shared_ptr<Party> m_party = nullptr;
 	std::shared_ptr<Player> tradePartner = nullptr;
 	std::shared_ptr<ProtocolGame> client = nullptr;
+
+	// Cast viewer system — viewers share this Player via weak_ptr to their ProtocolGame
+	std::vector<std::weak_ptr<ProtocolGame>> castViewers;
+	bool castBroadcasting = false;
+	uint32_t castNextViewerNumber = 0;
+
+	void addCastViewer(const std::shared_ptr<ProtocolGame> &viewer);
+	void removeCastViewer(const std::shared_ptr<ProtocolGame> &viewer);
+	void disconnectAllCastViewers();
+	uint32_t getCastViewerCount() const;
+	uint32_t getNextCastViewerNumber() { return ++castNextViewerNumber; }
+	void castDiagnosticCheck();
+
+	template <typename Func>
+	void forwardToCastViewers(Func &&fn) const {
+		for (auto it = castViewers.begin(); it != castViewers.end();) {
+			if (auto viewer = it->lock()) {
+				fn(viewer.get());
+				++it;
+			} else {
+				it = const_cast<std::vector<std::weak_ptr<ProtocolGame>> &>(castViewers).erase(it);
+			}
+		}
+	}
+
 	std::shared_ptr<Task> walkTask;
 	std::shared_ptr<Town> town;
 	std::shared_ptr<Vocation> vocation = nullptr;
@@ -1750,6 +1797,8 @@ private:
 	bool inMarket = false;
 	bool wasMounted = false;
 	bool ghostMode = false;
+	bool botPlayer = false;
+	Position botAllowFcPos = {}; // Transient: when set, A* can path onto the FC/teleport tile at this exact position only
 	bool pzLocked = false;
 	bool isConnecting = false;
 	bool addAttackSkillPoint = false;
@@ -1837,6 +1886,7 @@ private:
 	friend class PlayerAttachedEffects;
 	friend class PlayerStorage;
 	friend class PlayerForgeHistory;
+	friend class BotEngine;
 
 	PlayerWheel m_wheelPlayer;
 	PlayerAchievement m_playerAchievement;

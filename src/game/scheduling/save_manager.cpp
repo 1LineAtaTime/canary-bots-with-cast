@@ -107,8 +107,21 @@ void SaveManager::schedulePlayer(std::weak_ptr<Player> playerPtr) {
 		return;
 	}
 
+	// PERF_INVESTIGATION_2026-05-24 Tier 1-F + 1-G: bot players ALWAYS go through
+	// the async save path regardless of toggleSaveAsync config. The bot save chain
+	// is ~150 sync DB queries per bot (BEGIN + UPDATE players + many DELETE/INSERT
+	// for player_stash/spells/kills/charms/items/rewards/prey/taskhunt/bosstiary/
+	// storage). During bot load (500 bots starting) AND during hibernate sweeps
+	// (player walks away from a populated area), firing this chain synchronously
+	// on the dispatcher thread starves all globalevents and stalls the dispatcher
+	// for minutes (TF1/TF4 in PERF_INVESTIGATION_2026-05-24.md). Bot data loss on
+	// server crash is acceptable: bot population is re-derivable from the
+	// generator script + bot_state_persistence table.
+	// Real-player save path is unchanged (still respects toggleSaveAsync config).
+	const bool forceBotAsync = playerToSave->isBotPlayer();
+
 	// Disable save async if the config is set to false
-	if (!g_configManager().getBoolean(TOGGLE_SAVE_ASYNC)) {
+	if (!g_configManager().getBoolean(TOGGLE_SAVE_ASYNC) && !forceBotAsync) {
 		if (g_game().getGameState() == GAME_STATE_NORMAL) {
 			logger.debug("Saving player {}.", playerToSave->getName());
 		}
@@ -158,6 +171,13 @@ bool SaveManager::doSavePlayer(std::shared_ptr<Player> player) {
 
 bool SaveManager::savePlayer(std::shared_ptr<Player> player) {
 	if (player->isOnline() && g_game().getGameState() != GAME_STATE_SHUTDOWN) {
+		schedulePlayer(player);
+		return true;
+	}
+	// PERF Tier 1-F+1-G: route offline bot saves to async too (some bot code paths
+	// call savePlayer after player->setOnline(false)). Avoids sync 150-query stall
+	// on the dispatcher even in the rare offline-bot save case.
+	if (player->isBotPlayer() && g_game().getGameState() != GAME_STATE_SHUTDOWN) {
 		schedulePlayer(player);
 		return true;
 	}

@@ -117,7 +117,7 @@ include(LoggingHelper)
 option(
     OPTIONS_ENABLE_CCACHE
     "Enable ccache"
-    OFF
+    ON
 )
 option(
     OPTIONS_ENABLE_SCCACHE

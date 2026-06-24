@@ -63,7 +63,42 @@ private:
 
 	static int luaGameReload(lua_State* L);
 
+	// JITTER DIAGNOSTIC: monotonic ms timestamp accessor for Lua instrumentation.
+	static int luaGameMonotonicMs(lua_State* L);
+
 	static int luaGameGetOfflinePlayer(lua_State* L);
+	static int luaGameLoadBotPlayer(lua_State* L);
+	static int luaGameBotActivate(lua_State* L);
+	static int luaGameBotDeactivate(lua_State* L);
+	static int luaGameBotForceDeactivate(lua_State* L);
+	static int luaGameBotForceDeactivateForReload(lua_State* L);
+	static int luaGameBotPauseForDeath(lua_State* L);
+	static int luaGameBotSetAIPaused(lua_State* L);
+	static int luaGameBotSetAllAIPaused(lua_State* L);
+	static int luaGameBotHibernate(lua_State* L);
+	static int luaGameBotWake(lua_State* L);
+	static int luaGameBotRecoverOrphanForReload(lua_State* L);
+	static int luaGameGetBotHibernationStates(lua_State* L);
+	static int luaGameBotHibernateAllEligible(lua_State* L);
+	static int luaGameBotWakeAllHibernated(lua_State* L);
+
+	// Bot market wrappers (see src/game/game_bot_market.cpp)
+	static int luaGameBotCreateMarketOffer(lua_State* L);
+	static int luaGameBotAcceptMarketOffer(lua_State* L);
+	static int luaGameBotCancelMarketOffer(lua_State* L);
+	static int luaGameBotReactivateForReload(lua_State* L);
+	static int luaGameBotCountActive(lua_State* L);
+	static int luaGameBotCommand(lua_State* L);
+	static int luaGameBotReload(lua_State* L);
+	static int luaGameBotReregisterAll(lua_State* L);
+	static int luaGameBotStartTickLoop(lua_State* L);
+	static int luaGameBotGetState(lua_State* L);
+	static int luaGameBotGetStatusText(lua_State* L);
+	static int luaGameBotInParty(lua_State* L);
+	static int luaGameBotIsActive(lua_State* L);
+	static int luaGameBotSaveStates(lua_State* L);
+	static int luaGameBotRestoreStates(lua_State* L);
+	static int luaGameBotClearPersistedStates(lua_State* L);
 	static int luaGameGetNormalizedPlayerName(lua_State* L);
 	static int luaGameGetNormalizedGuildName(lua_State* L);
 	static int luaGameHasEffect(lua_State* L);
@@ -95,4 +130,6 @@ private:
 
 	static int luaGameGetMonstersByRace(lua_State* L);
 	static int luaGameGetMonstersByBestiaryStars(lua_State* L);
+
+	static int luaGameIsDebugBuild(lua_State* L);
 };

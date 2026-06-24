@@ -81,6 +81,8 @@ void CreatureFunctions::init(lua_State* L) {
 	Lua::registerMethod(L, "Creature", "getDescription", CreatureFunctions::luaCreatureGetDescription);
 	Lua::registerMethod(L, "Creature", "getPathTo", CreatureFunctions::luaCreatureGetPathTo);
 	Lua::registerMethod(L, "Creature", "move", CreatureFunctions::luaCreatureMove);
+	Lua::registerMethod(L, "Creature", "startAutoWalk", CreatureFunctions::luaCreatureStartAutoWalk);
+	Lua::registerMethod(L, "Creature", "isWalking", CreatureFunctions::luaCreatureIsWalking);
 	Lua::registerMethod(L, "Creature", "getZoneType", CreatureFunctions::luaCreatureGetZoneType);
 	Lua::registerMethod(L, "Creature", "getZones", CreatureFunctions::luaCreatureGetZones);
 	Lua::registerMethod(L, "Creature", "setIcon", CreatureFunctions::luaCreatureSetIcon);
@@ -309,7 +311,15 @@ int CreatureFunctions::luaCreatureSetTarget(lua_State* L) {
 	const auto &creature = Lua::getUserdataShared<Creature>(L, 1, "Creature");
 	if (creature) {
 		const auto &target = Lua::getCreature(L, 2);
-		Lua::pushBoolean(L, creature->setAttackedCreature(target));
+		// For players, call Player::setAttackedCreature which starts the auto-attack
+		// chain (checkCreatureAttack) and handles chase mode. The base Creature version
+		// only stores the target without starting auto-attacks.
+		const auto &player = creature->getPlayer();
+		if (player) {
+			Lua::pushBoolean(L, player->setAttackedCreature(target));
+		} else {
+			Lua::pushBoolean(L, creature->setAttackedCreature(target));
+		}
 	} else {
 		lua_pushnil(L);
 	}
@@ -581,7 +591,8 @@ int CreatureFunctions::luaCreatureSetHealth(lua_State* L) {
 }
 
 int CreatureFunctions::luaCreatureAddHealth(lua_State* L) {
-	// creature:addHealth(healthChange, combatType)
+	// creature:addHealth(healthChange[, combatType[, attacker]])
+	// Optional attacker (3rd arg) registers damage attribution without going through PvP combat checks.
 	const auto &creature = Lua::getUserdataShared<Creature>(L, 1, "Creature");
 	if (!creature) {
 		lua_pushnil(L);
@@ -593,10 +604,17 @@ int CreatureFunctions::luaCreatureAddHealth(lua_State* L) {
 	if (damage.primary.value >= 0) {
 		damage.primary.type = COMBAT_HEALING;
 	} else if (damage.primary.value < 0) {
-		damage.primary.type = Lua::getNumber<CombatType_t>(L, 3);
+		damage.primary.type = Lua::getNumber<CombatType_t>(L, 3, COMBAT_PHYSICALDAMAGE);
 	} else {
 		damage.primary.type = COMBAT_UNDEFINEDDAMAGE;
 	}
+
+	// Optional attacker for kill attribution (bypasses PvP checks via nullptr to combatChangeHealth)
+	const auto &attacker = Lua::getCreature(L, 4);
+	if (attacker && damage.primary.value < 0) {
+		creature->addDamagePoints(attacker, std::abs(damage.primary.value));
+	}
+
 	Lua::pushBoolean(L, g_game().combatChangeHealth(nullptr, creature, damage));
 	return 1;
 }
@@ -1063,6 +1081,47 @@ int CreatureFunctions::luaCreatureMove(lua_State* L) {
 			return 1;
 		}
 		lua_pushnumber(L, g_game().internalMoveCreature(creature, tile, Lua::getNumber<uint32_t>(L, 3)));
+	}
+	return 1;
+}
+
+int CreatureFunctions::luaCreatureStartAutoWalk(lua_State* L) {
+	// creature:startAutoWalk(dirTable)
+	const auto &creature = Lua::getUserdataShared<Creature>(L, 1, "Creature");
+	if (!creature) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	if (!lua_istable(L, 2)) {
+		Lua::pushBoolean(L, false);
+		return 1;
+	}
+
+	std::vector<Direction> dirs;
+	lua_pushnil(L);
+	while (lua_next(L, 2) != 0) {
+		dirs.push_back(Lua::getNumber<Direction>(L, -1));
+		lua_pop(L, 1);
+	}
+
+	if (dirs.empty()) {
+		Lua::pushBoolean(L, false);
+		return 1;
+	}
+
+	creature->startAutoWalk(dirs);
+	Lua::pushBoolean(L, true);
+	return 1;
+}
+
+int CreatureFunctions::luaCreatureIsWalking(lua_State* L) {
+	// creature:isWalking()
+	const auto &creature = Lua::getUserdataShared<Creature>(L, 1, "Creature");
+	if (creature) {
+		Lua::pushBoolean(L, creature->getWalkSize() > 0);
+	} else {
+		lua_pushnil(L);
 	}
 	return 1;
 }

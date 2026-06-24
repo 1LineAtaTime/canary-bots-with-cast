@@ -89,6 +89,16 @@ public:
 	std::string nameDescription;
 	NpcInfo info;
 
+	// BOT_LIVENESS: read-only accessors for the bot engine's currency-aware fidget-drop
+	// pool builder (see bot_engine.cpp loadHuntData). Inline + no new fields → no ABI/layout
+	// change, so the bot .so can hot-reload against the existing binary.
+	uint16_t getCurrencyId() const {
+		return info.currencyId;
+	}
+	const std::vector<ShopBlock> &getShopItems() const {
+		return info.shopItemVector;
+	}
+
 	void loadShop(const std::shared_ptr<NpcType> &npcType, ShopBlock shopBlock);
 
 	bool loadCallback(LuaScriptInterface* scriptInterface);
@@ -105,6 +115,12 @@ public:
 	static Npcs &getInstance();
 
 	std::shared_ptr<NpcType> getNpcType(const std::string &name, bool create = false);
+
+	// BOT_LIVENESS: read-only iteration over every registered NPC type, for the bot
+	// engine's currency-aware fidget-drop pool builder. Inline → no ABI/layout change.
+	const std::map<std::string, std::shared_ptr<NpcType>> &getNpcTypes() const {
+		return npcs;
+	}
 
 	// Reset npcs informations on reload
 	bool load(bool loadLibs = true, bool loadNpcs = true, bool reloading = false) const;

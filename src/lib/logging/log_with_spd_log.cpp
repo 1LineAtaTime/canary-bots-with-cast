@@ -8,11 +8,27 @@
  */
 
 #include <spdlog/spdlog.h>
+#include <spdlog/async.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include "lib/di/container.hpp"
 
 LogWithSpdLog::LogWithSpdLog() {
+	// Async thread pool: 8192 queue slots, 1 background writer thread
+	spdlog::init_thread_pool(8192, 1);
+
+	auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+	auto async_logger = std::make_shared<spdlog::async_logger>(
+		"async_default",
+		stdout_sink,
+		spdlog::thread_pool(),
+		spdlog::async_overflow_policy::overrun_oldest
+	);
+	spdlog::set_default_logger(async_logger);
+
 	setLevel("info");
 	spdlog::set_pattern("[%Y-%d-%m %H:%M:%S.%e] [%^%l%$] %v ");
+	spdlog::flush_on(spdlog::level::warn);
+	spdlog::flush_every(std::chrono::seconds(3));
 
 #ifdef DEBUG_LOG
 	spdlog::set_pattern("[%Y-%d-%m %H:%M:%S.%e] [thread %t] [%^%l%$] %v ");
