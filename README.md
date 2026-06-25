@@ -15,6 +15,58 @@ Behavior, commands, and tuning: **[data/scripts/lib/BOT_SYSTEM_DOCS.md](data/scr
 Complete developer documentation (architecture, behavior internals, performance,
 and tuning) for continuing development: **[data/scripts/lib/BOT_SYSTEM_DOCS_EXTENDED.md](data/scripts/lib/BOT_SYSTEM_DOCS_EXTENDED.md)**.
 
+## 🎥 Demo
+
+Clips of the bot system in action — 720p/60fps (the two ~5-minute "tour" clips are 480p/60fps). Click any clip to play.
+
+### Bots living in the world
+
+**Bots walking around the city**
+
+https://github.com/user-attachments/assets/dbed64ea-f161-43d2-9145-d106bedecf01
+
+**Adventurer-stone bots**
+
+https://github.com/user-attachments/assets/762f2661-866e-43f5-8c08-980f7c166a36
+
+**Houses owned &amp; decorated by bots**
+
+https://github.com/user-attachments/assets/282b8c4e-047e-4dd3-bb2d-3972e45b9d56
+
+### Hunting &amp; questing
+
+**Bot team hunt** _(~5 min)_
+
+https://github.com/user-attachments/assets/a958f45d-a9f2-4c9d-aae6-a89c9a22ab98
+
+**Bots questing**
+
+https://github.com/user-attachments/assets/677683d3-a918-4173-9fa2-84a8b06a31fa
+
+**Full tour — depot, cities &amp; more** _(~5 min)_
+
+https://github.com/user-attachments/assets/5c86888e-603b-4c44-9041-f940f94e14ad
+
+### PvP / PK
+
+**PK bot team jumping a player**
+
+https://github.com/user-attachments/assets/6ed612d8-e7cc-43e0-8032-c52b8664483e
+
+**PK bot chasing a player**
+
+https://github.com/user-attachments/assets/21e2b835-3b74-4758-9b87-460d076bb60b
+
+### Systems
+
+**Cast character list**
+
+https://github.com/user-attachments/assets/f8275ba5-20b4-4e05-82fe-6592361d3c8f
+
+**Market bot offers**
+
+https://github.com/user-attachments/assets/022c82b5-0315-4f14-a618-3c7d3e77eca1
+
 > [!NOTE]
 > **Base version.** This repository is forked from `opentibiabr/canary` at commit
 > **`ded10949d`** (2026-02-19) and adds the bot + cast features on top. Use that
