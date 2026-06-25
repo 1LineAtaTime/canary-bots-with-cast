@@ -44,6 +44,8 @@ Run the files in this exact order (foreign-key / dependency order):
 | 11 | `11_bot_market_item_prices.sql` | market price reference (see header) |
 | 12 | `12_bot_equipment.sql` | per level/vocation equipment loadouts |
 | 13 | `13_bot_town_mapping.sql` | source-town → Canary-town mapping |
+| 14 | `14_houses.sql` | house ownership + metadata (bots own 794 of 993 houses) |
+| 15 | `15_tile_store.sql` | house furniture/items (per-house serialized tile blobs) |
 
 Then bump the auto-increment so new registrations don't collide with the seeded
 bot id range:
@@ -62,6 +64,12 @@ ALTER TABLE `players`  AUTO_INCREMENT = 66100;
   the dumps; the functional `source_name` routing key on city routes is kept.
   Wiki-derived market prices are attributed under CC BY-SA 3.0 — see the header
   of `11_bot_market_item_prices.sql` and `THIRD_PARTY_NOTICES.md`.
+- **House data** (`14_houses.sql` / `15_tile_store.sql`) pre-seeds bot house
+  ownership and the furniture in those houses. House ids match the bundled
+  `otservbr` map, so import these into the same map distribution. All owned
+  houses belong to bots (account `65000`); there is no real-player ownership or
+  bid data. Houses left unowned (owner `0`) simply won't render their stored
+  items until a bot claims them.
 - **Bot count at runtime** is controlled by `botPlayersOnline` in `config.lua`
   (default 200, capped at the ~997 seeded). You do not need all of them online.
 - To regenerate the bot population at a different size/name-set, see

@@ -50,6 +50,8 @@ FILES=(
   11_bot_market_item_prices.sql
   12_bot_equipment.sql
   13_bot_town_mapping.sql
+  14_houses.sql
+  15_tile_store.sql
 )
 
 for f in "${FILES[@]}"; do run "$f"; done
