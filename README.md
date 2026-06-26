@@ -19,6 +19,8 @@ and tuning) for continuing development: **[data/scripts/lib/BOT_SYSTEM_DOCS_EXTE
 
 Clips of the bot system in action — 720p/60fps (the two ~5-minute "tour" clips are 480p/60fps). Click any clip to play.
 
+Only the "GOD" and "Legolas" characters are being controlled manually to demonstrate the bot features. The rest of the players are ALL bots.
+
 ### Bots living in the world
 
 **Bots walking around the city**
