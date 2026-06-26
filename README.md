@@ -37,9 +37,19 @@ https://github.com/user-attachments/assets/282b8c4e-047e-4dd3-bb2d-3972e45b9d56
 
 ### Hunting &amp; questing
 
-**Bot team hunt** _(~5 min)_
+**Bot team hunt** _(~5 min, in 3 parts)_
 
-https://github.com/user-attachments/assets/a958f45d-a9f2-4c9d-aae6-a89c9a22ab98
+Part 1
+
+https://github.com/user-attachments/assets/71c8b5b1-83c7-4b7c-b3db-4c9e2c5f3385
+
+Part 2
+
+https://github.com/user-attachments/assets/aad08b1e-14e1-4835-b701-d13a2c23b992
+
+Part 3
+
+https://github.com/user-attachments/assets/318778e7-ac0a-4ef7-a292-df20398615e5
 
 **Bots questing**
 
