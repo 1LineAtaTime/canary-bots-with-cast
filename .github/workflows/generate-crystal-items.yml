@@ -2,9 +2,6 @@ name: Generate Crystal to Canary item map
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - crystal-items-monsters-migration
 
 permissions:
   contents: write
@@ -17,7 +14,7 @@ jobs:
 
       - name: Restore original Canary item base
         run: |
-          curl -L --fail https://raw.githubusercontent.com/lunararcher121a/canary-bots-with-cast/main/data/items/items.xml -o data/items/items.xml
+          curl -L --fail https://raw.githubusercontent.com/1LineAtaTime/canary-bots-with-cast/main/data/items/items.xml -o data/items/items.xml
 
       - name: Run item mapper
         run: python3 tools/migration/map_items.py
@@ -27,10 +24,10 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          rows = json.loads(Path('data/items/item_id_map.json').read_text())
-          ids = [r['canary_id'] for r in rows]
-          assert len(ids) == len(set(ids)), 'duplicate Canary IDs detected'
+          rows = json.loads(Path('data/items/item_id_map.json').read_text(encoding='utf-8'))
+          ids = [int(r['canary_id']) for r in rows]
           assert len(rows) > 1000, 'unexpectedly small item map'
+          assert len(ids) == len(set(ids)), 'duplicate Canary target IDs detected'
           assert Path('data/items/items.xml').exists()
           assert Path('data/items/item_id_map.csv').exists()
           assert Path('data/items/CRYSTAL_CANARY_ID_MAP.md').exists()
@@ -46,7 +43,5 @@ jobs:
             echo 'No generated changes to commit.'
           else
             git commit -m 'data: map Crystal items to Canary IDs'
-            git fetch origin crystal-items-monsters-migration
-            git rebase origin/crystal-items-monsters-migration
             git push origin HEAD:crystal-items-monsters-migration
           fi
