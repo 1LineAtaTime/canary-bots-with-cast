@@ -1284,7 +1284,7 @@ crystal_id,canary_id,name,reason
 3201,3201,spell rune,same-id-same-name
 3202,3202,thunderstorm rune,same-id-same-name
 3203,3203,animate dead rune,same-id-same-name
-3204,54267,your own dead body,new-free-id
+3204,3204,your own dead body,free-crystal-id-preserved
 3205,3205,family brooch,same-id-same-name
 3206,3206,dragonfetish,same-id-same-name
 3207,3207,skull of Ratha,same-id-same-name
@@ -2154,19 +2154,19 @@ crystal_id,canary_id,name,reason
 4392,4392,lifeless nettle,same-id-same-name
 4433,4433,snowy birch tree,same-id-same-name
 4584,4584,gravel,same-id-same-name
-4609,4609,shallow water,free-crystal-id-preserved
-4610,4610,shallow water,free-crystal-id-preserved
-4611,4611,shallow water,free-crystal-id-preserved
+4609,4609,shallow water,same-id-same-name
+4610,4610,shallow water,same-id-same-name
+4611,4611,shallow water,same-id-same-name
 4612,4612,shallow water,same-id-same-name
 4613,4613,shallow water,same-id-same-name
 4614,4614,shallow water,same-id-same-name
 4653,4653,RESERVED SPRITE,same-id-same-name
-4809,4809,shallow water,free-crystal-id-preserved
-4810,4810,shallow water,free-crystal-id-preserved
-4811,4811,shallow water,free-crystal-id-preserved
-4812,4812,shallow water,free-crystal-id-preserved
-4813,4813,shallow water,free-crystal-id-preserved
-4814,4814,shallow water,free-crystal-id-preserved
+4809,4809,shallow water,same-id-same-name
+4810,4810,shallow water,same-id-same-name
+4811,4811,shallow water,same-id-same-name
+4812,4812,shallow water,same-id-same-name
+4813,4813,shallow water,same-id-same-name
+4814,4814,shallow water,same-id-same-name
 4827,4827,whisper moss,same-id-same-name
 4828,4828,flask of cough syrup,same-id-same-name
 4829,4829,witches' cap spot,same-id-same-name
@@ -2560,7 +2560,7 @@ crystal_id,canary_id,name,reason
 5949,5949,beach backpack,same-id-same-name
 5950,5950,beach bag,same-id-same-name
 5951,5951,fish tail,same-id-same-name
-5952,54268,scroll,new-free-id
+5952,5952,scroll,free-crystal-id-preserved
 5953,5953,raven herb,same-id-same-name
 5954,5954,demon horn,same-id-same-name
 5956,5956,lottery ticket,same-id-same-name
@@ -4509,9 +4509,9 @@ crystal_id,canary_id,name,reason
 11372,11372,interdimensional potion,same-id-same-name
 11426,11426,scribbled sheet of paper,same-id-same-name
 11429,11429,slain abomination,same-id-same-name
-11440,11440,large book,free-crystal-id-preserved
-11441,11441,large book,free-crystal-id-preserved
-11442,11442,large book,free-crystal-id-preserved
+11440,11440,large book,same-id-same-name
+11441,11441,large book,same-id-same-name
+11442,11442,large book,same-id-same-name
 11443,11443,girlish hair decoration,same-id-same-name
 11444,11444,protective charm,same-id-same-name
 11445,11445,bamboo stick,same-id-same-name
@@ -4966,9 +4966,9 @@ crystal_id,canary_id,name,reason
 12555,12555,ludicrous piece of cloth,same-id-same-name
 12556,12556,luminous piece of cloth,same-id-same-name
 12557,12557,shimmer swimmer,same-id-same-name
-12558,12558,dirty water,free-crystal-id-preserved
-12559,12559,dirty water,free-crystal-id-preserved
-12560,12560,dirty water,free-crystal-id-preserved
+12558,12558,dirty water,same-id-same-name
+12559,12559,dirty water,same-id-same-name
+12560,12560,dirty water,same-id-same-name
 12570,12570,fan doll of Queen Eloise,same-id-same-name
 12571,12571,fan doll of Queen Eloise,same-id-same-name
 12572,12572,dragon goblet,same-id-same-name
@@ -5192,8 +5192,8 @@ crystal_id,canary_id,name,reason
 13802,13802,dead Tanjis,same-id-same-name
 13803,13803,dead Tanjis,same-id-same-name
 13804,13804,dead Tanjis,same-id-same-name
-13842,13842,ice flower,free-crystal-id-preserved
-13843,13843,harvested ice flower,free-crystal-id-preserved
+13842,13842,ice flower,same-id-same-name
+13843,13843,harvested ice flower,same-id-same-name
 13844,13844,ice flower seeds,same-id-same-name
 13845,13845,dead lady bug,same-id-same-name
 13846,13846,dead lady bug,same-id-same-name
@@ -5263,8 +5263,8 @@ crystal_id,canary_id,name,reason
 13985,13985,dead waspoid,same-id-same-name
 13986,13986,dead waspoid,same-id-same-name
 13987,13987,deepling staff,same-id-same-name
-13988,13988,shallow water,free-crystal-id-preserved
-13989,13989,shallow water,free-crystal-id-preserved
+13988,13988,shallow water,same-id-same-name
+13989,13989,shallow water,same-id-same-name
 13990,13990,necklace of the deep,same-id-same-name
 13991,13991,deepling axe,same-id-same-name
 13992,13992,sandfish,same-id-same-name
@@ -6580,8 +6580,8 @@ crystal_id,canary_id,name,reason
 19165,19165,brain heater machine,same-id-same-name
 19166,19166,Omrabas' bone key,same-id-same-name
 19173,19173,Omrabas' copper key,same-id-same-name
-19198,19198,strange shrine,free-crystal-id-preserved
-19199,19199,strange shrine,free-crystal-id-preserved
+19198,19198,strange shrine,same-id-same-name
+19199,19199,strange shrine,same-id-same-name
 19200,19200,lift,same-id-same-name
 19201,19201,ornate door with a keyhole,same-id-same-name
 19202,19202,reward container,same-id-same-name
@@ -7085,7 +7085,7 @@ crystal_id,canary_id,name,reason
 21299,21299,RESERVED SPRITE,same-id-same-name
 21300,21300,unknown item,same-id-same-name
 21301,21301,crude primitive printout,same-id-same-name
-21314,21314,shallow water,free-crystal-id-preserved
+21314,21314,shallow water,same-id-same-name
 21323,21323,imported water pipe,same-id-same-name
 21341,21341,loose stone pile,same-id-same-name
 21342,21342,hole,same-id-same-name
@@ -7163,10 +7163,10 @@ crystal_id,canary_id,name,reason
 21455,21455,dead dawnfly,same-id-same-name
 21456,21456,dead dawnfly,same-id-same-name
 21457,21457,dead dawnfly,same-id-same-name
-21462,54269,red flame,new-free-id
-21463,54270,blue flame,new-free-id
-21464,54271,violet flame,new-free-id
-21465,54272,yellow flame,new-free-id
+21462,21462,red flame,free-crystal-id-preserved
+21463,21463,blue flame,free-crystal-id-preserved
+21464,21464,violet flame,free-crystal-id-preserved
+21465,21465,yellow flame,free-crystal-id-preserved
 21466,21466,ewer with holy water,same-id-same-name
 21467,21467,translation scroll,same-id-same-name
 21468,21468,translation scroll,same-id-same-name
@@ -9173,7 +9173,7 @@ crystal_id,canary_id,name,reason
 28735,28735,dead grand canon dominus,same-id-same-name
 28736,28736,dead grand canon dominus,same-id-same-name
 28737,28737,dead grand canon dominus,same-id-same-name
-28750,54273,your stash,new-free-id
+28750,28750,your stash,free-crystal-id-preserved
 28751,28751,dead burning book,same-id-same-name
 28752,28752,dead burning book,same-id-same-name
 28753,28753,dead burning book,same-id-same-name
@@ -9788,7 +9788,7 @@ crystal_id,canary_id,name,reason
 31152,31152,hanging shield,same-id-same-name
 31157,31157,wall lamp,same-id-same-name
 31158,31158,lit wall lamp,same-id-same-name
-31159,54274,grass,new-free-id
+31159,31159,grass,free-crystal-id-preserved
 31160,31160,cleansed soul splinter,same-id-same-name
 31163,31163,stone pile,same-id-same-name
 31164,31164,golden idol of Tukh,same-id-same-name
@@ -12220,7 +12220,7 @@ crystal_id,canary_id,name,reason
 39167,39167,midnight sarong,same-id-same-name
 39168,39168,heated crystal,same-id-same-name
 39169,39169,cooled crystal,same-id-same-name
-39176,39176,primal pod,free-crystal-id-preserved
+39176,39176,primal pod,same-id-same-name
 39177,39177,charged spiritthorn ring,same-id-same-name
 39178,39178,charged spiritthorn ring,same-id-same-name
 39179,39179,spiritthorn ring,same-id-same-name
@@ -12794,15 +12794,15 @@ crystal_id,canary_id,name,reason
 43132,43132,stairs,same-id-same-name
 43133,43133,stairs,same-id-same-name
 43134,43134,stairs,same-id-same-name
-43294,43294,spore tracks,free-crystal-id-preserved
-43295,43295,volatile funghi,free-crystal-id-preserved
-43297,43297,agony field,free-crystal-id-preserved
+43294,43294,spore tracks,same-id-same-name
+43295,43295,volatile funghi,same-id-same-name
+43297,43297,agony field,same-id-same-name
 43372,43372,hole,same-id-same-name
 43374,43374,vine,same-id-same-name
-43501,43501,the essence of Murcion,free-crystal-id-preserved
-43502,43502,the essence of Ichgahal,free-crystal-id-preserved
-43503,43503,the essence of Vemiath,free-crystal-id-preserved
-43504,43504,the essence of Chagorz,free-crystal-id-preserved
+43501,43501,the essence of Murcion,same-id-same-name
+43502,43502,the essence of Ichgahal,same-id-same-name
+43503,43503,the essence of Vemiath,same-id-same-name
+43504,43504,the essence of Chagorz,same-id-same-name
 43510,43510,tibiora's box,same-id-same-name
 43511,43511,citizen doll,same-id-same-name
 43517,43517,shield of destiny,same-id-same-name
@@ -12851,7 +12851,7 @@ crystal_id,canary_id,name,reason
 43736,43736,moon pin,same-id-same-name
 43737,43737,sun brooch,same-id-same-name
 43740,43740,scarab ocarina,same-id-same-name
-43744,43744,rotten mushroom,free-crystal-id-preserved
+43744,43744,rotten mushroom,same-id-same-name
 43751,43751,dead werecrocodile,same-id-same-name
 43752,43752,dead werecrocodile,same-id-same-name
 43753,43753,dead werecrocodile,same-id-same-name
@@ -12864,23 +12864,23 @@ crystal_id,canary_id,name,reason
 43765,43765,dead feral werecrocodile,same-id-same-name
 43766,43766,dead feral werecrocodile,same-id-same-name
 43767,43767,dead feral werecrocodile,same-id-same-name
-43786,43786,rotten mushroom,free-crystal-id-preserved
-43787,43787,rotten mushroom,free-crystal-id-preserved
-43788,43788,rotten mushroom,free-crystal-id-preserved
-43789,43789,rotten mushroom,free-crystal-id-preserved
-43790,43790,rotten mushroom,free-crystal-id-preserved
-43792,43792,rotten crystal,free-crystal-id-preserved
-43793,43793,broken rotten crystal,free-crystal-id-preserved
-43794,43794,rotten crystal,free-crystal-id-preserved
-43795,43795,broken rotten crystal,free-crystal-id-preserved
-43796,43796,rotten crystal,free-crystal-id-preserved
-43797,43797,broken rotten crystal,free-crystal-id-preserved
-43798,43798,rotten crystal,free-crystal-id-preserved
-43799,43799,broken rotten crystal,free-crystal-id-preserved
-43800,43800,rotten crystal,free-crystal-id-preserved
-43801,43801,broken rotten crystal,free-crystal-id-preserved
-43810,43810,large seashell,free-crystal-id-preserved
-43811,43811,large seashell,free-crystal-id-preserved
+43786,43786,rotten mushroom,same-id-same-name
+43787,43787,rotten mushroom,same-id-same-name
+43788,43788,rotten mushroom,same-id-same-name
+43789,43789,rotten mushroom,same-id-same-name
+43790,43790,rotten mushroom,same-id-same-name
+43792,43792,rotten crystal,same-id-same-name
+43793,43793,broken rotten crystal,same-id-same-name
+43794,43794,rotten crystal,same-id-same-name
+43795,43795,broken rotten crystal,same-id-same-name
+43796,43796,rotten crystal,same-id-same-name
+43797,43797,broken rotten crystal,same-id-same-name
+43798,43798,rotten crystal,same-id-same-name
+43799,43799,broken rotten crystal,same-id-same-name
+43800,43800,rotten crystal,same-id-same-name
+43801,43801,broken rotten crystal,same-id-same-name
+43810,43810,large seashell,same-id-same-name
+43811,43811,large seashell,same-id-same-name
 43813,43813,dead bloated man-maggot,same-id-same-name
 43814,43814,dead bloated man-maggot,same-id-same-name
 43815,43815,dead bloated man-maggot,same-id-same-name
@@ -12919,8 +12919,8 @@ crystal_id,canary_id,name,reason
 43851,43851,darklight matter,same-id-same-name
 43852,43852,darklight basalt chunk,same-id-same-name
 43853,43853,darklight core,same-id-same-name
-43854,43854,tainted heart,free-crystal-id-preserved
-43855,43855,darklight heart,free-crystal-id-preserved
+43854,43854,tainted heart,same-id-same-name
+43855,43855,darklight heart,same-id-same-name
 43863,43863,conch shell horn,same-id-same-name
 43864,43864,sanguine blade,same-id-same-name
 43865,43865,grand sanguine blade,same-id-same-name
@@ -12948,8 +12948,8 @@ crystal_id,canary_id,name,reason
 43887,43887,sanguine galoshes,same-id-same-name
 43891,43891,sacrificial plate,same-id-same-name
 43895,43895,bag you covet,same-id-same-name
-43899,43899,cursed wood,free-crystal-id-preserved
-43900,43900,darklight geode,free-crystal-id-preserved
+43899,43899,cursed wood,same-id-same-name
+43900,43900,darklight geode,same-id-same-name
 43901,43901,toy ball,same-id-same-name
 43902,43902,crack,same-id-same-name
 43915,43915,weretiger trophy,same-id-same-name
@@ -12959,21 +12959,21 @@ crystal_id,canary_id,name,reason
 43953,43953,closed door,same-id-same-name
 43954,43954,open door,same-id-same-name
 43955,43955,open door,same-id-same-name
-44012,54275,dead bakragore,new-free-id
-44013,54276,dead bakragore,new-free-id
-44014,54277,dead bakragore,new-free-id
-44015,54278,dead murcion,new-free-id
-44016,54279,dead murcion,new-free-id
-44017,54280,dead murcion,new-free-id
-44018,54281,dead Ichgahal,new-free-id
-44019,54282,dead Ichgahal,new-free-id
-44020,54283,dead Ichgahal,new-free-id
-44021,54284,dead vemiath,new-free-id
-44022,54285,dead vemiath,new-free-id
-44023,54286,dead vemiath,new-free-id
-44024,54287,dead chagorz,new-free-id
-44025,54288,dead chagorz,new-free-id
-44026,54289,dead chagorz,new-free-id
+44012,44012,dead bakragore,free-crystal-id-preserved
+44013,44013,dead bakragore,free-crystal-id-preserved
+44014,44014,dead bakragore,free-crystal-id-preserved
+44015,44015,dead murcion,free-crystal-id-preserved
+44016,44016,dead murcion,free-crystal-id-preserved
+44017,44017,dead murcion,free-crystal-id-preserved
+44018,44018,dead Ichgahal,free-crystal-id-preserved
+44019,44019,dead Ichgahal,free-crystal-id-preserved
+44020,44020,dead Ichgahal,free-crystal-id-preserved
+44021,44021,dead vemiath,free-crystal-id-preserved
+44022,44022,dead vemiath,free-crystal-id-preserved
+44023,44023,dead vemiath,free-crystal-id-preserved
+44024,44024,dead chagorz,free-crystal-id-preserved
+44025,44025,dead chagorz,free-crystal-id-preserved
+44026,44026,dead chagorz,free-crystal-id-preserved
 44036,44036,dead ayana the crimson curse,same-id-same-name
 44037,44037,dead ayana the crimson curse,same-id-same-name
 44038,44038,dead ayana the crimson curse,same-id-same-name
@@ -12982,9 +12982,9 @@ crystal_id,canary_id,name,reason
 44065,44065,exercise shield,same-id-same-name
 44066,44066,durable exercise shield,same-id-same-name
 44067,44067,lasting exercise shield,same-id-same-name
-44158,44158,dragon trophy,free-crystal-id-preserved
-44529,44529,slits,free-crystal-id-preserved
-44530,44530,blades,free-crystal-id-preserved
+44158,44158,dragon trophy,same-id-same-name
+44529,44529,slits,same-id-same-name
+44530,44530,blades,same-id-same-name
 44602,44602,lesser guardian gem,same-id-same-name
 44603,44603,guardian gem,same-id-same-name
 44604,44604,greater guardian gem,same-id-same-name
@@ -13089,8 +13089,8 @@ crystal_id,canary_id,name,reason
 45655,45655,preserved violet seed,same-id-same-name
 45656,45656,preserved purple seed,same-id-same-name
 45657,45657,preserved yellow seed,same-id-same-name
-46625,46625,lesser fragment,free-crystal-id-preserved
-46626,46626,greater fragment,free-crystal-id-preserved
+46625,46625,lesser fragment,same-id-same-name
+46626,46626,greater fragment,same-id-same-name
 46627,46627,crusher,same-id-same-name
 46628,46628,amber crusher,same-id-same-name
 47367,47367,large obelisk,same-id-same-name
@@ -13651,10 +13651,10 @@ crystal_id,canary_id,name,reason
 48254,48254,churro heart,same-id-same-name
 48255,48255,lime tart,same-id-same-name
 48256,48256,pastry dragon,same-id-same-name
-48257,48257,dead nibblemaw,free-crystal-id-preserved
-48258,48258,dead nibblemaw,free-crystal-id-preserved
-48259,48259,dead nibblemaw,free-crystal-id-preserved
-48260,48260,dead nibblemaw,free-crystal-id-preserved
+48257,48257,dead nibblemaw,same-id-same-name
+48258,48258,dead nibblemaw,same-id-same-name
+48259,48259,dead nibblemaw,same-id-same-name
+48260,48260,dead nibblemaw,same-id-same-name
 48261,48261,dead gingerbread man,same-id-same-name
 48262,48262,dead gingerbread man,same-id-same-name
 48263,48263,dead gingerbread man,same-id-same-name
@@ -13691,15 +13691,15 @@ crystal_id,canary_id,name,reason
 48413,48413,amber sickle,same-id-same-name
 48424,48424,pegasus feather,same-id-same-name
 48441,48441,bed,same-id-same-name
-48442,48442,bed,free-crystal-id-preserved
-48443,48443,bed,free-crystal-id-preserved
-48444,48444,bed,free-crystal-id-preserved
-48449,48449,bed,free-crystal-id-preserved
-48450,48450,bed,free-crystal-id-preserved
-48451,48451,bed,free-crystal-id-preserved
-48452,48452,bed,free-crystal-id-preserved
-48457,48457,candy cushion,free-crystal-id-preserved
-48467,48467,candy cushion,free-crystal-id-preserved
+48442,48442,bed,same-id-same-name
+48443,48443,bed,same-id-same-name
+48444,48444,bed,same-id-same-name
+48449,48449,bed,same-id-same-name
+48450,48450,bed,same-id-same-name
+48451,48451,bed,same-id-same-name
+48452,48452,bed,same-id-same-name
+48457,48457,candy cushion,same-id-same-name
+48467,48467,candy cushion,same-id-same-name
 48493,48493,ladder,same-id-same-name
 48494,48494,ladder,same-id-same-name
 48495,48495,closed door,same-id-same-name
@@ -13854,18 +13854,18 @@ crystal_id,canary_id,name,reason
 49092,49092,fruit drop soul core,same-id-same-name
 49094,49094,sugar cube worker soul core,same-id-same-name
 49095,49095,cream blob soul core,same-id-same-name
-49147,49147,dead rootthing,free-crystal-id-preserved
-49148,49148,dead rootthing,free-crystal-id-preserved
-49149,49149,dead rootthing,free-crystal-id-preserved
-49150,49150,dead rootthing,free-crystal-id-preserved
-49161,49161,trapdoor,free-crystal-id-preserved
+49147,49147,dead rootthing,same-id-same-name
+49148,49148,dead rootthing,same-id-same-name
+49149,49149,dead rootthing,same-id-same-name
+49150,49150,dead rootthing,same-id-same-name
+49161,49161,trapdoor,same-id-same-name
 49163,49163,ominous soul core,same-id-same-name
 49164,49164,soul prism,same-id-same-name
 49271,49271,transcendence potion,same-id-same-name
 49371,49371,lesser spiritualist gem,same-id-same-name
 49372,49372,spiritualist gem,same-id-same-name
 49373,49373,greater spiritualist gem,same-id-same-name
-49407,49407,sacrificial altar,free-crystal-id-preserved
+49407,49407,sacrificial altar,same-id-same-name
 49520,49520,inferniarch bow,same-id-same-name
 49522,49522,inferniarch arbalest,same-id-same-name
 49523,49523,inferniarch battleaxe,same-id-same-name
@@ -13880,37 +13880,37 @@ crystal_id,canary_id,name,reason
 49532,49532,hellstalker visor,same-id-same-name
 49533,49533,dreadfire headpiece,same-id-same-name
 49534,49534,demonfang mask,same-id-same-name
-49656,54290,stairs,new-free-id
-49657,54291,stairs,new-free-id
-49658,54292,stairs,new-free-id
-49659,54293,stairs,new-free-id
-49660,54294,stairs,new-free-id
-49661,54295,stairs,new-free-id
-49662,49662,stairs,free-crystal-id-preserved
-49663,49663,stairs,free-crystal-id-preserved
-49678,54296,closed gate,new-free-id
-49679,54297,closed gate,new-free-id
-49680,54298,closed gate,new-free-id
+49656,49656,stairs,free-crystal-id-preserved
+49657,49657,stairs,free-crystal-id-preserved
+49658,49658,stairs,free-crystal-id-preserved
+49659,49659,stairs,free-crystal-id-preserved
+49660,49660,stairs,free-crystal-id-preserved
+49661,49661,stairs,free-crystal-id-preserved
+49662,49662,stairs,same-id-same-name
+49663,49663,stairs,same-id-same-name
+49678,49678,closed gate,free-crystal-id-preserved
+49679,49679,closed gate,free-crystal-id-preserved
+49680,49680,closed gate,free-crystal-id-preserved
 49681,49681,closed door,same-id-same-name
-49682,54299,open gate,new-free-id
-49683,54300,open gate,new-free-id
-49684,54301,closed gate,new-free-id
-49685,54302,closed gate,new-free-id
-49686,54303,closed gate,new-free-id
-49687,54304,closed gate,new-free-id
-49688,54305,open gate,new-free-id
-49689,54306,open gate,new-free-id
-49731,49731,closed door,free-crystal-id-preserved
-49732,49732,closed door,free-crystal-id-preserved
-49733,49733,closed door,free-crystal-id-preserved
-49734,49734,closed door,free-crystal-id-preserved
-49739,49739,stained glass window,free-crystal-id-preserved
-49742,49742,stained glass window,free-crystal-id-preserved
-49845,49845,statue of a warrior monk depicting the cobra,free-crystal-id-preserved
-49846,49846,statue of a warrior monk depicting the rotworm,free-crystal-id-preserved
-49847,49847,statue of a warrior monk depicting the frog,free-crystal-id-preserved
-49848,49848,statue of a warrior monk depicting the cat,free-crystal-id-preserved
-49849,49849,statue of a warrior monk depicting the dragon,free-crystal-id-preserved
+49682,49682,open gate,free-crystal-id-preserved
+49683,49683,open gate,free-crystal-id-preserved
+49684,49684,closed gate,free-crystal-id-preserved
+49685,49685,closed gate,free-crystal-id-preserved
+49686,49686,closed gate,free-crystal-id-preserved
+49687,49687,closed gate,free-crystal-id-preserved
+49688,49688,open gate,free-crystal-id-preserved
+49689,49689,open gate,free-crystal-id-preserved
+49731,49731,closed door,same-id-same-name
+49732,49732,closed door,same-id-same-name
+49733,49733,closed door,same-id-same-name
+49734,49734,closed door,same-id-same-name
+49739,49739,stained glass window,same-id-same-name
+49742,49742,stained glass window,same-id-same-name
+49845,49845,statue of a warrior monk depicting the cobra,same-id-same-name
+49846,49846,statue of a warrior monk depicting the rotworm,same-id-same-name
+49847,49847,statue of a warrior monk depicting the frog,same-id-same-name
+49848,49848,statue of a warrior monk depicting the cat,same-id-same-name
+49849,49849,statue of a warrior monk depicting the dragon,same-id-same-name
 49858,49858,rending inferniarch bow,same-id-same-name
 49859,49859,draining inferniarch bow,same-id-same-name
 49860,49860,siphoning inferniarch bow,same-id-same-name
@@ -13941,34 +13941,34 @@ crystal_id,canary_id,name,reason
 49885,49885,rending inferniarch rod,same-id-same-name
 49886,49886,draining inferniarch rod,same-id-same-name
 49887,49887,siphoning inferniarch rod,same-id-same-name
-49891,49891,skin of Twisterror,free-crystal-id-preserved
-49892,49892,skin of Gralvalon,free-crystal-id-preserved
-49893,49893,skin of Malvaroth,free-crystal-id-preserved
-49894,49894,demonic matter,free-crystal-id-preserved
-49904,49904,some troll food,free-crystal-id-preserved
-49908,49908,mummified demon finger,free-crystal-id-preserved
-49909,49909,demonic core essence,free-crystal-id-preserved
-49912,49912,incense,free-crystal-id-preserved
-49913,49913,incense,free-crystal-id-preserved
-49914,49914,incense,free-crystal-id-preserved
-49915,49915,incense,free-crystal-id-preserved
-49936,49936,ramp,free-crystal-id-preserved
+49891,49891,skin of Twisterror,same-id-same-name
+49892,49892,skin of Gralvalon,same-id-same-name
+49893,49893,skin of Malvaroth,same-id-same-name
+49894,49894,demonic matter,same-id-same-name
+49904,49904,some troll food,same-id-same-name
+49908,49908,mummified demon finger,same-id-same-name
+49909,49909,demonic core essence,same-id-same-name
+49912,49912,incense,same-id-same-name
+49913,49913,incense,same-id-same-name
+49914,49914,incense,same-id-same-name
+49915,49915,incense,same-id-same-name
+49936,49936,ramp,same-id-same-name
 49937,49937,ramp,same-id-same-name
-49938,49938,ramp,free-crystal-id-preserved
-49939,49939,ramp,free-crystal-id-preserved
-49940,49940,ramp,free-crystal-id-preserved
-49941,49941,ramp,free-crystal-id-preserved
-49942,49942,ramp,free-crystal-id-preserved
-49943,49943,ramp,free-crystal-id-preserved
-49948,49948,guarded crystal sphere,free-crystal-id-preserved
-49987,49987,dead spellreaper inferniarch,free-crystal-id-preserved
-49988,49988,dead spellreaper inferniarch,free-crystal-id-preserved
-49989,49989,dead spellreaper inferniarch,free-crystal-id-preserved
-49990,49990,dead spellreaper inferniarch,free-crystal-id-preserved
-49991,49991,dead hellhunter inferniarch,free-crystal-id-preserved
-49992,49992,dead hellhunter inferniarch,free-crystal-id-preserved
-49993,49993,dead hellhunter inferniarch,free-crystal-id-preserved
-49994,49994,dead hellhunter inferniarch,free-crystal-id-preserved
+49938,49938,ramp,same-id-same-name
+49939,49939,ramp,same-id-same-name
+49940,49940,ramp,same-id-same-name
+49941,49941,ramp,same-id-same-name
+49942,49942,ramp,same-id-same-name
+49943,49943,ramp,same-id-same-name
+49948,49948,guarded crystal sphere,same-id-same-name
+49987,49987,dead spellreaper inferniarch,same-id-same-name
+49988,49988,dead spellreaper inferniarch,same-id-same-name
+49989,49989,dead spellreaper inferniarch,same-id-same-name
+49990,49990,dead spellreaper inferniarch,same-id-same-name
+49991,49991,dead hellhunter inferniarch,same-id-same-name
+49992,49992,dead hellhunter inferniarch,same-id-same-name
+49993,49993,dead hellhunter inferniarch,same-id-same-name
+49994,49994,dead hellhunter inferniarch,same-id-same-name
 49995,49995,dead brinebrute inferniarch,same-id-same-name
 49996,49996,dead brinebrute inferniarch,same-id-same-name
 49997,49997,dead brinebrute inferniarch,same-id-same-name
@@ -13985,21 +13985,21 @@ crystal_id,canary_id,name,reason
 50008,50008,dead gorger inferniarch,same-id-same-name
 50009,50009,dead gorger inferniarch,same-id-same-name
 50010,50010,dead gorger inferniarch,same-id-same-name
-50027,54307,dead arbaziloth,new-free-id
-50028,54308,dead arbaziloth,new-free-id
-50029,54309,dead arbaziloth,new-free-id
-50039,50039,dead twisterror,free-crystal-id-preserved
-50040,50040,dead twisterror,free-crystal-id-preserved
-50041,50041,dead twisterror,free-crystal-id-preserved
-50042,50042,dead twisterror,free-crystal-id-preserved
-50043,50043,dead gralvalon,free-crystal-id-preserved
-50044,50044,dead gralvalon,free-crystal-id-preserved
-50045,50045,dead gralvalon,free-crystal-id-preserved
-50046,50046,dead gralvalon,free-crystal-id-preserved
-50047,50047,dead malvaroth,free-crystal-id-preserved
-50048,50048,dead malvaroth,free-crystal-id-preserved
-50049,50049,dead malvaroth,free-crystal-id-preserved
-50050,50050,dead malvaroth,free-crystal-id-preserved
+50027,50027,dead arbaziloth,free-crystal-id-preserved
+50028,50028,dead arbaziloth,free-crystal-id-preserved
+50029,50029,dead arbaziloth,free-crystal-id-preserved
+50039,50039,dead twisterror,same-id-same-name
+50040,50040,dead twisterror,same-id-same-name
+50041,50041,dead twisterror,same-id-same-name
+50042,50042,dead twisterror,same-id-same-name
+50043,50043,dead gralvalon,same-id-same-name
+50044,50044,dead gralvalon,same-id-same-name
+50045,50045,dead gralvalon,same-id-same-name
+50046,50046,dead gralvalon,same-id-same-name
+50047,50047,dead malvaroth,same-id-same-name
+50048,50048,dead malvaroth,same-id-same-name
+50049,50049,dead malvaroth,same-id-same-name
+50050,50050,dead malvaroth,same-id-same-name
 50054,50054,spellreaper staff totem,same-id-same-name
 50055,50055,hellhunter eye,same-id-same-name
 50056,50056,brinebrute claw,same-id-same-name
@@ -14010,9 +14010,9 @@ crystal_id,canary_id,name,reason
 50061,50061,demon skull,same-id-same-name
 50064,50064,demon in a green box,same-id-same-name
 50067,50067,Arbaziloth shoulder piece,same-id-same-name
-50096,50096,ticket forge,free-crystal-id-preserved
+50096,50096,ticket forge,same-id-same-name
 50101,50101,bloodstained scythe,same-id-same-name
-50102,54310,dead corpse,new-free-id
+50102,50102,dead corpse,free-crystal-id-preserved
 50103,50103,spellreaper inferniarch soul core,same-id-same-name
 50104,50104,hellhunter inferniarch soul core,same-id-same-name
 50105,50105,brinebrute inferniarch soul core,same-id-same-name
@@ -14023,10 +14023,10 @@ crystal_id,canary_id,name,reason
 50122,50122,ladder,same-id-same-name
 50123,50123,ladder,same-id-same-name
 50124,50124,arbaziloth santa,same-id-same-name
-50131,50131,huge ancient stone sphere,free-crystal-id-preserved
-50132,50132,small ancient stone sphere,free-crystal-id-preserved
-50139,50139,small training log,free-crystal-id-preserved
-50143,50143,large training log,free-crystal-id-preserved
+50131,50131,huge ancient stone sphere,same-id-same-name
+50132,50132,small ancient stone sphere,same-id-same-name
+50139,50139,small training log,same-id-same-name
+50143,50143,large training log,same-id-same-name
 50146,50146,sanguine trousers,same-id-same-name
 50147,50147,charged ethereal ring,same-id-same-name
 50148,50148,charged ethereal ring,same-id-same-name
@@ -14056,7 +14056,7 @@ crystal_id,canary_id,name,reason
 50176,50176,depth claws,same-id-same-name
 50181,50181,pair of monk fists,same-id-same-name
 50182,50182,nunchaku,same-id-same-name
-50183,54311,sai,new-free-id
+50183,50183,sai,free-crystal-id-preserved
 50184,50184,mutant hide trousers,same-id-same-name
 50185,50185,jade legs,same-id-same-name
 50186,50186,jungle survivor legs,same-id-same-name
@@ -14069,21 +14069,21 @@ crystal_id,canary_id,name,reason
 50193,50193,jade conical hat,same-id-same-name
 50194,50194,light bandana,same-id-same-name
 50195,50195,harmony amulet,same-id-same-name
-50227,50227,guarded crystal sphere,free-crystal-id-preserved
-50228,50228,statue of a gorilla,free-crystal-id-preserved
-50229,50229,statue of a locust,free-crystal-id-preserved
-50230,50230,statue of a demon,free-crystal-id-preserved
-50231,50231,statue of a crane,free-crystal-id-preserved
-50232,50232,statue of a cobra,free-crystal-id-preserved
-50233,50233,moonhunter figurine,free-crystal-id-preserved
+50227,50227,guarded crystal sphere,same-id-same-name
+50228,50228,statue of a gorilla,same-id-same-name
+50229,50229,statue of a locust,same-id-same-name
+50230,50230,statue of a demon,same-id-same-name
+50231,50231,statue of a crane,same-id-same-name
+50232,50232,statue of a cobra,same-id-same-name
+50233,50233,moonhunter figurine,same-id-same-name
 50239,50239,amber kusarigama,same-id-same-name
 50240,50240,soulsoles,same-id-same-name
-50242,50242,ancient shrine,free-crystal-id-preserved
-50243,50243,ancient shrine,free-crystal-id-preserved
-50244,50244,ancient shrine,free-crystal-id-preserved
-50245,50245,ancient shrine,free-crystal-id-preserved
-50248,50248,comfy cushion,free-crystal-id-preserved
-50249,50249,merudri writing easel,free-crystal-id-preserved
+50242,50242,ancient shrine,same-id-same-name
+50243,50243,ancient shrine,same-id-same-name
+50244,50244,ancient shrine,same-id-same-name
+50245,50245,ancient shrine,same-id-same-name
+50248,50248,comfy cushion,same-id-same-name
+50249,50249,merudri writing easel,same-id-same-name
 50250,50250,inferniarch claws,same-id-same-name
 50251,50251,rending inferniarch claws,same-id-same-name
 50252,50252,draining inferniarch claws,same-id-same-name
@@ -14122,471 +14122,471 @@ crystal_id,canary_id,name,reason
 50295,50295,lasting exercise wraps,same-id-same-name
 50296,50296,skill trainer,same-id-same-name
 50308,50308,monk pedestal,same-id-same-name
-50309,50309,monk pedestal,free-crystal-id-preserved
-50310,50310,enhanced guarded crystal sphere,free-crystal-id-preserved
-50311,50311,good remains of a merudri,free-crystal-id-preserved
-50313,50313,sensing crown,free-crystal-id-preserved
-50314,50314,your magical tree,free-crystal-id-preserved
-50315,50315,ornate candle,free-crystal-id-preserved
-50318,50318,paper light,free-crystal-id-preserved
-50321,50321,lampion,free-crystal-id-preserved
-50322,50322,lampion,free-crystal-id-preserved
+50309,50309,monk pedestal,same-id-same-name
+50310,50310,enhanced guarded crystal sphere,same-id-same-name
+50311,50311,good remains of a merudri,same-id-same-name
+50313,50313,sensing crown,same-id-same-name
+50314,50314,your magical tree,same-id-same-name
+50315,50315,ornate candle,same-id-same-name
+50318,50318,paper light,same-id-same-name
+50321,50321,lampion,same-id-same-name
+50322,50322,lampion,same-id-same-name
 50330,50330,monk's apparition soul core,same-id-same-name
-50334,50334,zaoan sauce,free-crystal-id-preserved
-50435,50435,wooden dummy,free-crystal-id-preserved
-50436,50436,wooden dummy,free-crystal-id-preserved
-50547,50547,stairs,free-crystal-id-preserved
-50551,50551,stairs,free-crystal-id-preserved
-50553,50553,stairs,free-crystal-id-preserved
-50555,50555,stairs,free-crystal-id-preserved
-51119,51119,simple jo staff,free-crystal-id-preserved
-51186,51186,voodoo chair,free-crystal-id-preserved
-51188,51188,voodoo chair,free-crystal-id-preserved
-51189,51189,voodoo chair,free-crystal-id-preserved
-51190,51190,voodoo chair,free-crystal-id-preserved
-51196,51196,voodoo chest,free-crystal-id-preserved
-51197,51197,voodoo chest,free-crystal-id-preserved
-51198,51198,voodoo chest,free-crystal-id-preserved
-51199,51199,voodoo chest,free-crystal-id-preserved
-51204,51204,voodoo table,free-crystal-id-preserved
-51205,51205,voodoo table,free-crystal-id-preserved
-51206,51206,voodoo cabinet,free-crystal-id-preserved
-51207,51207,voodoo cabinet,free-crystal-id-preserved
-51208,51208,voodoo bed,free-crystal-id-preserved
-51209,51209,voodoo bed,free-crystal-id-preserved
-51210,51210,voodoo bed,free-crystal-id-preserved
-51211,51211,voodoo bed,free-crystal-id-preserved
-51212,51212,voodoo bed,free-crystal-id-preserved
-51213,51213,voodoo bed,free-crystal-id-preserved
-51214,51214,voodoo bed,free-crystal-id-preserved
-51215,51215,voodoo bed,free-crystal-id-preserved
-51216,51216,voodoo bed,free-crystal-id-preserved
-51217,51217,voodoo bed,free-crystal-id-preserved
-51218,51218,voodoo bed,free-crystal-id-preserved
-51219,51219,voodoo bed,free-crystal-id-preserved
-51220,51220,voodoo lamp,free-crystal-id-preserved
-51221,51221,voodoo lamp,free-crystal-id-preserved
-51222,51222,rolled-up voodoo carpet,free-crystal-id-preserved
-51223,51223,voodoo carpet,free-crystal-id-preserved
-51237,51237,voodoo mask,free-crystal-id-preserved
+50334,50334,zaoan sauce,same-id-same-name
+50435,50435,wooden dummy,same-id-same-name
+50436,50436,wooden dummy,same-id-same-name
+50547,50547,stairs,same-id-same-name
+50551,50551,stairs,same-id-same-name
+50553,50553,stairs,same-id-same-name
+50555,50555,stairs,same-id-same-name
+51119,51119,simple jo staff,same-id-same-name
+51186,51186,voodoo chair,same-id-same-name
+51188,51188,voodoo chair,same-id-same-name
+51189,51189,voodoo chair,same-id-same-name
+51190,51190,voodoo chair,same-id-same-name
+51196,51196,voodoo chest,same-id-same-name
+51197,51197,voodoo chest,same-id-same-name
+51198,51198,voodoo chest,same-id-same-name
+51199,51199,voodoo chest,same-id-same-name
+51204,51204,voodoo table,same-id-same-name
+51205,51205,voodoo table,same-id-same-name
+51206,51206,voodoo cabinet,same-id-same-name
+51207,51207,voodoo cabinet,same-id-same-name
+51208,51208,voodoo bed,same-id-same-name
+51209,51209,voodoo bed,same-id-same-name
+51210,51210,voodoo bed,same-id-same-name
+51211,51211,voodoo bed,same-id-same-name
+51212,51212,voodoo bed,same-id-same-name
+51213,51213,voodoo bed,same-id-same-name
+51214,51214,voodoo bed,same-id-same-name
+51215,51215,voodoo bed,same-id-same-name
+51216,51216,voodoo bed,same-id-same-name
+51217,51217,voodoo bed,same-id-same-name
+51218,51218,voodoo bed,same-id-same-name
+51219,51219,voodoo bed,same-id-same-name
+51220,51220,voodoo lamp,same-id-same-name
+51221,51221,voodoo lamp,same-id-same-name
+51222,51222,rolled-up voodoo carpet,same-id-same-name
+51223,51223,voodoo carpet,same-id-same-name
+51237,51237,voodoo mask,same-id-same-name
 51259,51259,reality splinter,same-id-same-name
-51260,51260,norcferatu skullguard,free-crystal-id-preserved
-51261,51261,norcferatu bonehood,free-crystal-id-preserved
-51262,51262,norcferatu tuskplate,free-crystal-id-preserved
-51263,51263,norcferatu bloodhide,free-crystal-id-preserved
-51264,51264,norcferatu bonecloak,free-crystal-id-preserved
-51265,51265,norcferatu thornwraps,free-crystal-id-preserved
-51266,51266,norcferatu bloodstrider,free-crystal-id-preserved
-51267,51267,norcferatu fleshguards,free-crystal-id-preserved
-51268,51268,norcferatu goretrampers,free-crystal-id-preserved
-51269,51269,norcferatu fangstompers,free-crystal-id-preserved
-51270,51270,ink blade,free-crystal-id-preserved
-51271,51271,ink quill,free-crystal-id-preserved
-51272,51272,ink claw,free-crystal-id-preserved
-51273,51273,ink vine,free-crystal-id-preserved
-51274,51274,ink brush,free-crystal-id-preserved
-51275,51275,greater garlic necklace,free-crystal-id-preserved
+51260,51260,norcferatu skullguard,same-id-same-name
+51261,51261,norcferatu bonehood,same-id-same-name
+51262,51262,norcferatu tuskplate,same-id-same-name
+51263,51263,norcferatu bloodhide,same-id-same-name
+51264,51264,norcferatu bonecloak,same-id-same-name
+51265,51265,norcferatu thornwraps,same-id-same-name
+51266,51266,norcferatu bloodstrider,same-id-same-name
+51267,51267,norcferatu fleshguards,same-id-same-name
+51268,51268,norcferatu goretrampers,same-id-same-name
+51269,51269,norcferatu fangstompers,same-id-same-name
+51270,51270,ink blade,same-id-same-name
+51271,51271,ink quill,same-id-same-name
+51272,51272,ink claw,same-id-same-name
+51273,51273,ink vine,same-id-same-name
+51274,51274,ink brush,same-id-same-name
+51275,51275,greater garlic necklace,same-id-same-name
 51294,51294,spirit bind,same-id-same-name
-51419,51419,paper plane,free-crystal-id-preserved
-51420,51420,paper boat,free-crystal-id-preserved
-51421,51421,colourful quill,free-crystal-id-preserved
-51422,51422,star ink,free-crystal-id-preserved
-51423,51423,book with a dragon,free-crystal-id-preserved
-51425,51425,book with an hourglass,free-crystal-id-preserved
-51426,51426,sealing wax,free-crystal-id-preserved
-51427,51427,torn page,free-crystal-id-preserved
-51442,51442,blank imbuement scroll,free-crystal-id-preserved
-51443,51443,etcher,free-crystal-id-preserved
-51444,51444,powerful bash scroll,free-crystal-id-preserved
-51445,51445,powerful blockade scroll,free-crystal-id-preserved
-51446,51446,powerful chop scroll,free-crystal-id-preserved
-51447,51447,powerful cloud fabric scroll,free-crystal-id-preserved
-51448,51448,powerful demon presence scroll,free-crystal-id-preserved
-51449,51449,powerful dragon hide scroll,free-crystal-id-preserved
-51450,51450,powerful electrify scroll,free-crystal-id-preserved
-51451,51451,powerful epiphany scroll,free-crystal-id-preserved
-51452,51452,powerful featherweight scroll,free-crystal-id-preserved
-51453,51453,powerful frost scroll,free-crystal-id-preserved
-51454,51454,powerful lich shroud scroll,free-crystal-id-preserved
-51455,51455,powerful precision scroll,free-crystal-id-preserved
-51456,51456,powerful punch scroll,free-crystal-id-preserved
-51457,51457,powerful quara scale scroll,free-crystal-id-preserved
-51458,51458,powerful reap scroll,free-crystal-id-preserved
-51459,51459,powerful scorch scroll,free-crystal-id-preserved
-51460,51460,powerful slash scroll,free-crystal-id-preserved
-51461,51461,powerful snake skin scroll,free-crystal-id-preserved
-51462,51462,powerful strike scroll,free-crystal-id-preserved
-51463,51463,powerful swiftness scroll,free-crystal-id-preserved
-51464,51464,powerful vampirism scroll,free-crystal-id-preserved
-51465,51465,powerful venom scroll,free-crystal-id-preserved
-51466,51466,powerful vibrancy scroll,free-crystal-id-preserved
-51467,51467,powerful void scroll,free-crystal-id-preserved
-51468,51468,dread doll,free-crystal-id-preserved
-51470,51470,tiny bat coffin,free-crystal-id-preserved
-51471,51471,tiny bat coffin,free-crystal-id-preserved
-51472,51472,chain leash,free-crystal-id-preserved
-51473,51473,blood amulet,free-crystal-id-preserved
-51474,51474,piece of frozen night,free-crystal-id-preserved
-51475,51475,ritual bone knife,free-crystal-id-preserved
-51476,51476,pot of orcish warpaint,free-crystal-id-preserved
-51477,51477,orcish toothbrush,free-crystal-id-preserved
-51478,51478,bone rattle,free-crystal-id-preserved
-51479,51479,spiked bracers,free-crystal-id-preserved
-51480,51480,blood hood,free-crystal-id-preserved
-51481,51481,blood sceptre,free-crystal-id-preserved
-51482,51482,bloodshot giant eye,free-crystal-id-preserved
-51483,51483,blood crown,free-crystal-id-preserved
-51484,51484,heart amphora,free-crystal-id-preserved
-51485,51485,bone fibula,free-crystal-id-preserved
-51486,51486,spiked gorget,free-crystal-id-preserved
-51487,51487,norcferatu talisman,free-crystal-id-preserved
-51494,51494,slain crusader,free-crystal-id-preserved
-51495,51495,slain crusader,free-crystal-id-preserved
-51496,51496,slain crusader,free-crystal-id-preserved
-51497,51497,slain crusader,free-crystal-id-preserved
-51498,51498,slain bramble wyrmling,free-crystal-id-preserved
-51499,51499,slain bramble wyrmling,free-crystal-id-preserved
-51500,51500,slain bramble wyrmling,free-crystal-id-preserved
-51501,51501,slain bramble wyrmling,free-crystal-id-preserved
-51504,51504,slain bluebeak,free-crystal-id-preserved
-51505,51505,slain bluebeak,free-crystal-id-preserved
-51506,51506,slain cinder wyrmling,free-crystal-id-preserved
-51507,51507,slain cinder wyrmling,free-crystal-id-preserved
-51508,51508,slain cinder wyrmling,free-crystal-id-preserved
-51509,51509,slain cinder wyrmling,free-crystal-id-preserved
-51510,51510,painted healing herbs,free-crystal-id-preserved
-51511,51511,painted bandages,free-crystal-id-preserved
-51512,51512,saturated painted bandages,free-crystal-id-preserved
-51526,51526,special bat coffin,free-crystal-id-preserved
-51527,51527,special bat coffin,free-crystal-id-preserved
-51529,51529,slain norcferatu nightweaver,free-crystal-id-preserved
-51530,51530,slain norcferatu nightweaver,free-crystal-id-preserved
-51531,51531,slain norcferatu nightweaver,free-crystal-id-preserved
-51532,51532,slain norcferatu nightweaver,free-crystal-id-preserved
-51533,51533,slain norcferatu heartless,free-crystal-id-preserved
-51534,51534,slain norcferatu heartless,free-crystal-id-preserved
-51535,51535,slain norcferatu heartless,free-crystal-id-preserved
-51536,51536,slain norcferatu heartless,free-crystal-id-preserved
-51537,51537,slain dworc shadowstalker,free-crystal-id-preserved
-51538,51538,slain orclops bloodbreaker,free-crystal-id-preserved
-51540,51540,slain dworc shadowstalker,free-crystal-id-preserved
-51541,51541,slain dworc shadowstalker,free-crystal-id-preserved
-51542,51542,slain dworc shadowstalker,free-crystal-id-preserved
-51543,51543,slain orclops bloodbreaker,free-crystal-id-preserved
-51544,51544,slain orclops bloodbreaker,free-crystal-id-preserved
-51545,51545,slain orclops bloodbreaker,free-crystal-id-preserved
-51546,51546,slain varg,free-crystal-id-preserved
-51547,51547,slain varg,free-crystal-id-preserved
-51548,51548,slain varg,free-crystal-id-preserved
-51549,51549,slain headwalker,free-crystal-id-preserved
-51550,51550,slain headwalker,free-crystal-id-preserved
-51551,51551,slain headwalker,free-crystal-id-preserved
-51552,51552,slain headwalker,free-crystal-id-preserved
-51553,51553,slain shell drake,free-crystal-id-preserved
-51554,51554,slain shell drake,free-crystal-id-preserved
-51555,51555,slain shell drake,free-crystal-id-preserved
-51556,51556,slain shell drake,free-crystal-id-preserved
-51561,51561,slain lion hydra,free-crystal-id-preserved
-51562,51562,slain lion hydra,free-crystal-id-preserved
-51563,51563,slain lion hydra,free-crystal-id-preserved
-51564,51564,slain lion hydra,free-crystal-id-preserved
-51568,51568,boat ticket,free-crystal-id-preserved
-51569,51569,slain vladrukh,free-crystal-id-preserved
-51570,51570,slain vladrukh,free-crystal-id-preserved
-51571,51571,slain vladrukh,free-crystal-id-preserved
-51572,51572,slain vladrukh,free-crystal-id-preserved
-51584,51584,slain gloom maw,free-crystal-id-preserved
-51585,51585,slain gloom maw,free-crystal-id-preserved
-51586,51586,slain gloom maw,free-crystal-id-preserved
-51587,51587,slain gloom maw,free-crystal-id-preserved
-51588,51588,proficiency catalyst,free-crystal-id-preserved
-51589,51589,greater proficiency catalyst,free-crystal-id-preserved
-51592,51592,slain vampiric maessencew,free-crystal-id-preserved
-51593,51593,slain vampiric essence,free-crystal-id-preserved
-51594,51594,slain vampiric essence,free-crystal-id-preserved
-51595,51595,slain vampiric essence,free-crystal-id-preserved
-51623,51623,deer fur brush,free-crystal-id-preserved
-51641,51641,norcferatu heartless soul core,free-crystal-id-preserved
-51642,51642,varg soul core,free-crystal-id-preserved
-51643,51643,norcferatu nightweaver soul core,free-crystal-id-preserved
-51644,51644,dworc shadowstalker soul core,free-crystal-id-preserved
-51645,51645,orclops bloodbreaker soul core,free-crystal-id-preserved
-51646,51646,gloom maw soul core,free-crystal-id-preserved
-51647,51647,cinder wyrmling soul core,free-crystal-id-preserved
-51648,51648,bramble wyrmling soul core,free-crystal-id-preserved
-51649,51649,headwalker soul core,free-crystal-id-preserved
-51650,51650,bluebeak soul core,free-crystal-id-preserved
-51651,51651,hawk hopper soul core,free-crystal-id-preserved
-51652,51652,shell drake soul core,free-crystal-id-preserved
-51653,51653,crusader soul core,free-crystal-id-preserved
-51654,51654,lion hydra soul core,free-crystal-id-preserved
-51656,51656,scallop shell,free-crystal-id-preserved
-51657,51657,sand-filled horn,free-crystal-id-preserved
-51666,51666,ink sword,free-crystal-id-preserved
-51702,51702,the Tale of Joran and Yvette - Part I,free-crystal-id-preserved
-51703,51703,the Tale of Joran and Yvette - Part II,free-crystal-id-preserved
-51704,51704,the Tale of Joran and Yvette - Part III,free-crystal-id-preserved
-51706,51706,effigy of winged vengeance,free-crystal-id-preserved
-51707,51707,effigy of winged vengeance,free-crystal-id-preserved
-51708,51708,effigy of winged vengeance,free-crystal-id-preserved
-51709,51709,effigy of winged vengeance,free-crystal-id-preserved
-51710,51710,effigy of winged vengeance,free-crystal-id-preserved
-51711,51711,effigy of winged vengeance,free-crystal-id-preserved
-51712,51712,effigy of winged vengeance,free-crystal-id-preserved
-51713,51713,effigy of winged vengeance,free-crystal-id-preserved
-51714,51714,norcferatu talisman,free-crystal-id-preserved
-51721,51721,ink splash soul core,free-crystal-id-preserved
-51724,51724,intricate bash scroll,free-crystal-id-preserved
-51725,51725,intricate blockade scroll,free-crystal-id-preserved
-51726,51726,intricate chop scroll,free-crystal-id-preserved
-51727,51727,intricate cloud fabric scroll,free-crystal-id-preserved
-51728,51728,intricate demon presence scroll,free-crystal-id-preserved
-51729,51729,intricate dragon hide scroll,free-crystal-id-preserved
-51730,51730,intricate electrify scroll,free-crystal-id-preserved
-51731,51731,intricate epiphany scroll,free-crystal-id-preserved
-51732,51732,intricate featherweight scroll,free-crystal-id-preserved
-51733,51733,intricate frost scroll,free-crystal-id-preserved
-51734,51734,intricate lich shroud scroll,free-crystal-id-preserved
-51735,51735,intricate precision scroll,free-crystal-id-preserved
-51736,51736,intricate punch scroll,free-crystal-id-preserved
-51737,51737,intricate quara scale scroll,free-crystal-id-preserved
-51738,51738,intricate reap scroll,free-crystal-id-preserved
-51739,51739,intricate scorch scroll,free-crystal-id-preserved
-51740,51740,intricate slash scroll,free-crystal-id-preserved
-51741,51741,intricate snake skin scroll,free-crystal-id-preserved
-51742,51742,intricate strike scroll,free-crystal-id-preserved
-51743,51743,intricate swiftness scroll,free-crystal-id-preserved
-51744,51744,intricate vampirism scroll,free-crystal-id-preserved
-51745,51745,intricate venom scroll,free-crystal-id-preserved
-51746,51746,intricate vibrancy scroll,free-crystal-id-preserved
-51747,51747,intricate void scroll,free-crystal-id-preserved
-51760,51760,refined bow,free-crystal-id-preserved
-51895,51895,brooch,free-crystal-id-preserved
-51976,51976,jade dragon head,free-crystal-id-preserved
-51977,51977,book of wisdom,free-crystal-id-preserved
-51978,51978,bounty talisman,free-crystal-id-preserved
-52113,52113,dead the corruptor,free-crystal-id-preserved
-52114,52114,dead the corruptor,free-crystal-id-preserved
-52115,52115,dead the corruptor,free-crystal-id-preserved
-52116,52116,dead the corruptor,free-crystal-id-preserved
-52117,52117,dead Muglex Clan Chief,free-crystal-id-preserved
-52118,52118,dead Muglex Clan Chief,free-crystal-id-preserved
-52119,52119,dead Muglex Clan Chief,free-crystal-id-preserved
-52120,52120,dead Muglex Clan Chief,free-crystal-id-preserved
-52332,52332,crypt spine,free-crystal-id-preserved
-52333,52333,crypt splitter,free-crystal-id-preserved
-52334,52334,crypt breaker,free-crystal-id-preserved
-52335,52335,crypt strike,free-crystal-id-preserved
-52336,52336,crypt bile,free-crystal-id-preserved
-52337,52337,crypt jaw,free-crystal-id-preserved
-52338,52338,crypt slicer,free-crystal-id-preserved
-52348,52348,stag helmet,free-crystal-id-preserved
-52349,52349,stag robe,free-crystal-id-preserved
-52350,52350,stag plate,free-crystal-id-preserved
-52351,52351,stag legs,free-crystal-id-preserved
-52352,52352,stag shinguards,free-crystal-id-preserved
-52353,52353,stag boots,free-crystal-id-preserved
-52354,52354,stag footwraps,free-crystal-id-preserved
-52355,52355,stag spellbook,free-crystal-id-preserved
-52356,52356,stag scrolls,free-crystal-id-preserved
-52357,52357,stag shield,free-crystal-id-preserved
-52358,52358,muglex clan footman soul core,free-crystal-id-preserved
-52359,52359,muglex clan assassin soul core,free-crystal-id-preserved
-52360,52360,corrupted ghost soul core,free-crystal-id-preserved
-52361,52361,corrupted skeleton soul core,free-crystal-id-preserved
-52548,52548,dead cyclursus,free-crystal-id-preserved
-52549,52549,dead cyclursus,free-crystal-id-preserved
-52550,52550,dead cyclursus,free-crystal-id-preserved
-52551,52551,dead cyclursus,free-crystal-id-preserved
-52552,52552,dead crypt fiend,free-crystal-id-preserved
-52553,52553,dead crypt fiend,free-crystal-id-preserved
-52554,52554,dead crypt fiend,free-crystal-id-preserved
-52555,52555,dead crypt fiend,free-crystal-id-preserved
-52556,52556,dead roaming dread,free-crystal-id-preserved
-52557,52557,dead roaming dread,free-crystal-id-preserved
-52558,52558,dead roaming dread,free-crystal-id-preserved
-52559,52559,dead roaming dread,free-crystal-id-preserved
-52560,52560,dead crypt mage,free-crystal-id-preserved
-52561,52561,dead crypt mage,free-crystal-id-preserved
-52562,52562,dead crypt mage,free-crystal-id-preserved
-52563,52563,dead crypt mage,free-crystal-id-preserved
-52564,52564,dead bone bear,free-crystal-id-preserved
-52565,52565,dead bone bear,free-crystal-id-preserved
-52566,52566,dead bone bear,free-crystal-id-preserved
-52567,52567,dead bone bear,free-crystal-id-preserved
-52568,52568,dead haunted hunter,free-crystal-id-preserved
-52569,52569,dead haunted hunter,free-crystal-id-preserved
-52570,52570,dead haunted hunter,free-crystal-id-preserved
-52571,52571,dead haunted hunter,free-crystal-id-preserved
-52572,52572,dead creepy crawler,free-crystal-id-preserved
-52573,52573,dead creepy crawler,free-crystal-id-preserved
-52574,52574,dead creepy crawler,free-crystal-id-preserved
-52575,52575,dead creepy crawler,free-crystal-id-preserved
-52586,52586,ice-covered certificate of ancestry,free-crystal-id-preserved
-52589,52589,folded artefact carpet VIII,free-crystal-id-preserved
-52632,52632,night harpy beak,free-crystal-id-preserved
-52633,52633,night harpy feathers,free-crystal-id-preserved
-52634,52634,oak wood,free-crystal-id-preserved
-52635,52635,salvaged iron parts,free-crystal-id-preserved
-52636,52636,tender venison,free-crystal-id-preserved
-52637,52637,repair kit for boats,free-crystal-id-preserved
-52638,52638,marinated sturgeon,free-crystal-id-preserved
-52649,52649,refined stag shield,free-crystal-id-preserved
-52657,52657,fiery crypt rune,free-crystal-id-preserved
-52658,52658,icy crypt rune,free-crystal-id-preserved
-52659,52659,deathly crypt rune,free-crystal-id-preserved
-52660,52660,ancient crypt rune,free-crystal-id-preserved
-52661,52661,necromantic crypt rune,free-crystal-id-preserved
-52662,52662,silver poniard,free-crystal-id-preserved
-52663,52663,cuirass plate,free-crystal-id-preserved
-52664,52664,stag parchment,free-crystal-id-preserved
-52677,52677,dead night harpy,free-crystal-id-preserved
-52678,52678,dead night harpy,free-crystal-id-preserved
-52679,52679,dead night harpy,free-crystal-id-preserved
-52680,52680,dead night harpy,free-crystal-id-preserved
-52681,52681,dead raubritter skirmisher,free-crystal-id-preserved
-52682,52682,dead raubritter skirmisher,free-crystal-id-preserved
-52683,52683,dead raubritter skirmisher,free-crystal-id-preserved
-52684,52684,dead raubritter skirmisher,free-crystal-id-preserved
-52685,52685,dead raubritter marksman,free-crystal-id-preserved
-52686,52686,dead raubritter marksman,free-crystal-id-preserved
-52687,52687,dead raubritter marksman,free-crystal-id-preserved
-52688,52688,dead raubritter marksman,free-crystal-id-preserved
-52689,52689,dead raubritter chastener,free-crystal-id-preserved
-52690,52690,dead raubritter chastener,free-crystal-id-preserved
-52691,52691,dead raubritter chastener,free-crystal-id-preserved
-52692,52692,dead raubritter chastener,free-crystal-id-preserved
-52693,52693,dead Court Warlock,free-crystal-id-preserved
-52694,52694,dead Court Warlock,free-crystal-id-preserved
-52695,52695,dead Court Warlock,free-crystal-id-preserved
-52696,52696,dead Court Warlock,free-crystal-id-preserved
-52705,52705,necromantic core,free-crystal-id-preserved
-52706,52706,toe nails,free-crystal-id-preserved
-52707,52707,giant tusk,free-crystal-id-preserved
-52708,52708,fetid heart,free-crystal-id-preserved
-52709,52709,cryptic fossil,free-crystal-id-preserved
-52710,52710,worn guide book,free-crystal-id-preserved
-52711,52711,golden claw,free-crystal-id-preserved
-52712,52712,shrunken head,free-crystal-id-preserved
-52713,52713,ancient scales,free-crystal-id-preserved
-52714,52714,soul trap,free-crystal-id-preserved
-52715,52715,skull tendril,free-crystal-id-preserved
-52716,52716,ancient eye stalk,free-crystal-id-preserved
-52717,52717,bone spikes,free-crystal-id-preserved
-52718,52718,deadly fangs,free-crystal-id-preserved
-52719,52719,crystallized death,free-crystal-id-preserved
-52720,52720,cluster of crystallized death,free-crystal-id-preserved
-52725,52725,ancient bonelord santa,free-crystal-id-preserved
-52726,52726,icy scales,free-crystal-id-preserved
-52727,52727,icy horns,free-crystal-id-preserved
-52728,52728,frozen crapace,free-crystal-id-preserved
-52729,52729,frozen claw,free-crystal-id-preserved
-52732,52732,guardian ring,free-crystal-id-preserved
-52743,52743,salvaged silver parts,free-crystal-id-preserved
-52744,52744,personal letter of Michael the Stalwart I,free-crystal-id-preserved
-52745,52745,bottle of Raubritter Lager,free-crystal-id-preserved
-52746,52746,twisted marionette,free-crystal-id-preserved
-52747,52747,broken staff of mind control,free-crystal-id-preserved
-52748,52748,battle tactics,free-crystal-id-preserved
-52750,52750,dead goblin scavenger,free-crystal-id-preserved
-52751,52751,dead goblin scavenger,free-crystal-id-preserved
-52752,52752,dead goblin scavenger,free-crystal-id-preserved
-52753,52753,dead goblin scavenger,free-crystal-id-preserved
-52758,52758,salvaged bronze parts,free-crystal-id-preserved
-52759,52759,the mariner's compass from the Antoinette,free-crystal-id-preserved
-52781,52781,stag shield refinement plans,free-crystal-id-preserved
-52783,52783,falcon circlet,free-crystal-id-preserved
-52785,52785,cool bottle of Raubritter Lager,free-crystal-id-preserved
-52788,52788,meal from the beak of a night harpy,free-crystal-id-preserved
-52789,52789,bottle of enhanced Raubritter Lager,free-crystal-id-preserved
-52800,52800,raubritter skirmisher soul core,free-crystal-id-preserved
-52801,52801,raubritter marksman soul core,free-crystal-id-preserved
-52802,52802,raubritter chastener soul core,free-crystal-id-preserved
-52807,52807,cyclursus soul core,free-crystal-id-preserved
-52808,52808,crypt fiend soul core,free-crystal-id-preserved
-52809,52809,walking dread soul core,free-crystal-id-preserved
-52810,52810,crypt construct soul core,free-crystal-id-preserved
-52811,52811,haunted hunter soul core,free-crystal-id-preserved
-52812,52812,creepy crawler soul core,free-crystal-id-preserved
-52813,52813,night harpy soul core,free-crystal-id-preserved
-52814,52814,roaming dread soul core,free-crystal-id-preserved
-52815,52815,crypt mage soul core,free-crystal-id-preserved
-52816,52816,personal letter of Clavius I,free-crystal-id-preserved
-52817,52817,personal letter of Clavius II,free-crystal-id-preserved
-52818,52818,personal letter of Clavius III,free-crystal-id-preserved
-52819,52819,personal letter of Adlerauge I,free-crystal-id-preserved
-52820,52820,personal letter of Adlerauge II,free-crystal-id-preserved
-52821,52821,personal letter of Adlerauge III,free-crystal-id-preserved
-52822,52822,personal letter of Michael the Stalwart II,free-crystal-id-preserved
-52823,52823,personal letter of Michael the Stalwart III,free-crystal-id-preserved
-52824,52824,the broken sword of Eldoran Etzel,free-crystal-id-preserved
-52828,52828,brass-shod chest,free-crystal-id-preserved
-52830,52830,lit candlestick,free-crystal-id-preserved
-52838,52838,dead stag,free-crystal-id-preserved
-52839,52839,dead stag,free-crystal-id-preserved
-52840,52840,dead stag,free-crystal-id-preserved
-52841,52841,dead stag,free-crystal-id-preserved
-52842,52842,dead imperial,free-crystal-id-preserved
-52843,52843,dead imperial,free-crystal-id-preserved
-52844,52844,dead imperial,free-crystal-id-preserved
-52845,52845,dead imperial,free-crystal-id-preserved
-52846,52846,dead Michael the Stalwart,free-crystal-id-preserved
-52847,52847,dead Michael the Stalwart,free-crystal-id-preserved
-52848,52848,dead Michael the Stalwart,free-crystal-id-preserved
-52849,52849,dead Michael the Stalwart,free-crystal-id-preserved
-52850,52850,dead Adlerauge,free-crystal-id-preserved
-52851,52851,dead Adlerauge,free-crystal-id-preserved
-52852,52852,dead Adlerauge,free-crystal-id-preserved
-52853,52853,dead Adlerauge,free-crystal-id-preserved
-52854,52854,dead Clavius,free-crystal-id-preserved
-52855,52855,dead Clavius,free-crystal-id-preserved
-52856,52856,dead Clavius,free-crystal-id-preserved
-52857,52857,dead Clavius,free-crystal-id-preserved
-52858,52858,dead Overseer Osverger,free-crystal-id-preserved
-52859,52859,dead Overseer Osverger,free-crystal-id-preserved
-52860,52860,dead Overseer Osverger,free-crystal-id-preserved
-52861,52861,dead Overseer Osverger,free-crystal-id-preserved
-52864,52864,test proficiency catalyst,free-crystal-id-preserved
-52865,52865,stag soul core,free-crystal-id-preserved
-52866,52866,imperial soul core,free-crystal-id-preserved
-52867,52867,barebone grill,free-crystal-id-preserved
-52868,52868,barebone grill,free-crystal-id-preserved
-52869,52869,barebone grill,free-crystal-id-preserved
-52870,52870,barebone grill,free-crystal-id-preserved
-52871,52871,barebone grill,free-crystal-id-preserved
-52873,52873,inert dragon head,free-crystal-id-preserved
-52874,52874,jade dragon head,free-crystal-id-preserved
-52963,52963,skill trainer,free-crystal-id-preserved
-52964,52964,charred mask,free-crystal-id-preserved
-53002,53002,gold tooth,free-crystal-id-preserved
-53003,53003,lizard tail,free-crystal-id-preserved
-53004,53004,infernoid ember,free-crystal-id-preserved
-53005,53005,sailor's burn cure,free-crystal-id-preserved
-53073,53073,bunch of turnips,free-crystal-id-preserved
-53074,53074,adventurer backpack,free-crystal-id-preserved
-53078,53078,dead lizard henchman,free-crystal-id-preserved
-53082,53082,dead lizard magician,free-crystal-id-preserved
-53086,53086,dead lizard swordmaster,free-crystal-id-preserved
-53090,53090,dead lizard commander,free-crystal-id-preserved
-53094,53094,dead lizard executioner,free-crystal-id-preserved
-53098,53098,dead pirate navigator,free-crystal-id-preserved
-53103,53103,dead pirate quartermaster,free-crystal-id-preserved
-53108,53108,dead herald of fire,free-crystal-id-preserved
-53110,53110,dead pirate gunner,free-crystal-id-preserved
-53113,53113,dead pirate cook,free-crystal-id-preserved
-53119,53119,dead sea captain,free-crystal-id-preserved
-53122,53122,dead infernoid hound,free-crystal-id-preserved
-53125,53125,dead infernoid soul,free-crystal-id-preserved
-53128,53128,dead infernoid spiritual,free-crystal-id-preserved
-53132,53132,dead infernoid blob,free-crystal-id-preserved
-53158,53158,old treasure map,free-crystal-id-preserved
-53162,53162,superior mana potion,free-crystal-id-preserved
-53163,53163,distilled superior mana potion,free-crystal-id-preserved
-53164,53164,distilled ultimate mana potion,free-crystal-id-preserved
-53167,53167,sail pass,free-crystal-id-preserved
-53168,53168,shatterstorm arrow,free-crystal-id-preserved
-53169,53169,firestorm arrow,free-crystal-id-preserved
-53170,53170,terrastorm arrow,free-crystal-id-preserved
-53171,53171,froststorm arrow,free-crystal-id-preserved
-53172,53172,thunderstorm arrow,free-crystal-id-preserved
-54266,54266,lesser proficiency catalyst,free-crystal-id-preserved
+51419,51419,paper plane,same-id-same-name
+51420,51420,paper boat,same-id-same-name
+51421,51421,colourful quill,same-id-same-name
+51422,51422,star ink,same-id-same-name
+51423,51423,book with a dragon,same-id-same-name
+51425,51425,book with an hourglass,same-id-same-name
+51426,51426,sealing wax,same-id-same-name
+51427,51427,torn page,same-id-same-name
+51442,51442,blank imbuement scroll,same-id-same-name
+51443,51443,etcher,same-id-same-name
+51444,51444,powerful bash scroll,same-id-same-name
+51445,51445,powerful blockade scroll,same-id-same-name
+51446,51446,powerful chop scroll,same-id-same-name
+51447,51447,powerful cloud fabric scroll,same-id-same-name
+51448,51448,powerful demon presence scroll,same-id-same-name
+51449,51449,powerful dragon hide scroll,same-id-same-name
+51450,51450,powerful electrify scroll,same-id-same-name
+51451,51451,powerful epiphany scroll,same-id-same-name
+51452,51452,powerful featherweight scroll,same-id-same-name
+51453,51453,powerful frost scroll,same-id-same-name
+51454,51454,powerful lich shroud scroll,same-id-same-name
+51455,51455,powerful precision scroll,same-id-same-name
+51456,51456,powerful punch scroll,same-id-same-name
+51457,51457,powerful quara scale scroll,same-id-same-name
+51458,51458,powerful reap scroll,same-id-same-name
+51459,51459,powerful scorch scroll,same-id-same-name
+51460,51460,powerful slash scroll,same-id-same-name
+51461,51461,powerful snake skin scroll,same-id-same-name
+51462,51462,powerful strike scroll,same-id-same-name
+51463,51463,powerful swiftness scroll,same-id-same-name
+51464,51464,powerful vampirism scroll,same-id-same-name
+51465,51465,powerful venom scroll,same-id-same-name
+51466,51466,powerful vibrancy scroll,same-id-same-name
+51467,51467,powerful void scroll,same-id-same-name
+51468,51468,dread doll,same-id-same-name
+51470,51470,tiny bat coffin,same-id-same-name
+51471,51471,tiny bat coffin,same-id-same-name
+51472,51472,chain leash,same-id-same-name
+51473,51473,blood amulet,same-id-same-name
+51474,51474,piece of frozen night,same-id-same-name
+51475,51475,ritual bone knife,same-id-same-name
+51476,51476,pot of orcish warpaint,same-id-same-name
+51477,51477,orcish toothbrush,same-id-same-name
+51478,51478,bone rattle,same-id-same-name
+51479,51479,spiked bracers,same-id-same-name
+51480,51480,blood hood,same-id-same-name
+51481,51481,blood sceptre,same-id-same-name
+51482,51482,bloodshot giant eye,same-id-same-name
+51483,51483,blood crown,same-id-same-name
+51484,51484,heart amphora,same-id-same-name
+51485,51485,bone fibula,same-id-same-name
+51486,51486,spiked gorget,same-id-same-name
+51487,51487,norcferatu talisman,same-id-same-name
+51494,51494,slain crusader,same-id-same-name
+51495,51495,slain crusader,same-id-same-name
+51496,51496,slain crusader,same-id-same-name
+51497,51497,slain crusader,same-id-same-name
+51498,51498,slain bramble wyrmling,same-id-same-name
+51499,51499,slain bramble wyrmling,same-id-same-name
+51500,51500,slain bramble wyrmling,same-id-same-name
+51501,51501,slain bramble wyrmling,same-id-same-name
+51504,51504,slain bluebeak,same-id-same-name
+51505,51505,slain bluebeak,same-id-same-name
+51506,51506,slain cinder wyrmling,same-id-same-name
+51507,51507,slain cinder wyrmling,same-id-same-name
+51508,51508,slain cinder wyrmling,same-id-same-name
+51509,51509,slain cinder wyrmling,same-id-same-name
+51510,51510,painted healing herbs,same-id-same-name
+51511,51511,painted bandages,same-id-same-name
+51512,51512,saturated painted bandages,same-id-same-name
+51526,51526,special bat coffin,same-id-same-name
+51527,51527,special bat coffin,same-id-same-name
+51529,51529,slain norcferatu nightweaver,same-id-same-name
+51530,51530,slain norcferatu nightweaver,same-id-same-name
+51531,51531,slain norcferatu nightweaver,same-id-same-name
+51532,51532,slain norcferatu nightweaver,same-id-same-name
+51533,51533,slain norcferatu heartless,same-id-same-name
+51534,51534,slain norcferatu heartless,same-id-same-name
+51535,51535,slain norcferatu heartless,same-id-same-name
+51536,51536,slain norcferatu heartless,same-id-same-name
+51537,51537,slain dworc shadowstalker,same-id-same-name
+51538,51538,slain orclops bloodbreaker,same-id-same-name
+51540,51540,slain dworc shadowstalker,same-id-same-name
+51541,51541,slain dworc shadowstalker,same-id-same-name
+51542,51542,slain dworc shadowstalker,same-id-same-name
+51543,51543,slain orclops bloodbreaker,same-id-same-name
+51544,51544,slain orclops bloodbreaker,same-id-same-name
+51545,51545,slain orclops bloodbreaker,same-id-same-name
+51546,51546,slain varg,same-id-same-name
+51547,51547,slain varg,same-id-same-name
+51548,51548,slain varg,same-id-same-name
+51549,51549,slain headwalker,same-id-same-name
+51550,51550,slain headwalker,same-id-same-name
+51551,51551,slain headwalker,same-id-same-name
+51552,51552,slain headwalker,same-id-same-name
+51553,51553,slain shell drake,same-id-same-name
+51554,51554,slain shell drake,same-id-same-name
+51555,51555,slain shell drake,same-id-same-name
+51556,51556,slain shell drake,same-id-same-name
+51561,51561,slain lion hydra,same-id-same-name
+51562,51562,slain lion hydra,same-id-same-name
+51563,51563,slain lion hydra,same-id-same-name
+51564,51564,slain lion hydra,same-id-same-name
+51568,51568,boat ticket,same-id-same-name
+51569,51569,slain vladrukh,same-id-same-name
+51570,51570,slain vladrukh,same-id-same-name
+51571,51571,slain vladrukh,same-id-same-name
+51572,51572,slain vladrukh,same-id-same-name
+51584,51584,slain gloom maw,same-id-same-name
+51585,51585,slain gloom maw,same-id-same-name
+51586,51586,slain gloom maw,same-id-same-name
+51587,51587,slain gloom maw,same-id-same-name
+51588,51588,proficiency catalyst,same-id-same-name
+51589,51589,greater proficiency catalyst,same-id-same-name
+51592,51592,slain vampiric maessencew,same-id-same-name
+51593,51593,slain vampiric essence,same-id-same-name
+51594,51594,slain vampiric essence,same-id-same-name
+51595,51595,slain vampiric essence,same-id-same-name
+51623,51623,deer fur brush,same-id-same-name
+51641,51641,norcferatu heartless soul core,same-id-same-name
+51642,51642,varg soul core,same-id-same-name
+51643,51643,norcferatu nightweaver soul core,same-id-same-name
+51644,51644,dworc shadowstalker soul core,same-id-same-name
+51645,51645,orclops bloodbreaker soul core,same-id-same-name
+51646,51646,gloom maw soul core,same-id-same-name
+51647,51647,cinder wyrmling soul core,same-id-same-name
+51648,51648,bramble wyrmling soul core,same-id-same-name
+51649,51649,headwalker soul core,same-id-same-name
+51650,51650,bluebeak soul core,same-id-same-name
+51651,51651,hawk hopper soul core,same-id-same-name
+51652,51652,shell drake soul core,same-id-same-name
+51653,51653,crusader soul core,same-id-same-name
+51654,51654,lion hydra soul core,same-id-same-name
+51656,51656,scallop shell,same-id-same-name
+51657,51657,sand-filled horn,same-id-same-name
+51666,51666,ink sword,same-id-same-name
+51702,51702,the Tale of Joran and Yvette - Part I,same-id-same-name
+51703,51703,the Tale of Joran and Yvette - Part II,same-id-same-name
+51704,51704,the Tale of Joran and Yvette - Part III,same-id-same-name
+51706,51706,effigy of winged vengeance,same-id-same-name
+51707,51707,effigy of winged vengeance,same-id-same-name
+51708,51708,effigy of winged vengeance,same-id-same-name
+51709,51709,effigy of winged vengeance,same-id-same-name
+51710,51710,effigy of winged vengeance,same-id-same-name
+51711,51711,effigy of winged vengeance,same-id-same-name
+51712,51712,effigy of winged vengeance,same-id-same-name
+51713,51713,effigy of winged vengeance,same-id-same-name
+51714,51714,norcferatu talisman,same-id-same-name
+51721,51721,ink splash soul core,same-id-same-name
+51724,51724,intricate bash scroll,same-id-same-name
+51725,51725,intricate blockade scroll,same-id-same-name
+51726,51726,intricate chop scroll,same-id-same-name
+51727,51727,intricate cloud fabric scroll,same-id-same-name
+51728,51728,intricate demon presence scroll,same-id-same-name
+51729,51729,intricate dragon hide scroll,same-id-same-name
+51730,51730,intricate electrify scroll,same-id-same-name
+51731,51731,intricate epiphany scroll,same-id-same-name
+51732,51732,intricate featherweight scroll,same-id-same-name
+51733,51733,intricate frost scroll,same-id-same-name
+51734,51734,intricate lich shroud scroll,same-id-same-name
+51735,51735,intricate precision scroll,same-id-same-name
+51736,51736,intricate punch scroll,same-id-same-name
+51737,51737,intricate quara scale scroll,same-id-same-name
+51738,51738,intricate reap scroll,same-id-same-name
+51739,51739,intricate scorch scroll,same-id-same-name
+51740,51740,intricate slash scroll,same-id-same-name
+51741,51741,intricate snake skin scroll,same-id-same-name
+51742,51742,intricate strike scroll,same-id-same-name
+51743,51743,intricate swiftness scroll,same-id-same-name
+51744,51744,intricate vampirism scroll,same-id-same-name
+51745,51745,intricate venom scroll,same-id-same-name
+51746,51746,intricate vibrancy scroll,same-id-same-name
+51747,51747,intricate void scroll,same-id-same-name
+51760,51760,refined bow,same-id-same-name
+51895,51895,brooch,same-id-same-name
+51976,51976,jade dragon head,same-id-same-name
+51977,51977,book of wisdom,same-id-same-name
+51978,51978,bounty talisman,same-id-same-name
+52113,52113,dead the corruptor,same-id-same-name
+52114,52114,dead the corruptor,same-id-same-name
+52115,52115,dead the corruptor,same-id-same-name
+52116,52116,dead the corruptor,same-id-same-name
+52117,52117,dead Muglex Clan Chief,same-id-same-name
+52118,52118,dead Muglex Clan Chief,same-id-same-name
+52119,52119,dead Muglex Clan Chief,same-id-same-name
+52120,52120,dead Muglex Clan Chief,same-id-same-name
+52332,52332,crypt spine,same-id-same-name
+52333,52333,crypt splitter,same-id-same-name
+52334,52334,crypt breaker,same-id-same-name
+52335,52335,crypt strike,same-id-same-name
+52336,52336,crypt bile,same-id-same-name
+52337,52337,crypt jaw,same-id-same-name
+52338,52338,crypt slicer,same-id-same-name
+52348,52348,stag helmet,same-id-same-name
+52349,52349,stag robe,same-id-same-name
+52350,52350,stag plate,same-id-same-name
+52351,52351,stag legs,same-id-same-name
+52352,52352,stag shinguards,same-id-same-name
+52353,52353,stag boots,same-id-same-name
+52354,52354,stag footwraps,same-id-same-name
+52355,52355,stag spellbook,same-id-same-name
+52356,52356,stag scrolls,same-id-same-name
+52357,52357,stag shield,same-id-same-name
+52358,52358,muglex clan footman soul core,same-id-same-name
+52359,52359,muglex clan assassin soul core,same-id-same-name
+52360,52360,corrupted ghost soul core,same-id-same-name
+52361,52361,corrupted skeleton soul core,same-id-same-name
+52548,52548,dead cyclursus,same-id-same-name
+52549,52549,dead cyclursus,same-id-same-name
+52550,52550,dead cyclursus,same-id-same-name
+52551,52551,dead cyclursus,same-id-same-name
+52552,52552,dead crypt fiend,same-id-same-name
+52553,52553,dead crypt fiend,same-id-same-name
+52554,52554,dead crypt fiend,same-id-same-name
+52555,52555,dead crypt fiend,same-id-same-name
+52556,52556,dead roaming dread,same-id-same-name
+52557,52557,dead roaming dread,same-id-same-name
+52558,52558,dead roaming dread,same-id-same-name
+52559,52559,dead roaming dread,same-id-same-name
+52560,52560,dead crypt mage,same-id-same-name
+52561,52561,dead crypt mage,same-id-same-name
+52562,52562,dead crypt mage,same-id-same-name
+52563,52563,dead crypt mage,same-id-same-name
+52564,52564,dead bone bear,same-id-same-name
+52565,52565,dead bone bear,same-id-same-name
+52566,52566,dead bone bear,same-id-same-name
+52567,52567,dead bone bear,same-id-same-name
+52568,52568,dead haunted hunter,same-id-same-name
+52569,52569,dead haunted hunter,same-id-same-name
+52570,52570,dead haunted hunter,same-id-same-name
+52571,52571,dead haunted hunter,same-id-same-name
+52572,52572,dead creepy crawler,same-id-same-name
+52573,52573,dead creepy crawler,same-id-same-name
+52574,52574,dead creepy crawler,same-id-same-name
+52575,52575,dead creepy crawler,same-id-same-name
+52586,52586,ice-covered certificate of ancestry,same-id-same-name
+52589,52589,folded artefact carpet VIII,same-id-same-name
+52632,52632,night harpy beak,same-id-same-name
+52633,52633,night harpy feathers,same-id-same-name
+52634,52634,oak wood,same-id-same-name
+52635,52635,salvaged iron parts,same-id-same-name
+52636,52636,tender venison,same-id-same-name
+52637,52637,repair kit for boats,same-id-same-name
+52638,52638,marinated sturgeon,same-id-same-name
+52649,52649,refined stag shield,same-id-same-name
+52657,52657,fiery crypt rune,same-id-same-name
+52658,52658,icy crypt rune,same-id-same-name
+52659,52659,deathly crypt rune,same-id-same-name
+52660,52660,ancient crypt rune,same-id-same-name
+52661,52661,necromantic crypt rune,same-id-same-name
+52662,52662,silver poniard,same-id-same-name
+52663,52663,cuirass plate,same-id-same-name
+52664,52664,stag parchment,same-id-same-name
+52677,52677,dead night harpy,same-id-same-name
+52678,52678,dead night harpy,same-id-same-name
+52679,52679,dead night harpy,same-id-same-name
+52680,52680,dead night harpy,same-id-same-name
+52681,52681,dead raubritter skirmisher,same-id-same-name
+52682,52682,dead raubritter skirmisher,same-id-same-name
+52683,52683,dead raubritter skirmisher,same-id-same-name
+52684,52684,dead raubritter skirmisher,same-id-same-name
+52685,52685,dead raubritter marksman,same-id-same-name
+52686,52686,dead raubritter marksman,same-id-same-name
+52687,52687,dead raubritter marksman,same-id-same-name
+52688,52688,dead raubritter marksman,same-id-same-name
+52689,52689,dead raubritter chastener,same-id-same-name
+52690,52690,dead raubritter chastener,same-id-same-name
+52691,52691,dead raubritter chastener,same-id-same-name
+52692,52692,dead raubritter chastener,same-id-same-name
+52693,52693,dead Court Warlock,same-id-same-name
+52694,52694,dead Court Warlock,same-id-same-name
+52695,52695,dead Court Warlock,same-id-same-name
+52696,52696,dead Court Warlock,same-id-same-name
+52705,52705,necromantic core,same-id-same-name
+52706,52706,toe nails,same-id-same-name
+52707,52707,giant tusk,same-id-same-name
+52708,52708,fetid heart,same-id-same-name
+52709,52709,cryptic fossil,same-id-same-name
+52710,52710,worn guide book,same-id-same-name
+52711,52711,golden claw,same-id-same-name
+52712,52712,shrunken head,same-id-same-name
+52713,52713,ancient scales,same-id-same-name
+52714,52714,soul trap,same-id-same-name
+52715,52715,skull tendril,same-id-same-name
+52716,52716,ancient eye stalk,same-id-same-name
+52717,52717,bone spikes,same-id-same-name
+52718,52718,deadly fangs,same-id-same-name
+52719,52719,crystallized death,same-id-same-name
+52720,52720,cluster of crystallized death,same-id-same-name
+52725,52725,ancient bonelord santa,same-id-same-name
+52726,52726,icy scales,same-id-same-name
+52727,52727,icy horns,same-id-same-name
+52728,52728,frozen crapace,same-id-same-name
+52729,52729,frozen claw,same-id-same-name
+52732,52732,guardian ring,same-id-same-name
+52743,52743,salvaged silver parts,same-id-same-name
+52744,52744,personal letter of Michael the Stalwart I,same-id-same-name
+52745,52745,bottle of Raubritter Lager,same-id-same-name
+52746,52746,twisted marionette,same-id-same-name
+52747,52747,broken staff of mind control,same-id-same-name
+52748,52748,battle tactics,same-id-same-name
+52750,52750,dead goblin scavenger,same-id-same-name
+52751,52751,dead goblin scavenger,same-id-same-name
+52752,52752,dead goblin scavenger,same-id-same-name
+52753,52753,dead goblin scavenger,same-id-same-name
+52758,52758,salvaged bronze parts,same-id-same-name
+52759,52759,the mariner's compass from the Antoinette,same-id-same-name
+52781,52781,stag shield refinement plans,same-id-same-name
+52783,52783,falcon circlet,same-id-same-name
+52785,52785,cool bottle of Raubritter Lager,same-id-same-name
+52788,52788,meal from the beak of a night harpy,same-id-same-name
+52789,52789,bottle of enhanced Raubritter Lager,same-id-same-name
+52800,52800,raubritter skirmisher soul core,same-id-same-name
+52801,52801,raubritter marksman soul core,same-id-same-name
+52802,52802,raubritter chastener soul core,same-id-same-name
+52807,52807,cyclursus soul core,same-id-same-name
+52808,52808,crypt fiend soul core,same-id-same-name
+52809,52809,walking dread soul core,same-id-same-name
+52810,52810,crypt construct soul core,same-id-same-name
+52811,52811,haunted hunter soul core,same-id-same-name
+52812,52812,creepy crawler soul core,same-id-same-name
+52813,52813,night harpy soul core,same-id-same-name
+52814,52814,roaming dread soul core,same-id-same-name
+52815,52815,crypt mage soul core,same-id-same-name
+52816,52816,personal letter of Clavius I,same-id-same-name
+52817,52817,personal letter of Clavius II,same-id-same-name
+52818,52818,personal letter of Clavius III,same-id-same-name
+52819,52819,personal letter of Adlerauge I,same-id-same-name
+52820,52820,personal letter of Adlerauge II,same-id-same-name
+52821,52821,personal letter of Adlerauge III,same-id-same-name
+52822,52822,personal letter of Michael the Stalwart II,same-id-same-name
+52823,52823,personal letter of Michael the Stalwart III,same-id-same-name
+52824,52824,the broken sword of Eldoran Etzel,same-id-same-name
+52828,52828,brass-shod chest,same-id-same-name
+52830,52830,lit candlestick,same-id-same-name
+52838,52838,dead stag,same-id-same-name
+52839,52839,dead stag,same-id-same-name
+52840,52840,dead stag,same-id-same-name
+52841,52841,dead stag,same-id-same-name
+52842,52842,dead imperial,same-id-same-name
+52843,52843,dead imperial,same-id-same-name
+52844,52844,dead imperial,same-id-same-name
+52845,52845,dead imperial,same-id-same-name
+52846,52846,dead Michael the Stalwart,same-id-same-name
+52847,52847,dead Michael the Stalwart,same-id-same-name
+52848,52848,dead Michael the Stalwart,same-id-same-name
+52849,52849,dead Michael the Stalwart,same-id-same-name
+52850,52850,dead Adlerauge,same-id-same-name
+52851,52851,dead Adlerauge,same-id-same-name
+52852,52852,dead Adlerauge,same-id-same-name
+52853,52853,dead Adlerauge,same-id-same-name
+52854,52854,dead Clavius,same-id-same-name
+52855,52855,dead Clavius,same-id-same-name
+52856,52856,dead Clavius,same-id-same-name
+52857,52857,dead Clavius,same-id-same-name
+52858,52858,dead Overseer Osverger,same-id-same-name
+52859,52859,dead Overseer Osverger,same-id-same-name
+52860,52860,dead Overseer Osverger,same-id-same-name
+52861,52861,dead Overseer Osverger,same-id-same-name
+52864,52864,test proficiency catalyst,same-id-same-name
+52865,52865,stag soul core,same-id-same-name
+52866,52866,imperial soul core,same-id-same-name
+52867,52867,barebone grill,same-id-same-name
+52868,52868,barebone grill,same-id-same-name
+52869,52869,barebone grill,same-id-same-name
+52870,52870,barebone grill,same-id-same-name
+52871,52871,barebone grill,same-id-same-name
+52873,52873,inert dragon head,same-id-same-name
+52874,52874,jade dragon head,same-id-same-name
+52963,52963,skill trainer,same-id-same-name
+52964,52964,charred mask,same-id-same-name
+53002,53002,gold tooth,same-id-same-name
+53003,53003,lizard tail,same-id-same-name
+53004,53004,infernoid ember,same-id-same-name
+53005,53005,sailor's burn cure,same-id-same-name
+53073,53073,bunch of turnips,same-id-same-name
+53074,53074,adventurer backpack,same-id-same-name
+53078,53078,dead lizard henchman,same-id-same-name
+53082,53082,dead lizard magician,same-id-same-name
+53086,53086,dead lizard swordmaster,same-id-same-name
+53090,53090,dead lizard commander,same-id-same-name
+53094,53094,dead lizard executioner,same-id-same-name
+53098,53098,dead pirate navigator,same-id-same-name
+53103,53103,dead pirate quartermaster,same-id-same-name
+53108,53108,dead herald of fire,same-id-same-name
+53110,53110,dead pirate gunner,same-id-same-name
+53113,53113,dead pirate cook,same-id-same-name
+53119,53119,dead sea captain,same-id-same-name
+53122,53122,dead infernoid hound,same-id-same-name
+53125,53125,dead infernoid soul,same-id-same-name
+53128,53128,dead infernoid spiritual,same-id-same-name
+53132,53132,dead infernoid blob,same-id-same-name
+53158,53158,old treasure map,same-id-same-name
+53162,53162,superior mana potion,same-id-same-name
+53163,53163,distilled superior mana potion,same-id-same-name
+53164,53164,distilled ultimate mana potion,same-id-same-name
+53167,53167,sail pass,same-id-same-name
+53168,53168,shatterstorm arrow,same-id-same-name
+53169,53169,firestorm arrow,same-id-same-name
+53170,53170,terrastorm arrow,same-id-same-name
+53171,53171,froststorm arrow,same-id-same-name
+53172,53172,thunderstorm arrow,same-id-same-name
+54266,54266,lesser proficiency catalyst,same-id-same-name
