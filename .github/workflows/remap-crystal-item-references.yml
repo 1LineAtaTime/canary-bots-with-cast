@@ -19,30 +19,41 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Generate Crystal -> Canary item map
-        run: python3 tools/migration/map_items.py
+      - name: Verify existing Crystal -> Canary map
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('data/items/item_id_map.json')
+          rows = json.loads(p.read_text(encoding='utf-8'))
+          assert isinstance(rows, list) and len(rows) > 1000, 'invalid or incomplete item map'
+          targets = [int(r['canary_id']) for r in rows]
+          assert len(targets) == len(set(targets)), 'duplicate Canary target IDs'
+          print(f'validated {len(rows)} item mappings')
+          PY
 
       - name: Rewrite item references
         run: python3 tools/migration/remap_item_references.py
 
-      - name: Validate generated XML and mapping
+      - name: Validate remap report
         run: |
           python3 - <<'PY'
-          import json
-          import xml.etree.ElementTree as ET
           from pathlib import Path
-          ET.parse('tools/migration/items_crystal_to_canary.xml')
-          m = json.loads(Path('tools/migration/item_id_map.json').read_text())
-          entries = m['entries']
-          targets = [int(v['target_id']) for v in entries.values()]
-          assert len(targets) == len(set(targets)), 'duplicate Canary target IDs'
-          print('validated', len(entries), 'item mappings')
+          p = Path('tools/migration/item_reference_remap_report.md')
+          text = p.read_text(encoding='utf-8')
+          assert 'files changed:' in text
+          assert 'references changed:' in text
+          print(text)
           PY
 
       - name: Commit remapped data
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tools/migration data/items data-otservbr-global
-          git diff --cached --quiet || git commit -m 'data: remap Crystal item references to Canary IDs'
-          git push
+          git add -f tools/migration/remap_item_references.py tools/migration/item_reference_remap_report.md data data-otservbr-global
+          if git diff --cached --quiet; then
+            echo 'No remapped references to commit.'
+          else
+            git commit -m 'data: remap Crystal item references to Canary IDs'
+            git push origin HEAD:crystal-items-monsters-migration
+          fi
