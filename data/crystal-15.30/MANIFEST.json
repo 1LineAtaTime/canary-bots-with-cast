@@ -1,0 +1,20 @@
+{
+  "source": "Crystal 15.30",
+  "files": [
+    {
+      "path": "data/crystal-15.30/appearances-17a72b30b5c3c9ca8c1283cfb2febd2a93a145ff8ab66916f7a412d0f1dee5a1.dat",
+      "size": 5002660,
+      "sha256": "17a72b30b5c3c9ca8c1283cfb2febd2a93a145ff8ab66916f7a412d0f1dee5a1"
+    },
+    {
+      "path": "data/crystal-15.30/staticdata-0bd51e1660f9d58594eb10000c35ea51113fc668aa3ee416c8c6b7ebb59b78ff.dat",
+      "size": 175342,
+      "sha256": "0bd51e1660f9d58594eb10000c35ea51113fc668aa3ee416c8c6b7ebb59b78ff"
+    },
+    {
+      "path": "data/crystal-15.30/catalog-content.json",
+      "size": 1107936,
+      "sha256": "116cc4a9924da7bcc5f68529bc497967c3a8a0bd21b82f9f103691d004c78d13"
+    }
+  ]
+}
