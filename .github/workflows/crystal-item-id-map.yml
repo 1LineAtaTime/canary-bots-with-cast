@@ -1,9 +1,6 @@
 name: Crystal to Canary item ID mapping
 
 on:
-  push:
-    branches:
-      - crystal-items-monsters-migration
   workflow_dispatch:
 
 permissions:
@@ -14,15 +11,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: crystal-items-monsters-migration
+          fetch-depth: 1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Build Crystal -> Canary ID map
         run: python3 tools/migration/map_items.py
+      - name: Validate generated mapping
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('data/items/item_id_map.json')
+          rows = json.loads(p.read_text(encoding='utf-8'))
+          targets = [int(r['canary_id']) for r in rows]
+          assert len(targets) == len(set(targets)), 'duplicate Canary target IDs'
+          assert all(int(r['canary_id']) > 0 for r in rows)
+          print(f'validated {len(rows)} item mappings')
+          PY
       - name: Commit generated item data
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/items/items.xml data/items/item_id_map.json data/items/item_id_map.csv data/items/CRYSTAL_CANARY_ID_MAP.md
-          git diff --cached --quiet || git commit -m 'data: map Crystal items to Canary IDs'
-          git push
+          git add -f data/items/items.xml data/items/item_id_map.json data/items/item_id_map.csv data/items/CRYSTAL_CANARY_ID_MAP.md
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: map Crystal items to Canary IDs'
+          git push origin HEAD:crystal-items-monsters-migration
