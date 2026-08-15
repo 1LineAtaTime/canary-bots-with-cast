@@ -16,7 +16,7 @@ monster.outfit = {
 monster.raceId = 1979
 monster.Bestiary = {
 	class = "Bird",
-
+	race = BESTY_RACE_BIRD,
 	toKill = 250,
 	FirstUnlock = 10,
 	SecondUnlock = 100,
@@ -73,10 +73,10 @@ monster.voices = {
 }
 
 monster.loot = {
-	{ name = "meat", chance = 2120, maxCount = 2 },
-	{ id = 3606, chance = 980, maxCount = 2 }, -- egg
-	{ name = "worm", chance = 11000, maxCount = 3 },
-	{ name = "chicken feather", chance = 19000, maxCount = 2 },
+	{ name = "meat", chance = 2290, maxCount = 2 },
+	{ id = 3606, chance = 910, maxCount = 2 }, -- egg
+	{ name = "worm", chance = 9450, maxCount = 3 },
+	{ name = "chicken feather", chance = 16210, maxCount = 2 },
 }
 
 monster.defenses = {

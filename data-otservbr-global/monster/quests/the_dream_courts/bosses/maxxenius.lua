@@ -13,16 +13,16 @@ monster.outfit = {
 	lookMount = 0,
 }
 
+monster.events = {
+	"dreamCourtsDeath",
+}
+
 monster.health = 320000
 monster.maxHealth = 320000
 monster.race = "blood"
 monster.corpse = 30151
 monster.speed = 125
 monster.manaCost = 0
-
-monster.events = {
-	"dreamCourtsDeath",
-}
 
 monster.changeTarget = {
 	interval = 4000,
@@ -32,6 +32,7 @@ monster.changeTarget = {
 monster.bosstiary = {
 	bossRaceId = 1697,
 	bossRace = RARITY_NEMESIS,
+	storage = Storage.Quest.U12_00.TheDreamCourts.DreamScar.MaxxeniusTimer,
 }
 
 monster.strategiesTarget = {
@@ -93,12 +94,11 @@ monster.loot = {
 	{ name = "giant ruby", chance = 17860 },
 	{ id = 282, chance = 21430 }, -- giant shimmering pearl
 	{ name = "gold ingot", chance = 14290 },
-	{ name = "gold token", chance = 60710 },
+	{ name = "gold token", chance = 73470, maxCount = 2 },
 	{ name = "green gem", chance = 28570 },
 	{ name = "huge chunk of crude iron", chance = 42860 },
 	{ name = "magic sulphur", chance = 3570 },
 	{ name = "mastermind potion", chance = 42860, maxCount = 6 },
-	{ name = "transcendence potion", chance = 42860, maxCount = 6 },
 	{ name = "maxxenius head", chance = 7140 },
 	{ name = "mysterious remains", chance = 85710 },
 	{ name = "ornate locket", chance = 14290 },
@@ -107,7 +107,7 @@ monster.loot = {
 	{ name = "pomegranate", chance = 21430 },
 	{ name = "ring of the sky", chance = 7140 },
 	{ name = "royal star", chance = 57140, maxCount = 194 },
-	{ name = "silver token", chance = 96430, maxCount = 3 },
+	{ name = "silver token", chance = 100000, maxCount = 3 },
 	{ name = "skull staff", chance = 21430 },
 	{ name = "soul stone", chance = 14290 },
 	{ name = "supreme health potion", chance = 85710, maxCount = 32 },

@@ -73,7 +73,6 @@ monster.voices = {
 
 monster.loot = {
 	{ id = 21899, chance = 10000, unique = true }, -- glooth glider tubes and wires
-	{ name = "traditional sai", chance = 20000 },
 }
 
 monster.attacks = {

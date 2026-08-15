@@ -83,9 +83,9 @@ monster.loot = {
 	{ name = "brown piece of cloth", chance = 15120 },
 	{ name = "drill bolt", chance = 15120, maxCount = 15 },
 	{ name = "humongous chunk", chance = 10470 },
-	{ name = "white piece of cloth", chance = 10230 },
+	{ id = 5909, chance = 10230 }, -- white piece of cloth
 	{ name = "strong health potion", chance = 5040, maxCount = 2 },
-	{ name = "great mana potion", chance = 4960, maxCount = 2 },
+	{ id = 238, chance = 4960, maxCount = 2 }, -- great mana potion
 	{ name = "great health potion", chance = 4950, maxCount = 2 },
 	{ name = "strong mana potion", chance = 4930, maxCount = 2 },
 	{ name = "mana potion", chance = 4750, maxCount = 3 },

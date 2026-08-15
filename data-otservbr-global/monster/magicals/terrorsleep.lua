@@ -87,9 +87,9 @@ monster.loot = {
 	{ name = "giant sword", chance = 560 },
 	{ name = "warrior helmet", chance = 2820 },
 	{ name = "knight armor", chance = 4000 },
-	{ name = "white piece of cloth", chance = 4520 },
+	{ id = 5909, chance = 4520 }, -- white piece of cloth
 	{ name = "red piece of cloth", chance = 1130 },
-	{ name = "great mana potion", chance = 36000, maxCount = 2 },
+	{ id = 238, chance = 36000, maxCount = 2 }, -- great mana potion
 	{ name = "ultimate health potion", chance = 26000 },
 	{ name = "small topaz", chance = 17000, maxCount = 2 },
 	{ name = "blue crystal shard", chance = 6000 },
@@ -98,14 +98,15 @@ monster.loot = {
 	{ id = 20029, chance = 1130 }, -- broken dream
 	{ name = "trapped bad dream monster", chance = 13000 },
 	{ name = "bowl of terror sweat", chance = 18000 },
+	{ id = 50152, chance = 560 }, -- collar of orange plasma
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -400 },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -450 },
 	-- poison
 	{ name = "condition", type = CONDITION_POISON, interval = 2000, chance = 20, minDamage = -1000, maxDamage = -1500, radius = 7, effect = CONST_ME_YELLOW_RINGS, target = false },
 	{ name = "combat", interval = 2000, chance = 10, type = COMBAT_MANADRAIN, minDamage = -100, maxDamage = -300, radius = 5, effect = CONST_ME_MAGIC_RED, target = false },
-	{ name = "feversleep skill reducer", interval = 2000, chance = 7, target = false },
+	{ name = "feversleep skill reducer", interval = 2000, chance = 10, target = false },
 	{ name = "combat", interval = 2000, chance = 10, type = COMBAT_LIFEDRAIN, minDamage = -350, maxDamage = -500, length = 6, spread = 0, effect = CONST_ME_YELLOWENERGY, target = true },
 	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_DEATHDAMAGE, minDamage = -200, maxDamage = -450, radius = 1, shootEffect = CONST_ANI_SUDDENDEATH, effect = CONST_ME_MORTAREA, target = true },
 }
@@ -113,20 +114,20 @@ monster.attacks = {
 monster.defenses = {
 	defense = 50,
 	armor = 50,
-	{ name = "combat", interval = 2000, chance = 15, type = COMBAT_HEALING, minDamage = 300, maxDamage = 500, effect = CONST_ME_MAGIC_BLUE, target = false },
-	-- { name = "invisible", interval = 2000, chance = 15, effect = CONST_ME_HITAREA },
+	{ name = "combat", interval = 2000, chance = 15, type = COMBAT_HEALING, minDamage = 350, maxDamage = 600, effect = CONST_ME_MAGIC_BLUE, target = false },
+	{ name = "invisible", interval = 2000, chance = 15, effect = CONST_ME_HITAREA },
 	{ name = "speed", interval = 2000, chance = 15, speedChange = 300, effect = CONST_ME_MAGIC_RED, target = false, duration = 5000 },
 }
 
 monster.elements = {
 	{ type = COMBAT_PHYSICALDAMAGE, percent = 15 },
-	{ type = COMBAT_ENERGYDAMAGE, percent = -5 },
+	{ type = COMBAT_ENERGYDAMAGE, percent = 10 },
 	{ type = COMBAT_EARTHDAMAGE, percent = 100 },
 	{ type = COMBAT_FIREDAMAGE, percent = 35 },
 	{ type = COMBAT_LIFEDRAIN, percent = 0 },
 	{ type = COMBAT_MANADRAIN, percent = 0 },
 	{ type = COMBAT_DROWNDAMAGE, percent = 0 },
-	{ type = COMBAT_ICEDAMAGE, percent = 5 },
+	{ type = COMBAT_ICEDAMAGE, percent = 20 },
 	{ type = COMBAT_HOLYDAMAGE, percent = -10 },
 	{ type = COMBAT_DEATHDAMAGE, percent = 55 },
 }
