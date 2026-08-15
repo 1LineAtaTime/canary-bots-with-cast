@@ -1,89 +1,92 @@
 #!/usr/bin/env python3
-import json, re, urllib.request
+import csv
+import json
+import re
+import urllib.request
+from collections import defaultdict, Counter
 from pathlib import Path
 import xml.etree.ElementTree as ET
-from collections import defaultdict
 
 CRYSTAL_URL = "https://raw.githubusercontent.com/zimbadev/crystalserver/main/data/items/items.xml"
 CANARY = Path("data/items/items.xml")
-OUT = Path("tools/migration")
+OUT = Path("data/items")
 OUT.mkdir(parents=True, exist_ok=True)
 
 def norm(s):
     return re.sub(r"\s+", " ", (s or "").strip().lower())
 
-def expand_items(root):
-    out = {}
-    for e in root.findall("item"):
-        attrs = dict(e.attrib)
-        if "id" in attrs:
-            ids = [int(attrs["id"])]
-        elif "fromid" in attrs and "toid" in attrs:
-            ids = range(int(attrs["fromid"]), int(attrs["toid"]) + 1)
-        else:
-            continue
-        for i in ids:
-            out[i] = e
-    return out
+def parse(text):
+    root = ET.fromstring(text)
+    return [(int(e.get("id")), e.get("name", "")) for e in root.findall(".//item") if e.get("id")]
 
-def clone_with_id(e, item_id):
-    n = ET.Element("item")
-    for k, v in e.attrib.items():
-        if k not in ("id", "fromid", "toid"):
-            n.set(k, v)
-    n.set("id", str(item_id))
-    for c in list(e):
-        n.append(c)
-    return n
+crystal_text = urllib.request.urlopen(CRYSTAL_URL, timeout=120).read().decode("latin1")
+canary_text = CANARY.read_text(encoding="latin1")
+crystal_items = parse(crystal_text)
+canary_items = parse(canary_text)
+can_by_id = {i: n for i, n in canary_items}
+by_name = defaultdict(list)
+for i, n in canary_items:
+    by_name[norm(n)].append(i)
 
-def item_name(e):
-    return norm(e.attrib.get("name"))
-
-crystal_bytes = urllib.request.urlopen(CRYSTAL_URL, timeout=60).read()
-crystal_root = ET.fromstring(crystal_bytes)
-canary_root = ET.parse(CANARY).getroot()
-crystal = expand_items(crystal_root)
-canary = expand_items(canary_root)
-
-used = set(canary)
-name_to_ids = defaultdict(list)
-for i, e in canary.items():
-    n = item_name(e)
-    if n:
-        name_to_ids[n].append(i)
-
-next_id = max(used | set(crystal)) + 1
+used = set(can_by_id)
 mapping, reason = {}, {}
-for sid in sorted(crystal):
-    ce = crystal[sid]
-    cname = item_name(ce)
-    if sid in canary and item_name(canary[sid]) == cname:
-        mapping[sid], reason[sid] = sid, "same-id-same-name"
-        continue
-    candidates = name_to_ids.get(cname, [])
-    if len(candidates) == 1:
-        mapping[sid], reason[sid] = candidates[0], "name-match"
-        continue
-    while next_id in used:
+for cid, name in crystal_items:
+    nm = norm(name)
+    if cid in can_by_id and norm(can_by_id[cid]) == nm and cid not in mapping.values():
+        mapping[cid] = cid
+        reason[cid] = "same-id-same-name"
+        used.add(cid)
+    elif cid not in used:
+        mapping[cid] = cid
+        reason[cid] = "free-crystal-id-preserved"
+        used.add(cid)
+    elif len(by_name.get(nm, [])) == 1 and by_name[nm][0] not in used:
+        mapping[cid] = by_name[nm][0]
+        reason[cid] = "unique-name-match"
+        used.add(mapping[cid])
+    else:
+        mapping[cid] = None
+
+next_id = max(used, default=0) + 1
+for cid in mapping:
+    if mapping[cid] is None:
+        while next_id in used:
+            next_id += 1
+        mapping[cid] = next_id
+        reason[cid] = "new-free-id"
+        used.add(next_id)
         next_id += 1
-    mapping[sid], reason[sid] = next_id, "new-id"
-    used.add(next_id)
-    next_id += 1
 
-merged = dict(canary)
-for sid, tid in mapping.items():
-    if tid not in merged:
-        merged[tid] = clone_with_id(crystal[sid], tid)
+pattern = re.compile(r'(<item\\b[^>]*?\\bid\\s*=\\s*["\'])(\\d+)(["\'])', re.I)
+matches = list(pattern.finditer(crystal_text))
+if len(matches) != len(crystal_items):
+    raise SystemExit(f"item tag mismatch: {len(matches)} != {len(crystal_items)}")
+pieces, last = [], 0
+for (cid, _), m in zip(crystal_items, matches):
+    pieces.append(crystal_text[last:m.start(2)])
+    pieces.append(str(mapping[cid]))
+    last = m.end(2)
+pieces.append(crystal_text[last:])
+CANARY.write_text("".join(pieces), encoding="latin1")
 
-root = ET.Element("items")
-for iid in sorted(merged):
-    root.append(merged[iid])
-ET.indent(root, space="\t")
-ET.ElementTree(root).write(OUT / "items_crystal_to_canary.xml", encoding="ISO-8859-1", xml_declaration=True)
+rows = [{"crystal_id": cid, "canary_id": mapping[cid], "name": name, "reason": reason[cid]} for cid, name in crystal_items]
+(OUT / "item_id_map.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+with (OUT / "item_id_map.csv").open("w", newline="", encoding="utf-8") as f:
+    w = csv.writer(f)
+    w.writerow(["crystal_id", "canary_id", "name", "reason"])
+    for r in rows:
+        w.writerow([r["crystal_id"], r["canary_id"], r["name"], r["reason"]])
 
-(OUT / "item_id_map.json").write_text(json.dumps({"source_url": CRYSTAL_URL, "entries": {str(k): {"target_id": v, "reason": reason[k], "name": crystal[k].attrib.get("name", "")} for k, v in sorted(mapping.items())}}, indent=2, ensure_ascii=False), encoding="utf-8")
-
-stats = defaultdict(int)
-for r in reason.values(): stats[r] += 1
-(OUT / "item_id_map_report.md").write_text(f"# Crystal → Canary item ID mapping\n\n- Crystal IDs: {len(crystal)}\n- Canary IDs: {len(canary)}\n- same ID + same name: {stats['same-id-same-name']}\n- matched by unique name: {stats['name-match']}\n- allocated new IDs: {stats['new-id']}\n- max merged ID: {max(merged)}\n\nExisting Canary IDs are never overwritten.\n", encoding="utf-8")
-print(dict(stats))
+counts = Counter(reason.values())
+(OUT / "CRYSTAL_CANARY_ID_MAP.md").write_text(
+    "# Crystal -> Canary item ID map\n\n"
+    f"Crystal items: {len(crystal_items)}\n"
+    f"Original Canary items: {len(canary_items)}\n"
+    f"Unique mapped IDs: {len(set(mapping.values()))}\n"
+    f"Maximum mapped ID: {max(mapping.values())}\n\n"
+    f"- same ID + same name: {counts['same-id-same-name']}\n"
+    f"- free Crystal ID preserved: {counts['free-crystal-id-preserved']}\n"
+    f"- unique name match: {counts['unique-name-match']}\n"
+    f"- new IDs allocated: {counts['new-free-id']}\n",
+    encoding="utf-8")
+print(dict(counts))
