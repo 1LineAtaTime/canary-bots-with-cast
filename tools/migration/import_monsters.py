@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -36,18 +35,26 @@ def norm(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
 
 
-def parse(path: Path) -> dict:
+def parse(path: Path) -> dict | None:
     text = path.read_text(encoding="utf-8")
     name = NAME_RE.search(text)
+    # data-global/monster also contains helper Lua files (for example quest
+    # helpers) which are not monster registrations. They must not be imported
+    # or treated as broken monster definitions.
     if not name:
-        raise ValueError(f"No Game.createMonsterType in {path}")
+        return None
+    race = RACE_RE.search(text)
+    look = LOOK_RE.search(text)
+    exp = EXP_RE.search(text)
+    hp = HP_RE.search(text)
+    speed = SPEED_RE.search(text)
     return {
         "name": name.group(1),
-        "raceId": int(RACE_RE.search(text).group(1)) if RACE_RE.search(text) else None,
-        "lookType": int(LOOK_RE.search(text).group(1)) if LOOK_RE.search(text) else None,
-        "experience": int(EXP_RE.search(text).group(1)) if EXP_RE.search(text) else None,
-        "health": int(HP_RE.search(text).group(1)) if HP_RE.search(text) else None,
-        "speed": int(SPEED_RE.search(text).group(1)) if SPEED_RE.search(text) else None,
+        "raceId": int(race.group(1)) if race else None,
+        "lookType": int(look.group(1)) if look else None,
+        "experience": int(exp.group(1)) if exp else None,
+        "health": int(hp.group(1)) if hp else None,
+        "speed": int(speed.group(1)) if speed else None,
         "boss": bool(BOSS_RE.search(text)),
         "attacks": bool(ATTACK_RE.search(text)),
         "loot": bool(LOOT_RE.search(text)),
@@ -69,18 +76,16 @@ def main() -> None:
     source_files = sorted(SOURCE.rglob("*.lua"))
     dest_files = {p.relative_to(DEST): p for p in DEST.rglob("*.lua")}
     source_rows = []
-    name_index = defaultdict(list)
     for path in source_files:
         row = parse(path)
-        source_rows.append(row)
-        name_index[norm(row["name"])].append(row)
+        if row is not None:
+            source_rows.append(row)
 
     dest_rows = []
     for path in dest_files.values():
-        try:
-            dest_rows.append(parse(path))
-        except ValueError:
-            pass
+        row = parse(path)
+        if row is not None:
+            dest_rows.append(row)
     dest_by_name = {norm(r["name"]): r for r in dest_rows}
 
     race_ids = defaultdict(list)
@@ -90,8 +95,8 @@ def main() -> None:
 
     result = []
     changed_item_refs = 0
-    for src in source_files:
-        row = parse(src)
+    for row in source_rows:
+        src = SOURCE / row["path"]
         rel = src.relative_to(SOURCE)
         target = DEST / rel
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -128,7 +133,8 @@ def main() -> None:
         "",
         "Monster definitions are registered by `Game.createMonsterType(name)`; there is no stable numeric monster ID to renumber like item IDs.",
         "",
-        f"- Crystal monster Lua files: {len(source_files)}",
+        f"- Crystal monster Lua files scanned: {len(source_files)}",
+        f"- Crystal monster definitions: {len(source_rows)}",
         f"- Existing Canary definitions by name: {len(dest_by_name)}",
         f"- Imported/overwritten: {len(result)}",
         f"- New monster definitions: {counts['new']}",
