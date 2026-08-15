@@ -1,0 +1,1 @@
+The Crystal -> Canary item ID mapper is installed. The workflow runs automatically on pushes to `crystal-items-monsters-migration` and generates the deterministic mapping/report under `tools/migration/`.
