@@ -35,17 +35,17 @@ for cid, name in crystal_items:
     if cid in can_by_id and norm(can_by_id[cid]) == nm and cid not in mapping.values():
         mapping[cid] = cid
         reason[cid] = "same-id-same-name"
-        used.add(cid)
     elif cid not in used:
         mapping[cid] = cid
         reason[cid] = "free-crystal-id-preserved"
-        used.add(cid)
     elif len(by_name.get(nm, [])) == 1 and by_name[nm][0] not in used:
         mapping[cid] = by_name[nm][0]
         reason[cid] = "unique-name-match"
         used.add(mapping[cid])
     else:
         mapping[cid] = None
+    if mapping[cid] is not None:
+        used.add(mapping[cid])
 
 next_id = max(used, default=0) + 1
 for cid in mapping:
@@ -57,10 +57,13 @@ for cid in mapping:
         used.add(next_id)
         next_id += 1
 
-pattern = re.compile(r'(<item\\b[^>]*?\\bid\\s*=\\s*["\'])(\\d+)(["\'])', re.I)
+# Match real XML item start tags. The old expression contained double-escaped
+# backslashes, so it looked for a literal "\\b" instead of a word boundary.
+pattern = re.compile(r'''(<item\b[^>]*?\bid\s*=\s*["'])(\d+)(["'])''', re.I)
 matches = list(pattern.finditer(crystal_text))
 if len(matches) != len(crystal_items):
     raise SystemExit(f"item tag mismatch: {len(matches)} != {len(crystal_items)}")
+
 pieces, last = [], 0
 for (cid, _), m in zip(crystal_items, matches):
     pieces.append(crystal_text[last:m.start(2)])
