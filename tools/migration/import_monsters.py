@@ -35,12 +35,9 @@ def norm(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
 
 
-def parse(path: Path) -> dict | None:
+def parse(path: Path, root: Path) -> dict | None:
     text = path.read_text(encoding="utf-8")
     name = NAME_RE.search(text)
-    # data-global/monster also contains helper Lua files (for example quest
-    # helpers) which are not monster registrations. They must not be imported
-    # or treated as broken monster definitions.
     if not name:
         return None
     race = RACE_RE.search(text)
@@ -59,7 +56,7 @@ def parse(path: Path) -> dict | None:
         "attacks": bool(ATTACK_RE.search(text)),
         "loot": bool(LOOT_RE.search(text)),
         "summons": bool(SUMMON_RE.search(text)),
-        "path": str(path.relative_to(SOURCE)),
+        "path": str(path.relative_to(root)),
     }
 
 
@@ -77,13 +74,13 @@ def main() -> None:
     dest_files = {p.relative_to(DEST): p for p in DEST.rglob("*.lua")}
     source_rows = []
     for path in source_files:
-        row = parse(path)
+        row = parse(path, SOURCE)
         if row is not None:
             source_rows.append(row)
 
     dest_rows = []
     for path in dest_files.values():
-        row = parse(path)
+        row = parse(path, DEST)
         if row is not None:
             dest_rows.append(row)
     dest_by_name = {norm(r["name"]): r for r in dest_rows}
