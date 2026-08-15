@@ -19,10 +19,10 @@ jobs:
           python-version: '3.12'
       - name: Build Crystal -> Canary ID map
         run: python3 tools/migration/map_items.py
-      - name: Commit generated mapping
+      - name: Commit generated item data
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tools/migration
-          git diff --cached --quiet || git commit -m 'data: map Crystal item IDs to Canary'
+          git add data/items/items.xml data/items/item_id_map.json data/items/item_id_map.csv data/items/CRYSTAL_CANARY_ID_MAP.md
+          git diff --cached --quiet || git commit -m 'data: map Crystal items to Canary IDs'
           git push
