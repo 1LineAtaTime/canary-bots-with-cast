@@ -1344,9 +1344,9 @@
     "summons": false,
     "path": "bosses/arthom_the_hunter.lua",
     "canary_path": "data-otservbr-global/monster/bosses/arthom_the_hunter.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 129,
     "raceId_collision": false
   },
   {
@@ -1362,9 +1362,9 @@
     "summons": false,
     "path": "bosses/ayana_the_crimson_curse.lua",
     "canary_path": "data-otservbr-global/monster/bosses/ayana_the_crimson_curse.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1647,
     "raceId_collision": false
   },
   {
@@ -1542,9 +1542,9 @@
     "summons": false,
     "path": "bosses/cublarc_the_plunderer.lua",
     "canary_path": "data-otservbr-global/monster/bosses/cublarc_the_plunderer.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 342,
     "raceId_collision": false
   },
   {
@@ -1830,9 +1830,9 @@
     "summons": false,
     "path": "bosses/gorga.lua",
     "canary_path": "data-otservbr-global/monster/bosses/gorga.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 330,
     "raceId_collision": false
   },
   {
@@ -1956,9 +1956,9 @@
     "summons": false,
     "path": "bosses/high_templar_cobrass.lua",
     "canary_path": "data-otservbr-global/monster/bosses/high_templar_cobrass.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 113,
     "raceId_collision": false
   },
   {
@@ -2118,9 +2118,9 @@
     "summons": false,
     "path": "bosses/lord_retro.lua",
     "canary_path": "data-otservbr-global/monster/bosses/lord_retro.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1469,
     "raceId_collision": false
   },
   {
@@ -2190,9 +2190,9 @@
     "summons": false,
     "path": "bosses/morbol.lua",
     "canary_path": "data-otservbr-global/monster/bosses/morbol.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 676,
     "raceId_collision": false
   },
   {
@@ -2280,9 +2280,9 @@
     "summons": false,
     "path": "bosses/oodok_witchmaster.lua",
     "canary_path": "data-otservbr-global/monster/bosses/oodok_witchmaster.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 214,
     "raceId_collision": false
   },
   {
@@ -2550,9 +2550,9 @@
     "summons": false,
     "path": "bosses/the_big_bad_one.lua",
     "canary_path": "data-otservbr-global/monster/bosses/the_big_bad_one.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 3,
     "raceId_collision": false
   },
   {
@@ -6890,7 +6890,7 @@
     "canary_path": "data-otservbr-global/monster/humanoids/bulltaur_forgepriest.lua",
     "status": "overwritten",
     "previous_raceId": 2449,
-    "previous_lookType": 1719,
+    "previous_lookType": 1718,
     "raceId_collision": false
   },
   {
@@ -7446,9 +7446,9 @@
     "summons": false,
     "path": "humanoids/gloom_maw.lua",
     "canary_path": "data-otservbr-global/monster/humanoids/gloom_maw.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2669,
+    "previous_lookType": 1867,
     "raceId_collision": false
   },
   {
@@ -7986,9 +7986,9 @@
     "summons": false,
     "path": "humanoids/norcferatu_heartless.lua",
     "canary_path": "data-otservbr-global/monster/humanoids/norcferatu_heartless.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2664,
+    "previous_lookType": 1852,
     "raceId_collision": false
   },
   {
@@ -8004,9 +8004,9 @@
     "summons": false,
     "path": "humanoids/norcferatu_minion.lua",
     "canary_path": "data-otservbr-global/monster/humanoids/norcferatu_minion.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1852,
     "raceId_collision": false
   },
   {
@@ -8022,9 +8022,9 @@
     "summons": false,
     "path": "humanoids/norcferatu_nightweaver.lua",
     "canary_path": "data-otservbr-global/monster/humanoids/norcferatu_nightweaver.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2666,
+    "previous_lookType": 1851,
     "raceId_collision": false
   },
   {
@@ -8436,9 +8436,9 @@
     "summons": false,
     "path": "humanoids/varg.lua",
     "canary_path": "data-otservbr-global/monster/humanoids/varg.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2665,
+    "previous_lookType": 1855,
     "raceId_collision": false
   },
   {
@@ -8760,9 +8760,9 @@
     "summons": false,
     "path": "humans/bride of night.lua",
     "canary_path": "data-otservbr-global/monster/humans/bride of night.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 587,
+    "previous_lookType": 58,
     "raceId_collision": false
   },
   {
@@ -8976,9 +8976,9 @@
     "summons": false,
     "path": "humans/doomsday_cultist.lua",
     "canary_path": "data-otservbr-global/monster/humans/doomsday_cultist.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 583,
+    "previous_lookType": 194,
     "raceId_collision": false
   },
   {
@@ -9336,9 +9336,9 @@
     "summons": false,
     "path": "humans/midnight_warrior.lua",
     "canary_path": "data-otservbr-global/monster/humans/midnight_warrior.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 585,
+    "previous_lookType": 268,
     "raceId_collision": false
   },
   {
@@ -9894,9 +9894,9 @@
     "summons": false,
     "path": "inkborn/bluebeak.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/bluebeak.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2673,
+    "previous_lookType": 1849,
     "raceId_collision": false
   },
   {
@@ -9912,9 +9912,9 @@
     "summons": false,
     "path": "inkborn/bramble_wyrmling.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/bramble_wyrmling.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2671,
+    "previous_lookType": 1850,
     "raceId_collision": false
   },
   {
@@ -9930,9 +9930,9 @@
     "summons": false,
     "path": "inkborn/cinder_wyrmling.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/cinder_wyrmling.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2670,
+    "previous_lookType": 1850,
     "raceId_collision": false
   },
   {
@@ -9948,9 +9948,9 @@
     "summons": false,
     "path": "inkborn/crusader.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/crusader.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2677,
+    "previous_lookType": 1847,
     "raceId_collision": false
   },
   {
@@ -9966,9 +9966,9 @@
     "summons": false,
     "path": "inkborn/crusader_guardian.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/crusader_guardian.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1847,
     "raceId_collision": false
   },
   {
@@ -9984,9 +9984,9 @@
     "summons": false,
     "path": "inkborn/hawk_hopper.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/hawk_hopper.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2674,
+    "previous_lookType": 1858,
     "raceId_collision": false
   },
   {
@@ -10002,9 +10002,9 @@
     "summons": false,
     "path": "inkborn/headwalker.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/headwalker.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2672,
+    "previous_lookType": 1856,
     "raceId_collision": false
   },
   {
@@ -10020,9 +10020,9 @@
     "summons": false,
     "path": "inkborn/ink_splash.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/ink_splash.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2639,
+    "previous_lookType": 1064,
     "raceId_collision": false
   },
   {
@@ -10038,9 +10038,9 @@
     "summons": false,
     "path": "inkborn/lion_hydra.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/lion_hydra.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2678,
+    "previous_lookType": 1859,
     "raceId_collision": false
   },
   {
@@ -10056,9 +10056,9 @@
     "summons": false,
     "path": "inkborn/shell_drake.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/shell_drake.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2675,
+    "previous_lookType": 1857,
     "raceId_collision": false
   },
   {
@@ -10074,9 +10074,9 @@
     "summons": false,
     "path": "inkborn/vicious_ink_splash.lua",
     "canary_path": "data-otservbr-global/monster/inkborn/vicious_ink_splash.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1064,
     "raceId_collision": false
   },
   {
@@ -11605,7 +11605,7 @@
     "path": "mammals/brown_horse.lua",
     "canary_path": "data-otservbr-global/monster/mammals/brown_horse.lua",
     "status": "overwritten",
-    "previous_raceId": 752,
+    "previous_raceId": 751,
     "previous_lookType": 436,
     "raceId_collision": false
   },
@@ -11750,7 +11750,7 @@
     "canary_path": "data-otservbr-global/monster/mammals/donkey.lua",
     "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": 387,
+    "previous_lookType": 399,
     "raceId_collision": false
   },
   {
@@ -12037,7 +12037,7 @@
     "path": "mammals/grey_horse.lua",
     "canary_path": "data-otservbr-global/monster/mammals/grey_horse.lua",
     "status": "overwritten",
-    "previous_raceId": 751,
+    "previous_raceId": 750,
     "previous_lookType": 434,
     "raceId_collision": false
   },
@@ -12055,7 +12055,7 @@
     "path": "mammals/horse.lua",
     "canary_path": "data-otservbr-global/monster/mammals/horse.lua",
     "status": "overwritten",
-    "previous_raceId": 750,
+    "previous_raceId": 752,
     "previous_lookType": 435,
     "raceId_collision": false
   },
@@ -12720,9 +12720,9 @@
     "summons": false,
     "path": "mammals/vampire_bat.lua",
     "canary_path": "data-otservbr-global/monster/mammals/vampire_bat.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1868,
     "raceId_collision": false
   },
   {
@@ -12954,9 +12954,9 @@
     "summons": false,
     "path": "newhaven_update_2025/bosses/muglex_clan_chief.lua",
     "canary_path": "data-otservbr-global/monster/newhaven_update_2025/bosses/muglex_clan_chief.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 297,
     "raceId_collision": false
   },
   {
@@ -12972,9 +12972,9 @@
     "summons": false,
     "path": "newhaven_update_2025/bosses/the_corruptor.lua",
     "canary_path": "data-otservbr-global/monster/newhaven_update_2025/bosses/the_corruptor.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 233,
     "raceId_collision": false
   },
   {
@@ -12990,9 +12990,9 @@
     "summons": false,
     "path": "newhaven_update_2025/corrupted_ghost.lua",
     "canary_path": "data-otservbr-global/monster/newhaven_update_2025/corrupted_ghost.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2708,
+    "previous_lookType": 48,
     "raceId_collision": false
   },
   {
@@ -13008,9 +13008,9 @@
     "summons": false,
     "path": "newhaven_update_2025/corrupted_skeleton.lua",
     "canary_path": "data-otservbr-global/monster/newhaven_update_2025/corrupted_skeleton.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2709,
+    "previous_lookType": 298,
     "raceId_collision": false
   },
   {
@@ -13440,8 +13440,8 @@
     "summons": false,
     "path": "quests/a_piece_of_cake/cake_golem.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_piece_of_cake/cake_golem.lua",
-    "status": "new",
-    "previous_raceId": null,
+    "status": "overwritten",
+    "previous_raceId": 680,
     "previous_lookType": null,
     "raceId_collision": false
   },
@@ -13458,9 +13458,9 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/1st_mate_ratticus.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/1st_mate_ratticus.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 532,
     "raceId_collision": false
   },
   {
@@ -13494,9 +13494,9 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/mister_catkiller.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/mister_catkiller.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 534,
     "raceId_collision": false
   },
   {
@@ -13530,9 +13530,9 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/rateye_ric.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/rateye_ric.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 533,
     "raceId_collision": false
   },
   {
@@ -13566,7 +13566,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/rum_barrel.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/rum_barrel.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13584,9 +13584,9 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/servant_of_tentugly.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/servant_of_tentugly.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 46,
     "raceId_collision": false
   },
   {
@@ -13602,7 +13602,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/smelly_cheese.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/smelly_cheese.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13620,7 +13620,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_1.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_1.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13638,7 +13638,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_10.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_10.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13656,7 +13656,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_2.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_2.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13674,7 +13674,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_3.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_3.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13692,7 +13692,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_4.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_4.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13710,7 +13710,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_5.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_5.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13728,7 +13728,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_6.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_6.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13746,7 +13746,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_7.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_7.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13764,7 +13764,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_8.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_8.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13782,7 +13782,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tentacle_9.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tentacle_9.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -13818,9 +13818,9 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/tibianus.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/tibianus.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 217,
     "raceId_collision": false
   },
   {
@@ -13836,7 +13836,7 @@
     "summons": false,
     "path": "quests/a_pirates_tail_quest/weak_spot.lua",
     "canary_path": "data-otservbr-global/monster/quests/a_pirates_tail_quest/weak_spot.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -14142,9 +14142,9 @@
     "summons": false,
     "path": "quests/between_the_lines/blight_mariner.lua",
     "canary_path": "data-otservbr-global/monster/quests/between_the_lines/blight_mariner.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1221,
     "raceId_collision": false
   },
   {
@@ -14160,9 +14160,9 @@
     "summons": false,
     "path": "quests/between_the_lines/inkwing.lua",
     "canary_path": "data-otservbr-global/monster/quests/between_the_lines/inkwing.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1850,
     "raceId_collision": false
   },
   {
@@ -14178,9 +14178,9 @@
     "summons": false,
     "path": "quests/between_the_lines/sir_leonard.lua",
     "canary_path": "data-otservbr-global/monster/quests/between_the_lines/sir_leonard.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1847,
     "raceId_collision": false
   },
   {
@@ -14196,9 +14196,9 @@
     "summons": false,
     "path": "quests/between_the_lines/sir_leopold.lua",
     "canary_path": "data-otservbr-global/monster/quests/between_the_lines/sir_leopold.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1847,
     "raceId_collision": false
   },
   {
@@ -14214,9 +14214,9 @@
     "summons": false,
     "path": "quests/between_the_lines/tropical_desolator.lua",
     "canary_path": "data-otservbr-global/monster/quests/between_the_lines/tropical_desolator.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1589,
     "raceId_collision": false
   },
   {
@@ -14232,9 +14232,9 @@
     "summons": false,
     "path": "quests/between_the_lines/vladrukh.lua",
     "canary_path": "data-otservbr-global/monster/quests/between_the_lines/vladrukh.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1862,
     "raceId_collision": false
   },
   {
@@ -14250,9 +14250,9 @@
     "summons": false,
     "path": "quests/between_the_lines/wrathful_archivist.lua",
     "canary_path": "data-otservbr-global/monster/quests/between_the_lines/wrathful_archivist.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 194,
     "raceId_collision": false
   },
   {
@@ -14394,9 +14394,9 @@
     "summons": false,
     "path": "quests/blood_brothers_quest/armenius.lua",
     "canary_path": "data-otservbr-global/monster/quests/blood_brothers_quest/armenius.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 68,
     "raceId_collision": false
   },
   {
@@ -14412,9 +14412,9 @@
     "summons": false,
     "path": "quests/blood_brothers_quest/arthei.lua",
     "canary_path": "data-otservbr-global/monster/quests/blood_brothers_quest/arthei.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 287,
     "raceId_collision": false
   },
   {
@@ -14430,9 +14430,9 @@
     "summons": false,
     "path": "quests/blood_brothers_quest/boreth.lua",
     "canary_path": "data-otservbr-global/monster/quests/blood_brothers_quest/boreth.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 287,
     "raceId_collision": false
   },
   {
@@ -14448,9 +14448,9 @@
     "summons": false,
     "path": "quests/blood_brothers_quest/lersatio.lua",
     "canary_path": "data-otservbr-global/monster/quests/blood_brothers_quest/lersatio.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 287,
     "raceId_collision": false
   },
   {
@@ -14466,9 +14466,9 @@
     "summons": false,
     "path": "quests/blood_brothers_quest/marziel.lua",
     "canary_path": "data-otservbr-global/monster/quests/blood_brothers_quest/marziel.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 287,
     "raceId_collision": false
   },
   {
@@ -14484,9 +14484,9 @@
     "summons": false,
     "path": "quests/blood_brothers_quest/shadow_of_boreth.lua",
     "canary_path": "data-otservbr-global/monster/quests/blood_brothers_quest/shadow_of_boreth.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 287,
     "raceId_collision": false
   },
   {
@@ -14502,9 +14502,9 @@
     "summons": false,
     "path": "quests/blood_brothers_quest/shadow_of_lersatio.lua",
     "canary_path": "data-otservbr-global/monster/quests/blood_brothers_quest/shadow_of_lersatio.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 287,
     "raceId_collision": false
   },
   {
@@ -14520,9 +14520,9 @@
     "summons": false,
     "path": "quests/blood_brothers_quest/shadow_of_marziel.lua",
     "canary_path": "data-otservbr-global/monster/quests/blood_brothers_quest/shadow_of_marziel.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 287,
     "raceId_collision": false
   },
   {
@@ -14538,9 +14538,9 @@
     "summons": false,
     "path": "quests/bloody_tusks/angry_orc_ancestor_spirit.lua",
     "canary_path": "data-otservbr-global/monster/quests/bloody_tusks/angry_orc_ancestor_spirit.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1268,
     "raceId_collision": false
   },
   {
@@ -14556,9 +14556,9 @@
     "summons": false,
     "path": "quests/bloody_tusks/blind_monstrosity.lua",
     "canary_path": "data-otservbr-global/monster/quests/bloody_tusks/blind_monstrosity.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1869,
     "raceId_collision": false
   },
   {
@@ -14574,9 +14574,9 @@
     "summons": false,
     "path": "quests/bloody_tusks/blood_guardian.lua",
     "canary_path": "data-otservbr-global/monster/quests/bloody_tusks/blood_guardian.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 12,
     "raceId_collision": false
   },
   {
@@ -14592,7 +14592,7 @@
     "summons": false,
     "path": "quests/bloody_tusks/blood_totem.lua",
     "canary_path": "data-otservbr-global/monster/quests/bloody_tusks/blood_totem.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -14610,9 +14610,9 @@
     "summons": false,
     "path": "quests/bloody_tusks/digestive_ooze.lua",
     "canary_path": "data-otservbr-global/monster/quests/bloody_tusks/digestive_ooze.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 238,
     "raceId_collision": false
   },
   {
@@ -14628,7 +14628,7 @@
     "summons": false,
     "path": "quests/bloody_tusks/norcferatu_abomination.lua",
     "canary_path": "data-otservbr-global/monster/quests/bloody_tusks/norcferatu_abomination.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -14646,9 +14646,9 @@
     "summons": false,
     "path": "quests/bloody_tusks/vampiric_essence.lua",
     "canary_path": "data-otservbr-global/monster/quests/bloody_tusks/vampiric_essence.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1841,
     "raceId_collision": false
   },
   {
@@ -14664,7 +14664,7 @@
     "summons": false,
     "path": "quests/bloody_tusks/vampiric_flesh.lua",
     "canary_path": "data-otservbr-global/monster/quests/bloody_tusks/vampiric_flesh.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -15314,7 +15314,7 @@
     "canary_path": "data-otservbr-global/monster/quests/cults_of_tibia/bosses/summons/dark_soul.lua",
     "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": 714,
+    "previous_lookType": 712,
     "raceId_collision": false
   },
   {
@@ -15870,9 +15870,9 @@
     "summons": false,
     "path": "quests/cults_of_tibia/goldhanded_cultist_bride.lua",
     "canary_path": "data-otservbr-global/monster/quests/cults_of_tibia/goldhanded_cultist_bride.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 1482,
+    "previous_lookType": 140,
     "raceId_collision": false
   },
   {
@@ -16627,7 +16627,7 @@
     "path": "quests/feaster_of_souls/the_unwelcome.lua",
     "canary_path": "data-otservbr-global/monster/quests/feaster_of_souls/the_unwelcome.lua",
     "status": "overwritten",
-    "previous_raceId": null,
+    "previous_raceId": 1868,
     "previous_lookType": 1277,
     "raceId_collision": false
   },
@@ -20694,9 +20694,9 @@
     "summons": false,
     "path": "quests/no_rest_for_the_wicked/gralvalon.lua",
     "canary_path": "data-otservbr-global/monster/quests/no_rest_for_the_wicked/gralvalon.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1793,
     "raceId_collision": false
   },
   {
@@ -20712,9 +20712,9 @@
     "summons": false,
     "path": "quests/no_rest_for_the_wicked/imp_minion.lua",
     "canary_path": "data-otservbr-global/monster/quests/no_rest_for_the_wicked/imp_minion.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1804,
     "raceId_collision": false
   },
   {
@@ -20730,9 +20730,9 @@
     "summons": false,
     "path": "quests/no_rest_for_the_wicked/malvaroth.lua",
     "canary_path": "data-otservbr-global/monster/quests/no_rest_for_the_wicked/malvaroth.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1794,
     "raceId_collision": false
   },
   {
@@ -20766,9 +20766,9 @@
     "summons": false,
     "path": "quests/no_rest_for_the_wicked/the_forgemaster.lua",
     "canary_path": "data-otservbr-global/monster/quests/no_rest_for_the_wicked/the_forgemaster.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 247,
     "raceId_collision": false
   },
   {
@@ -20784,9 +20784,9 @@
     "summons": false,
     "path": "quests/no_rest_for_the_wicked/twisterror.lua",
     "canary_path": "data-otservbr-global/monster/quests/no_rest_for_the_wicked/twisterror.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1792,
     "raceId_collision": false
   },
   {
@@ -20802,9 +20802,9 @@
     "summons": false,
     "path": "quests/no_rest_for_the_wicked/weakened_arbaziloth.lua",
     "canary_path": "data-otservbr-global/monster/quests/no_rest_for_the_wicked/weakened_arbaziloth.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1802,
     "raceId_collision": false
   },
   {
@@ -21291,7 +21291,7 @@
     "status": "overwritten",
     "previous_raceId": 2392,
     "previous_lookType": 1654,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Chagorz",
@@ -21327,7 +21327,7 @@
     "status": "overwritten",
     "previous_raceId": 2379,
     "previous_lookType": 1623,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Darklight Construct",
@@ -21345,7 +21345,7 @@
     "status": "overwritten",
     "previous_raceId": 2378,
     "previous_lookType": 1622,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Darklight Emitter",
@@ -21363,7 +21363,7 @@
     "status": "overwritten",
     "previous_raceId": 2382,
     "previous_lookType": 1627,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Darklight Matter",
@@ -21381,7 +21381,7 @@
     "status": "overwritten",
     "previous_raceId": 2380,
     "previous_lookType": 1624,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Darklight Source",
@@ -21399,7 +21399,7 @@
     "status": "overwritten",
     "previous_raceId": 2398,
     "previous_lookType": 1660,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Darklight Striker",
@@ -21417,7 +21417,7 @@
     "status": "overwritten",
     "previous_raceId": 2399,
     "previous_lookType": 1661,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Echo Of Chagorz",
@@ -21522,9 +21522,9 @@
     "summons": false,
     "path": "quests/rotten_blood_quest/elderbloodjaw.lua",
     "canary_path": "data-otservbr-global/monster/quests/rotten_blood_quest/elderbloodjaw.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1628,
     "raceId_collision": false
   },
   {
@@ -21540,9 +21540,9 @@
     "summons": false,
     "path": "quests/rotten_blood_quest/foxmouse.lua",
     "canary_path": "data-otservbr-global/monster/quests/rotten_blood_quest/foxmouse.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1632,
     "raceId_collision": false
   },
   {
@@ -21579,7 +21579,7 @@
     "status": "overwritten",
     "previous_raceId": 2376,
     "previous_lookType": 1621,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Murcion",
@@ -21613,9 +21613,9 @@
     "path": "quests/rotten_blood_quest/mushroom.lua",
     "canary_path": "data-otservbr-global/monster/quests/rotten_blood_quest/mushroom.lua",
     "status": "overwritten",
-    "previous_raceId": null,
-    "previous_lookType": 1773,
-    "raceId_collision": false
+    "previous_raceId": 0,
+    "previous_lookType": null,
+    "raceId_collision": true
   },
   {
     "name": "Mycobiontic Beetle",
@@ -21633,7 +21633,7 @@
     "status": "overwritten",
     "previous_raceId": 2375,
     "previous_lookType": 1620,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Oozing Carcass",
@@ -21651,7 +21651,7 @@
     "status": "overwritten",
     "previous_raceId": 2377,
     "previous_lookType": 1626,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Oozing Corpus",
@@ -21669,7 +21669,7 @@
     "status": "overwritten",
     "previous_raceId": 2381,
     "previous_lookType": 1625,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Pillar of Dark Energy",
@@ -21684,10 +21684,10 @@
     "summons": false,
     "path": "quests/rotten_blood_quest/pillar of dark energy.lua",
     "canary_path": "data-otservbr-global/monster/quests/rotten_blood_quest/pillar of dark energy.lua",
-    "status": "new",
-    "previous_raceId": null,
+    "status": "overwritten",
+    "previous_raceId": 0,
     "previous_lookType": null,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Rotten Man-Maggot",
@@ -21705,7 +21705,7 @@
     "status": "overwritten",
     "previous_raceId": 2393,
     "previous_lookType": 1655,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Sopping Carcass",
@@ -21723,7 +21723,7 @@
     "status": "overwritten",
     "previous_raceId": 2396,
     "previous_lookType": 1658,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Sopping Corpus",
@@ -21741,7 +21741,7 @@
     "status": "overwritten",
     "previous_raceId": 2397,
     "previous_lookType": 1659,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Vemiath",
@@ -21777,7 +21777,7 @@
     "status": "overwritten",
     "previous_raceId": 2394,
     "previous_lookType": 1656,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Wandering Pillar",
@@ -21795,7 +21795,7 @@
     "status": "overwritten",
     "previous_raceId": 2395,
     "previous_lookType": 1657,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Travelling Merchant",
@@ -22299,7 +22299,7 @@
     "status": "overwritten",
     "previous_raceId": 1946,
     "previous_lookType": 148,
-    "raceId_collision": true
+    "raceId_collision": false
   },
   {
     "name": "A Greedy Eye",
@@ -22567,7 +22567,7 @@
     "path": "quests/soul_war/normal_monsters/monk's_apparition.lua",
     "canary_path": "data-otservbr-global/monster/quests/soul_war/normal_monsters/monk's_apparition.lua",
     "status": "overwritten",
-    "previous_raceId": 1946,
+    "previous_raceId": 2636,
     "previous_lookType": 1824,
     "raceId_collision": false
   },
@@ -24207,7 +24207,7 @@
     "status": "overwritten",
     "previous_raceId": 227,
     "previous_lookType": 227,
-    "raceId_collision": true
+    "raceId_collision": false
   },
   {
     "name": "Red Butterfly",
@@ -24241,7 +24241,7 @@
     "path": "quests/the_explorer_society/yellow_butterfly.lua",
     "canary_path": "data-otservbr-global/monster/quests/the_explorer_society/yellow_butterfly.lua",
     "status": "overwritten",
-    "previous_raceId": 235,
+    "previous_raceId": null,
     "previous_lookType": 10,
     "raceId_collision": false
   },
@@ -27156,9 +27156,9 @@
     "summons": false,
     "path": "raids/orc_sam_backpack.lua",
     "canary_path": "data-otservbr-global/monster/raids/orc_sam_backpack.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 5,
     "raceId_collision": false
   },
   {
@@ -28524,9 +28524,9 @@
     "summons": false,
     "path": "targuna/aragonia/freshwater_turtle.lua",
     "canary_path": "data-otservbr-global/monster/targuna/aragonia/freshwater_turtle.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 197,
     "raceId_collision": false
   },
   {
@@ -28542,9 +28542,9 @@
     "summons": false,
     "path": "targuna/aragonia/pirate_cook.lua",
     "canary_path": "data-otservbr-global/monster/targuna/aragonia/pirate_cook.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2778,
+    "previous_lookType": 96,
     "raceId_collision": false
   },
   {
@@ -28560,9 +28560,9 @@
     "summons": false,
     "path": "targuna/aragonia/pirate_gunner.lua",
     "canary_path": "data-otservbr-global/monster/targuna/aragonia/pirate_gunner.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2777,
+    "previous_lookType": 97,
     "raceId_collision": false
   },
   {
@@ -28578,9 +28578,9 @@
     "summons": false,
     "path": "targuna/aragonia/pirate_navigator.lua",
     "canary_path": "data-otservbr-global/monster/targuna/aragonia/pirate_navigator.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2776,
+    "previous_lookType": 93,
     "raceId_collision": false
   },
   {
@@ -28596,9 +28596,9 @@
     "summons": false,
     "path": "targuna/aragonia/pirate_quartermaster.lua",
     "canary_path": "data-otservbr-global/monster/targuna/aragonia/pirate_quartermaster.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2779,
+    "previous_lookType": 151,
     "raceId_collision": false
   },
   {
@@ -28614,9 +28614,9 @@
     "summons": false,
     "path": "targuna/aragonia/sea_captain.lua",
     "canary_path": "data-otservbr-global/monster/targuna/aragonia/sea_captain.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2780,
+    "previous_lookType": 98,
     "raceId_collision": false
   },
   {
@@ -28632,9 +28632,9 @@
     "summons": false,
     "path": "targuna/bosses/herald_of_fire.lua",
     "canary_path": "data-otservbr-global/monster/targuna/bosses/herald_of_fire.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1931,
     "raceId_collision": false
   },
   {
@@ -28650,9 +28650,9 @@
     "summons": false,
     "path": "targuna/crimson_court/infernoid_blob.lua",
     "canary_path": "data-otservbr-global/monster/targuna/crimson_court/infernoid_blob.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2786,
+    "previous_lookType": 49,
     "raceId_collision": false
   },
   {
@@ -28668,9 +28668,9 @@
     "summons": false,
     "path": "targuna/crimson_court/infernoid_hound.lua",
     "canary_path": "data-otservbr-global/monster/targuna/crimson_court/infernoid_hound.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2787,
+    "previous_lookType": 414,
     "raceId_collision": false
   },
   {
@@ -28686,9 +28686,9 @@
     "summons": false,
     "path": "targuna/crimson_court/infernoid_soul.lua",
     "canary_path": "data-otservbr-global/monster/targuna/crimson_court/infernoid_soul.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2788,
+    "previous_lookType": 242,
     "raceId_collision": false
   },
   {
@@ -28704,9 +28704,9 @@
     "summons": false,
     "path": "targuna/crimson_court/infernoid_spiritual.lua",
     "canary_path": "data-otservbr-global/monster/targuna/crimson_court/infernoid_spiritual.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2789,
+    "previous_lookType": 243,
     "raceId_collision": false
   },
   {
@@ -28722,9 +28722,9 @@
     "summons": false,
     "path": "targuna/hidden_lizard_temple/lizard_commander.lua",
     "canary_path": "data-otservbr-global/monster/targuna/hidden_lizard_temple/lizard_commander.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2785,
+    "previous_lookType": 1930,
     "raceId_collision": false
   },
   {
@@ -28740,9 +28740,9 @@
     "summons": false,
     "path": "targuna/hidden_lizard_temple/lizard_executioner.lua",
     "canary_path": "data-otservbr-global/monster/targuna/hidden_lizard_temple/lizard_executioner.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2784,
+    "previous_lookType": 1929,
     "raceId_collision": false
   },
   {
@@ -28758,9 +28758,9 @@
     "summons": false,
     "path": "targuna/hidden_lizard_temple/lizard_henchman.lua",
     "canary_path": "data-otservbr-global/monster/targuna/hidden_lizard_temple/lizard_henchman.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2781,
+    "previous_lookType": 1927,
     "raceId_collision": false
   },
   {
@@ -28776,9 +28776,9 @@
     "summons": false,
     "path": "targuna/hidden_lizard_temple/lizard_magician.lua",
     "canary_path": "data-otservbr-global/monster/targuna/hidden_lizard_temple/lizard_magician.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2782,
+    "previous_lookType": 1928,
     "raceId_collision": false
   },
   {
@@ -28794,9 +28794,9 @@
     "summons": false,
     "path": "targuna/hidden_lizard_temple/lizard_swordmaster.lua",
     "canary_path": "data-otservbr-global/monster/targuna/hidden_lizard_temple/lizard_swordmaster.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2783,
+    "previous_lookType": 1929,
     "raceId_collision": false
   },
   {
@@ -28812,9 +28812,9 @@
     "summons": true,
     "path": "trainers/target_dummy.lua",
     "canary_path": "data-otservbr-global/monster/trainers/target_dummy.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1142,
     "raceId_collision": false
   },
   {
@@ -29298,9 +29298,9 @@
     "summons": false,
     "path": "undeads/dworc_shadowstalker.lua",
     "canary_path": "data-otservbr-global/monster/undeads/dworc_shadowstalker.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2667,
+    "previous_lookType": 1853,
     "raceId_collision": false
   },
   {
@@ -29463,7 +29463,7 @@
     "status": "overwritten",
     "previous_raceId": 1148,
     "previous_lookType": 730,
-    "raceId_collision": false
+    "raceId_collision": true
   },
   {
     "name": "Ghoul",
@@ -29766,9 +29766,9 @@
     "summons": false,
     "path": "undeads/orclops_bloodbreaker.lua",
     "canary_path": "data-otservbr-global/monster/undeads/orclops_bloodbreaker.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2668,
+    "previous_lookType": 1854,
     "raceId_collision": false
   },
   {
@@ -30325,8 +30325,8 @@
     "path": "vermins/butterfly.lua",
     "canary_path": "data-otservbr-global/monster/vermins/butterfly.lua",
     "status": "overwritten",
-    "previous_raceId": 227,
-    "previous_lookType": 227,
+    "previous_raceId": 213,
+    "previous_lookType": 213,
     "raceId_collision": true
   },
   {
@@ -31404,9 +31404,9 @@
     "summons": false,
     "path": "winter_update_2025/bone_bear.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bone_bear.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 384,
     "raceId_collision": false
   },
   {
@@ -31422,9 +31422,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/adlerauge.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/adlerauge.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1901,
     "raceId_collision": false
   },
   {
@@ -31440,7 +31440,7 @@
     "summons": false,
     "path": "winter_update_2025/bosses/adventurer_group.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/adventurer_group.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -31458,7 +31458,7 @@
     "summons": false,
     "path": "winter_update_2025/bosses/bone_overlord.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/bone_overlord.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -31476,9 +31476,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/clavius.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/clavius.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1902,
     "raceId_collision": false
   },
   {
@@ -31494,9 +31494,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/court_warlock.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/court_warlock.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1903,
     "raceId_collision": false
   },
   {
@@ -31512,9 +31512,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/eldritch_dragon_lord.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/eldritch_dragon_lord.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1879,
     "raceId_collision": false
   },
   {
@@ -31530,9 +31530,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/fiona_firstdream.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/fiona_firstdream.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1681,
     "raceId_collision": false
   },
   {
@@ -31548,9 +31548,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/grendel_greenlunch.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/grendel_greenlunch.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 144,
     "raceId_collision": false
   },
   {
@@ -31566,9 +31566,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/ice_horror.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/ice_horror.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1881,
     "raceId_collision": false
   },
   {
@@ -31584,9 +31584,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/michael_the_stalwart.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/michael_the_stalwart.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1900,
     "raceId_collision": false
   },
   {
@@ -31602,9 +31602,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/nigel_neverguess.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/nigel_neverguess.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1837,
     "raceId_collision": false
   },
   {
@@ -31620,9 +31620,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/overseer_osverger.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/overseer_osverger.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1902,
     "raceId_collision": false
   },
   {
@@ -31638,9 +31638,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/percy_peacetinker.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/percy_peacetinker.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 137,
     "raceId_collision": false
   },
   {
@@ -31656,9 +31656,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/the_gravedigger.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/the_gravedigger.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1880,
     "raceId_collision": false
   },
   {
@@ -31674,9 +31674,9 @@
     "summons": false,
     "path": "winter_update_2025/bosses/yorik_youngbook.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/bosses/yorik_youngbook.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 268,
     "raceId_collision": false
   },
   {
@@ -31692,9 +31692,9 @@
     "summons": false,
     "path": "winter_update_2025/creepy_crawler.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/creepy_crawler.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2763,
+    "previous_lookType": 1890,
     "raceId_collision": false
   },
   {
@@ -31710,9 +31710,9 @@
     "summons": false,
     "path": "winter_update_2025/crypt_construct.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/crypt_construct.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2760,
+    "previous_lookType": 1887,
     "raceId_collision": false
   },
   {
@@ -31728,9 +31728,9 @@
     "summons": false,
     "path": "winter_update_2025/crypt_fiend.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/crypt_fiend.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2758,
+    "previous_lookType": 1885,
     "raceId_collision": false
   },
   {
@@ -31746,9 +31746,9 @@
     "summons": false,
     "path": "winter_update_2025/crypt_mage.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/crypt_mage.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2766,
+    "previous_lookType": 1905,
     "raceId_collision": false
   },
   {
@@ -31764,9 +31764,9 @@
     "summons": false,
     "path": "winter_update_2025/cyclursus.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/cyclursus.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2757,
+    "previous_lookType": 1884,
     "raceId_collision": false
   },
   {
@@ -31782,10 +31782,10 @@
     "summons": false,
     "path": "winter_update_2025/day_night_harpy.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/day_night_harpy.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
-    "raceId_collision": false
+    "status": "overwritten",
+    "previous_raceId": 2764,
+    "previous_lookType": 1899,
+    "raceId_collision": true
   },
   {
     "name": "Destrier",
@@ -31800,9 +31800,9 @@
     "summons": false,
     "path": "winter_update_2025/destrier.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/destrier.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 434,
     "raceId_collision": false
   },
   {
@@ -31818,9 +31818,9 @@
     "summons": false,
     "path": "winter_update_2025/haunted_hunter.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/haunted_hunter.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2762,
+    "previous_lookType": 1889,
     "raceId_collision": false
   },
   {
@@ -31836,9 +31836,9 @@
     "summons": false,
     "path": "winter_update_2025/imperial.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/imperial.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2775,
+    "previous_lookType": 1914,
     "raceId_collision": false
   },
   {
@@ -31854,10 +31854,10 @@
     "summons": false,
     "path": "winter_update_2025/night_harpy.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/night_harpy.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
-    "raceId_collision": false
+    "status": "overwritten",
+    "previous_raceId": 2764,
+    "previous_lookType": 1899,
+    "raceId_collision": true
   },
   {
     "name": "An Eye",
@@ -31872,9 +31872,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/an_eye.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/an_eye.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 925,
     "raceId_collision": false
   },
   {
@@ -31890,7 +31890,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/bone_barrier.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/bone_barrier.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -31908,7 +31908,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/bonelord_totem.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/bonelord_totem.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -31926,7 +31926,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/bonelords_phylactery.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/bonelords_phylactery.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -31944,7 +31944,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/bright_crystal.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/bright_crystal.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -31962,9 +31962,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/elyraxa_spirit.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/elyraxa_spirit.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1883,
     "raceId_collision": false
   },
   {
@@ -31980,7 +31980,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/elyraxs_soulcage.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/elyraxs_soulcage.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -31998,9 +31998,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/energised_raubritter.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/energised_raubritter.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1901,
     "raceId_collision": false
   },
   {
@@ -32016,9 +32016,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/enthralled_dragon.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/enthralled_dragon.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 231,
     "raceId_collision": false
   },
   {
@@ -32034,7 +32034,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/eruption.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/eruption.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -32052,9 +32052,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/fatal_bug.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/fatal_bug.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 79,
     "raceId_collision": false
   },
   {
@@ -32070,7 +32070,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/flame_totem.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/flame_totem.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -32088,9 +32088,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/frozen_raubritter.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/frozen_raubritter.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1900,
     "raceId_collision": false
   },
   {
@@ -32106,7 +32106,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/ice_blockade.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/ice_blockade.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -32124,9 +32124,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/ice_crawler.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/ice_crawler.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 263,
     "raceId_collision": false
   },
   {
@@ -32142,9 +32142,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/myzaretha_spirit.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/myzaretha_spirit.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1883,
     "raceId_collision": false
   },
   {
@@ -32160,7 +32160,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/myzareths_soulcage.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/myzareths_soulcage.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -32178,9 +32178,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/poisoned_raubritter.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/poisoned_raubritter.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1902,
     "raceId_collision": false
   },
   {
@@ -32196,7 +32196,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/pulsating_lava.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/pulsating_lava.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -32214,9 +32214,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/raging_raubritter.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/raging_raubritter.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1900,
     "raceId_collision": false
   },
   {
@@ -32232,9 +32232,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/scaritha_spirit.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/scaritha_spirit.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1883,
     "raceId_collision": false
   },
   {
@@ -32250,7 +32250,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/scariths_soulcage.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/scariths_soulcage.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -32268,9 +32268,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/tamed_frazzlemaw.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/tamed_frazzlemaw.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 594,
     "raceId_collision": false
   },
   {
@@ -32286,9 +32286,9 @@
     "summons": false,
     "path": "winter_update_2025/quests/zharvorina_spirit.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/zharvorina_spirit.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
-    "previous_lookType": null,
+    "previous_lookType": 1883,
     "raceId_collision": false
   },
   {
@@ -32304,7 +32304,7 @@
     "summons": false,
     "path": "winter_update_2025/quests/zharvorins_soulcage.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/quests/zharvorins_soulcage.lua",
-    "status": "new",
+    "status": "overwritten",
     "previous_raceId": null,
     "previous_lookType": null,
     "raceId_collision": false
@@ -32322,9 +32322,9 @@
     "summons": false,
     "path": "winter_update_2025/raubritter_chastener.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/raubritter_chastener.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2752,
+    "previous_lookType": 1902,
     "raceId_collision": false
   },
   {
@@ -32340,9 +32340,9 @@
     "summons": false,
     "path": "winter_update_2025/raubritter_marksman.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/raubritter_marksman.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2751,
+    "previous_lookType": 1901,
     "raceId_collision": false
   },
   {
@@ -32358,9 +32358,9 @@
     "summons": false,
     "path": "winter_update_2025/raubritter_skirmisher.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/raubritter_skirmisher.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2750,
+    "previous_lookType": 1900,
     "raceId_collision": false
   },
   {
@@ -32376,9 +32376,9 @@
     "summons": false,
     "path": "winter_update_2025/roaming_dread.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/roaming_dread.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2765,
+    "previous_lookType": 1904,
     "raceId_collision": false
   },
   {
@@ -32394,9 +32394,9 @@
     "summons": false,
     "path": "winter_update_2025/stag.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/stag.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2774,
+    "previous_lookType": 1913,
     "raceId_collision": false
   },
   {
@@ -32412,9 +32412,9 @@
     "summons": false,
     "path": "winter_update_2025/walking_dread.lua",
     "canary_path": "data-otservbr-global/monster/winter_update_2025/walking_dread.lua",
-    "status": "new",
-    "previous_raceId": null,
-    "previous_lookType": null,
+    "status": "overwritten",
+    "previous_raceId": 2759,
+    "previous_lookType": 1886,
     "raceId_collision": false
   }
 ]
