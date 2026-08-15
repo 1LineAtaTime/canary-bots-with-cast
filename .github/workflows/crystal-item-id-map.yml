@@ -2,6 +2,12 @@ name: Crystal to Canary item ID mapping
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - crystal-items-monsters-migration
+    paths:
+      - 'tools/migration/map_items.py'
+      - '.github/workflows/crystal-item-id-map.yml'
 
 permissions:
   contents: write
