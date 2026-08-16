@@ -7711,9 +7711,9 @@
   },
   {
     "crystal_id": 3204,
-    "canary_id": 54267,
+    "canary_id": 3204,
     "name": "your own dead body",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 3205,
@@ -12933,19 +12933,19 @@
     "crystal_id": 4609,
     "canary_id": 4609,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4610,
     "canary_id": 4610,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4611,
     "canary_id": 4611,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4612,
@@ -12975,37 +12975,37 @@
     "crystal_id": 4809,
     "canary_id": 4809,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4810,
     "canary_id": 4810,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4811,
     "canary_id": 4811,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4812,
     "canary_id": 4812,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4813,
     "canary_id": 4813,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4814,
     "canary_id": 4814,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 4827,
@@ -15367,9 +15367,9 @@
   },
   {
     "crystal_id": 5952,
-    "canary_id": 54268,
+    "canary_id": 5952,
     "name": "scroll",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 5953,
@@ -27063,19 +27063,19 @@
     "crystal_id": 11440,
     "canary_id": 11440,
     "name": "large book",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 11441,
     "canary_id": 11441,
     "name": "large book",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 11442,
     "canary_id": 11442,
     "name": "large book",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 11443,
@@ -29805,19 +29805,19 @@
     "crystal_id": 12558,
     "canary_id": 12558,
     "name": "dirty water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 12559,
     "canary_id": 12559,
     "name": "dirty water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 12560,
     "canary_id": 12560,
     "name": "dirty water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 12570,
@@ -31161,13 +31161,13 @@
     "crystal_id": 13842,
     "canary_id": 13842,
     "name": "ice flower",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 13843,
     "canary_id": 13843,
     "name": "harvested ice flower",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 13844,
@@ -31587,13 +31587,13 @@
     "crystal_id": 13988,
     "canary_id": 13988,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 13989,
     "canary_id": 13989,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 13990,
@@ -39489,13 +39489,13 @@
     "crystal_id": 19198,
     "canary_id": 19198,
     "name": "strange shrine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 19199,
     "canary_id": 19199,
     "name": "strange shrine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 19200,
@@ -42519,7 +42519,7 @@
     "crystal_id": 21314,
     "canary_id": 21314,
     "name": "shallow water",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 21323,
@@ -42985,27 +42985,27 @@
   },
   {
     "crystal_id": 21462,
-    "canary_id": 54269,
+    "canary_id": 21462,
     "name": "red flame",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 21463,
-    "canary_id": 54270,
+    "canary_id": 21463,
     "name": "blue flame",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 21464,
-    "canary_id": 54271,
+    "canary_id": 21464,
     "name": "violet flame",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 21465,
-    "canary_id": 54272,
+    "canary_id": 21465,
     "name": "yellow flame",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 21466,
@@ -55045,9 +55045,9 @@
   },
   {
     "crystal_id": 28750,
-    "canary_id": 54273,
+    "canary_id": 28750,
     "name": "your stash",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 28751,
@@ -58735,9 +58735,9 @@
   },
   {
     "crystal_id": 31159,
-    "canary_id": 54274,
+    "canary_id": 31159,
     "name": "grass",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 31160,
@@ -73329,7 +73329,7 @@
     "crystal_id": 39176,
     "canary_id": 39176,
     "name": "primal pod",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 39177,
@@ -76773,19 +76773,19 @@
     "crystal_id": 43294,
     "canary_id": 43294,
     "name": "spore tracks",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43295,
     "canary_id": 43295,
     "name": "volatile funghi",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43297,
     "canary_id": 43297,
     "name": "agony field",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43372,
@@ -76803,25 +76803,25 @@
     "crystal_id": 43501,
     "canary_id": 43501,
     "name": "the essence of Murcion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43502,
     "canary_id": 43502,
     "name": "the essence of Ichgahal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43503,
     "canary_id": 43503,
     "name": "the essence of Vemiath",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43504,
     "canary_id": 43504,
     "name": "the essence of Chagorz",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43510,
@@ -77115,7 +77115,7 @@
     "crystal_id": 43744,
     "canary_id": 43744,
     "name": "rotten mushroom",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43751,
@@ -77193,103 +77193,103 @@
     "crystal_id": 43786,
     "canary_id": 43786,
     "name": "rotten mushroom",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43787,
     "canary_id": 43787,
     "name": "rotten mushroom",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43788,
     "canary_id": 43788,
     "name": "rotten mushroom",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43789,
     "canary_id": 43789,
     "name": "rotten mushroom",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43790,
     "canary_id": 43790,
     "name": "rotten mushroom",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43792,
     "canary_id": 43792,
     "name": "rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43793,
     "canary_id": 43793,
     "name": "broken rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43794,
     "canary_id": 43794,
     "name": "rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43795,
     "canary_id": 43795,
     "name": "broken rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43796,
     "canary_id": 43796,
     "name": "rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43797,
     "canary_id": 43797,
     "name": "broken rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43798,
     "canary_id": 43798,
     "name": "rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43799,
     "canary_id": 43799,
     "name": "broken rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43800,
     "canary_id": 43800,
     "name": "rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43801,
     "canary_id": 43801,
     "name": "broken rotten crystal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43810,
     "canary_id": 43810,
     "name": "large seashell",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43811,
     "canary_id": 43811,
     "name": "large seashell",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43813,
@@ -77523,13 +77523,13 @@
     "crystal_id": 43854,
     "canary_id": 43854,
     "name": "tainted heart",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43855,
     "canary_id": 43855,
     "name": "darklight heart",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43863,
@@ -77697,13 +77697,13 @@
     "crystal_id": 43899,
     "canary_id": 43899,
     "name": "cursed wood",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43900,
     "canary_id": 43900,
     "name": "darklight geode",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 43901,
@@ -77761,93 +77761,93 @@
   },
   {
     "crystal_id": 44012,
-    "canary_id": 54275,
+    "canary_id": 44012,
     "name": "dead bakragore",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44013,
-    "canary_id": 54276,
+    "canary_id": 44013,
     "name": "dead bakragore",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44014,
-    "canary_id": 54277,
+    "canary_id": 44014,
     "name": "dead bakragore",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44015,
-    "canary_id": 54278,
+    "canary_id": 44015,
     "name": "dead murcion",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44016,
-    "canary_id": 54279,
+    "canary_id": 44016,
     "name": "dead murcion",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44017,
-    "canary_id": 54280,
+    "canary_id": 44017,
     "name": "dead murcion",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44018,
-    "canary_id": 54281,
+    "canary_id": 44018,
     "name": "dead Ichgahal",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44019,
-    "canary_id": 54282,
+    "canary_id": 44019,
     "name": "dead Ichgahal",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44020,
-    "canary_id": 54283,
+    "canary_id": 44020,
     "name": "dead Ichgahal",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44021,
-    "canary_id": 54284,
+    "canary_id": 44021,
     "name": "dead vemiath",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44022,
-    "canary_id": 54285,
+    "canary_id": 44022,
     "name": "dead vemiath",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44023,
-    "canary_id": 54286,
+    "canary_id": 44023,
     "name": "dead vemiath",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44024,
-    "canary_id": 54287,
+    "canary_id": 44024,
     "name": "dead chagorz",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44025,
-    "canary_id": 54288,
+    "canary_id": 44025,
     "name": "dead chagorz",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44026,
-    "canary_id": 54289,
+    "canary_id": 44026,
     "name": "dead chagorz",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 44036,
@@ -77901,19 +77901,19 @@
     "crystal_id": 44158,
     "canary_id": 44158,
     "name": "dragon trophy",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 44529,
     "canary_id": 44529,
     "name": "slits",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 44530,
     "canary_id": 44530,
     "name": "blades",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 44602,
@@ -78543,13 +78543,13 @@
     "crystal_id": 46625,
     "canary_id": 46625,
     "name": "lesser fragment",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 46626,
     "canary_id": 46626,
     "name": "greater fragment",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 46627,
@@ -81915,25 +81915,25 @@
     "crystal_id": 48257,
     "canary_id": 48257,
     "name": "dead nibblemaw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48258,
     "canary_id": 48258,
     "name": "dead nibblemaw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48259,
     "canary_id": 48259,
     "name": "dead nibblemaw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48260,
     "canary_id": 48260,
     "name": "dead nibblemaw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48261,
@@ -82155,55 +82155,55 @@
     "crystal_id": 48442,
     "canary_id": 48442,
     "name": "bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48443,
     "canary_id": 48443,
     "name": "bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48444,
     "canary_id": 48444,
     "name": "bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48449,
     "canary_id": 48449,
     "name": "bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48450,
     "canary_id": 48450,
     "name": "bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48451,
     "canary_id": 48451,
     "name": "bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48452,
     "canary_id": 48452,
     "name": "bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48457,
     "canary_id": 48457,
     "name": "candy cushion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48467,
     "canary_id": 48467,
     "name": "candy cushion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 48493,
@@ -83133,31 +83133,31 @@
     "crystal_id": 49147,
     "canary_id": 49147,
     "name": "dead rootthing",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49148,
     "canary_id": 49148,
     "name": "dead rootthing",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49149,
     "canary_id": 49149,
     "name": "dead rootthing",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49150,
     "canary_id": 49150,
     "name": "dead rootthing",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49161,
     "canary_id": 49161,
     "name": "trapdoor",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49163,
@@ -83199,7 +83199,7 @@
     "crystal_id": 49407,
     "canary_id": 49407,
     "name": "sacrificial altar",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49520,
@@ -83287,69 +83287,69 @@
   },
   {
     "crystal_id": 49656,
-    "canary_id": 54290,
+    "canary_id": 49656,
     "name": "stairs",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49657,
-    "canary_id": 54291,
+    "canary_id": 49657,
     "name": "stairs",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49658,
-    "canary_id": 54292,
+    "canary_id": 49658,
     "name": "stairs",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49659,
-    "canary_id": 54293,
+    "canary_id": 49659,
     "name": "stairs",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49660,
-    "canary_id": 54294,
+    "canary_id": 49660,
     "name": "stairs",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49661,
-    "canary_id": 54295,
+    "canary_id": 49661,
     "name": "stairs",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49662,
     "canary_id": 49662,
     "name": "stairs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49663,
     "canary_id": 49663,
     "name": "stairs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49678,
-    "canary_id": 54296,
+    "canary_id": 49678,
     "name": "closed gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49679,
-    "canary_id": 54297,
+    "canary_id": 49679,
     "name": "closed gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49680,
-    "canary_id": 54298,
+    "canary_id": 49680,
     "name": "closed gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49681,
@@ -83359,117 +83359,117 @@
   },
   {
     "crystal_id": 49682,
-    "canary_id": 54299,
+    "canary_id": 49682,
     "name": "open gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49683,
-    "canary_id": 54300,
+    "canary_id": 49683,
     "name": "open gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49684,
-    "canary_id": 54301,
+    "canary_id": 49684,
     "name": "closed gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49685,
-    "canary_id": 54302,
+    "canary_id": 49685,
     "name": "closed gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49686,
-    "canary_id": 54303,
+    "canary_id": 49686,
     "name": "closed gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49687,
-    "canary_id": 54304,
+    "canary_id": 49687,
     "name": "closed gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49688,
-    "canary_id": 54305,
+    "canary_id": 49688,
     "name": "open gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49689,
-    "canary_id": 54306,
+    "canary_id": 49689,
     "name": "open gate",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 49731,
     "canary_id": 49731,
     "name": "closed door",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49732,
     "canary_id": 49732,
     "name": "closed door",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49733,
     "canary_id": 49733,
     "name": "closed door",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49734,
     "canary_id": 49734,
     "name": "closed door",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49739,
     "canary_id": 49739,
     "name": "stained glass window",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49742,
     "canary_id": 49742,
     "name": "stained glass window",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49845,
     "canary_id": 49845,
     "name": "statue of a warrior monk depicting the cobra",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49846,
     "canary_id": 49846,
     "name": "statue of a warrior monk depicting the rotworm",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49847,
     "canary_id": 49847,
     "name": "statue of a warrior monk depicting the frog",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49848,
     "canary_id": 49848,
     "name": "statue of a warrior monk depicting the cat",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49849,
     "canary_id": 49849,
     "name": "statue of a warrior monk depicting the dragon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49858,
@@ -83655,73 +83655,73 @@
     "crystal_id": 49891,
     "canary_id": 49891,
     "name": "skin of Twisterror",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49892,
     "canary_id": 49892,
     "name": "skin of Gralvalon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49893,
     "canary_id": 49893,
     "name": "skin of Malvaroth",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49894,
     "canary_id": 49894,
     "name": "demonic matter",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49904,
     "canary_id": 49904,
     "name": "some troll food",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49908,
     "canary_id": 49908,
     "name": "mummified demon finger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49909,
     "canary_id": 49909,
     "name": "demonic core essence",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49912,
     "canary_id": 49912,
     "name": "incense",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49913,
     "canary_id": 49913,
     "name": "incense",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49914,
     "canary_id": 49914,
     "name": "incense",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49915,
     "canary_id": 49915,
     "name": "incense",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49936,
     "canary_id": 49936,
     "name": "ramp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49937,
@@ -83733,91 +83733,91 @@
     "crystal_id": 49938,
     "canary_id": 49938,
     "name": "ramp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49939,
     "canary_id": 49939,
     "name": "ramp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49940,
     "canary_id": 49940,
     "name": "ramp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49941,
     "canary_id": 49941,
     "name": "ramp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49942,
     "canary_id": 49942,
     "name": "ramp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49943,
     "canary_id": 49943,
     "name": "ramp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49948,
     "canary_id": 49948,
     "name": "guarded crystal sphere",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49987,
     "canary_id": 49987,
     "name": "dead spellreaper inferniarch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49988,
     "canary_id": 49988,
     "name": "dead spellreaper inferniarch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49989,
     "canary_id": 49989,
     "name": "dead spellreaper inferniarch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49990,
     "canary_id": 49990,
     "name": "dead spellreaper inferniarch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49991,
     "canary_id": 49991,
     "name": "dead hellhunter inferniarch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49992,
     "canary_id": 49992,
     "name": "dead hellhunter inferniarch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49993,
     "canary_id": 49993,
     "name": "dead hellhunter inferniarch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49994,
     "canary_id": 49994,
     "name": "dead hellhunter inferniarch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 49995,
@@ -83917,93 +83917,93 @@
   },
   {
     "crystal_id": 50027,
-    "canary_id": 54307,
+    "canary_id": 50027,
     "name": "dead arbaziloth",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 50028,
-    "canary_id": 54308,
+    "canary_id": 50028,
     "name": "dead arbaziloth",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 50029,
-    "canary_id": 54309,
+    "canary_id": 50029,
     "name": "dead arbaziloth",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 50039,
     "canary_id": 50039,
     "name": "dead twisterror",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50040,
     "canary_id": 50040,
     "name": "dead twisterror",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50041,
     "canary_id": 50041,
     "name": "dead twisterror",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50042,
     "canary_id": 50042,
     "name": "dead twisterror",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50043,
     "canary_id": 50043,
     "name": "dead gralvalon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50044,
     "canary_id": 50044,
     "name": "dead gralvalon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50045,
     "canary_id": 50045,
     "name": "dead gralvalon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50046,
     "canary_id": 50046,
     "name": "dead gralvalon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50047,
     "canary_id": 50047,
     "name": "dead malvaroth",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50048,
     "canary_id": 50048,
     "name": "dead malvaroth",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50049,
     "canary_id": 50049,
     "name": "dead malvaroth",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50050,
     "canary_id": 50050,
     "name": "dead malvaroth",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50054,
@@ -84069,7 +84069,7 @@
     "crystal_id": 50096,
     "canary_id": 50096,
     "name": "ticket forge",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50101,
@@ -84079,9 +84079,9 @@
   },
   {
     "crystal_id": 50102,
-    "canary_id": 54310,
+    "canary_id": 50102,
     "name": "dead corpse",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 50103,
@@ -84147,25 +84147,25 @@
     "crystal_id": 50131,
     "canary_id": 50131,
     "name": "huge ancient stone sphere",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50132,
     "canary_id": 50132,
     "name": "small ancient stone sphere",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50139,
     "canary_id": 50139,
     "name": "small training log",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50143,
     "canary_id": 50143,
     "name": "large training log",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50146,
@@ -84343,9 +84343,9 @@
   },
   {
     "crystal_id": 50183,
-    "canary_id": 54311,
+    "canary_id": 50183,
     "name": "sai",
-    "reason": "new-free-id"
+    "reason": "free-crystal-id-preserved"
   },
   {
     "crystal_id": 50184,
@@ -84423,43 +84423,43 @@
     "crystal_id": 50227,
     "canary_id": 50227,
     "name": "guarded crystal sphere",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50228,
     "canary_id": 50228,
     "name": "statue of a gorilla",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50229,
     "canary_id": 50229,
     "name": "statue of a locust",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50230,
     "canary_id": 50230,
     "name": "statue of a demon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50231,
     "canary_id": 50231,
     "name": "statue of a crane",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50232,
     "canary_id": 50232,
     "name": "statue of a cobra",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50233,
     "canary_id": 50233,
     "name": "moonhunter figurine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50239,
@@ -84477,37 +84477,37 @@
     "crystal_id": 50242,
     "canary_id": 50242,
     "name": "ancient shrine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50243,
     "canary_id": 50243,
     "name": "ancient shrine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50244,
     "canary_id": 50244,
     "name": "ancient shrine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50245,
     "canary_id": 50245,
     "name": "ancient shrine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50248,
     "canary_id": 50248,
     "name": "comfy cushion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50249,
     "canary_id": 50249,
     "name": "merudri writing easel",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50250,
@@ -84741,55 +84741,55 @@
     "crystal_id": 50309,
     "canary_id": 50309,
     "name": "monk pedestal",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50310,
     "canary_id": 50310,
     "name": "enhanced guarded crystal sphere",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50311,
     "canary_id": 50311,
     "name": "good remains of a merudri",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50313,
     "canary_id": 50313,
     "name": "sensing crown",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50314,
     "canary_id": 50314,
     "name": "your magical tree",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50315,
     "canary_id": 50315,
     "name": "ornate candle",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50318,
     "canary_id": 50318,
     "name": "paper light",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50321,
     "canary_id": 50321,
     "name": "lampion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50322,
     "canary_id": 50322,
     "name": "lampion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50330,
@@ -84801,223 +84801,223 @@
     "crystal_id": 50334,
     "canary_id": 50334,
     "name": "zaoan sauce",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50435,
     "canary_id": 50435,
     "name": "wooden dummy",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50436,
     "canary_id": 50436,
     "name": "wooden dummy",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50547,
     "canary_id": 50547,
     "name": "stairs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50551,
     "canary_id": 50551,
     "name": "stairs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50553,
     "canary_id": 50553,
     "name": "stairs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 50555,
     "canary_id": 50555,
     "name": "stairs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51119,
     "canary_id": 51119,
     "name": "simple jo staff",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51186,
     "canary_id": 51186,
     "name": "voodoo chair",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51188,
     "canary_id": 51188,
     "name": "voodoo chair",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51189,
     "canary_id": 51189,
     "name": "voodoo chair",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51190,
     "canary_id": 51190,
     "name": "voodoo chair",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51196,
     "canary_id": 51196,
     "name": "voodoo chest",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51197,
     "canary_id": 51197,
     "name": "voodoo chest",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51198,
     "canary_id": 51198,
     "name": "voodoo chest",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51199,
     "canary_id": 51199,
     "name": "voodoo chest",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51204,
     "canary_id": 51204,
     "name": "voodoo table",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51205,
     "canary_id": 51205,
     "name": "voodoo table",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51206,
     "canary_id": 51206,
     "name": "voodoo cabinet",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51207,
     "canary_id": 51207,
     "name": "voodoo cabinet",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51208,
     "canary_id": 51208,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51209,
     "canary_id": 51209,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51210,
     "canary_id": 51210,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51211,
     "canary_id": 51211,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51212,
     "canary_id": 51212,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51213,
     "canary_id": 51213,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51214,
     "canary_id": 51214,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51215,
     "canary_id": 51215,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51216,
     "canary_id": 51216,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51217,
     "canary_id": 51217,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51218,
     "canary_id": 51218,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51219,
     "canary_id": 51219,
     "name": "voodoo bed",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51220,
     "canary_id": 51220,
     "name": "voodoo lamp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51221,
     "canary_id": 51221,
     "name": "voodoo lamp",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51222,
     "canary_id": 51222,
     "name": "rolled-up voodoo carpet",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51223,
     "canary_id": 51223,
     "name": "voodoo carpet",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51237,
     "canary_id": 51237,
     "name": "voodoo mask",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51259,
@@ -85029,97 +85029,97 @@
     "crystal_id": 51260,
     "canary_id": 51260,
     "name": "norcferatu skullguard",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51261,
     "canary_id": 51261,
     "name": "norcferatu bonehood",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51262,
     "canary_id": 51262,
     "name": "norcferatu tuskplate",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51263,
     "canary_id": 51263,
     "name": "norcferatu bloodhide",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51264,
     "canary_id": 51264,
     "name": "norcferatu bonecloak",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51265,
     "canary_id": 51265,
     "name": "norcferatu thornwraps",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51266,
     "canary_id": 51266,
     "name": "norcferatu bloodstrider",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51267,
     "canary_id": 51267,
     "name": "norcferatu fleshguards",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51268,
     "canary_id": 51268,
     "name": "norcferatu goretrampers",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51269,
     "canary_id": 51269,
     "name": "norcferatu fangstompers",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51270,
     "canary_id": 51270,
     "name": "ink blade",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51271,
     "canary_id": 51271,
     "name": "ink quill",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51272,
     "canary_id": 51272,
     "name": "ink claw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51273,
     "canary_id": 51273,
     "name": "ink vine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51274,
     "canary_id": 51274,
     "name": "ink brush",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51275,
     "canary_id": 51275,
     "name": "greater garlic necklace",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51294,
@@ -85131,2418 +85131,2418 @@
     "crystal_id": 51419,
     "canary_id": 51419,
     "name": "paper plane",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51420,
     "canary_id": 51420,
     "name": "paper boat",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51421,
     "canary_id": 51421,
     "name": "colourful quill",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51422,
     "canary_id": 51422,
     "name": "star ink",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51423,
     "canary_id": 51423,
     "name": "book with a dragon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51425,
     "canary_id": 51425,
     "name": "book with an hourglass",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51426,
     "canary_id": 51426,
     "name": "sealing wax",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51427,
     "canary_id": 51427,
     "name": "torn page",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51442,
     "canary_id": 51442,
     "name": "blank imbuement scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51443,
     "canary_id": 51443,
     "name": "etcher",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51444,
     "canary_id": 51444,
     "name": "powerful bash scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51445,
     "canary_id": 51445,
     "name": "powerful blockade scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51446,
     "canary_id": 51446,
     "name": "powerful chop scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51447,
     "canary_id": 51447,
     "name": "powerful cloud fabric scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51448,
     "canary_id": 51448,
     "name": "powerful demon presence scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51449,
     "canary_id": 51449,
     "name": "powerful dragon hide scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51450,
     "canary_id": 51450,
     "name": "powerful electrify scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51451,
     "canary_id": 51451,
     "name": "powerful epiphany scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51452,
     "canary_id": 51452,
     "name": "powerful featherweight scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51453,
     "canary_id": 51453,
     "name": "powerful frost scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51454,
     "canary_id": 51454,
     "name": "powerful lich shroud scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51455,
     "canary_id": 51455,
     "name": "powerful precision scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51456,
     "canary_id": 51456,
     "name": "powerful punch scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51457,
     "canary_id": 51457,
     "name": "powerful quara scale scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51458,
     "canary_id": 51458,
     "name": "powerful reap scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51459,
     "canary_id": 51459,
     "name": "powerful scorch scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51460,
     "canary_id": 51460,
     "name": "powerful slash scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51461,
     "canary_id": 51461,
     "name": "powerful snake skin scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51462,
     "canary_id": 51462,
     "name": "powerful strike scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51463,
     "canary_id": 51463,
     "name": "powerful swiftness scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51464,
     "canary_id": 51464,
     "name": "powerful vampirism scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51465,
     "canary_id": 51465,
     "name": "powerful venom scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51466,
     "canary_id": 51466,
     "name": "powerful vibrancy scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51467,
     "canary_id": 51467,
     "name": "powerful void scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51468,
     "canary_id": 51468,
     "name": "dread doll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51470,
     "canary_id": 51470,
     "name": "tiny bat coffin",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51471,
     "canary_id": 51471,
     "name": "tiny bat coffin",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51472,
     "canary_id": 51472,
     "name": "chain leash",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51473,
     "canary_id": 51473,
     "name": "blood amulet",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51474,
     "canary_id": 51474,
     "name": "piece of frozen night",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51475,
     "canary_id": 51475,
     "name": "ritual bone knife",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51476,
     "canary_id": 51476,
     "name": "pot of orcish warpaint",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51477,
     "canary_id": 51477,
     "name": "orcish toothbrush",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51478,
     "canary_id": 51478,
     "name": "bone rattle",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51479,
     "canary_id": 51479,
     "name": "spiked bracers",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51480,
     "canary_id": 51480,
     "name": "blood hood",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51481,
     "canary_id": 51481,
     "name": "blood sceptre",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51482,
     "canary_id": 51482,
     "name": "bloodshot giant eye",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51483,
     "canary_id": 51483,
     "name": "blood crown",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51484,
     "canary_id": 51484,
     "name": "heart amphora",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51485,
     "canary_id": 51485,
     "name": "bone fibula",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51486,
     "canary_id": 51486,
     "name": "spiked gorget",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51487,
     "canary_id": 51487,
     "name": "norcferatu talisman",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51494,
     "canary_id": 51494,
     "name": "slain crusader",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51495,
     "canary_id": 51495,
     "name": "slain crusader",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51496,
     "canary_id": 51496,
     "name": "slain crusader",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51497,
     "canary_id": 51497,
     "name": "slain crusader",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51498,
     "canary_id": 51498,
     "name": "slain bramble wyrmling",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51499,
     "canary_id": 51499,
     "name": "slain bramble wyrmling",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51500,
     "canary_id": 51500,
     "name": "slain bramble wyrmling",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51501,
     "canary_id": 51501,
     "name": "slain bramble wyrmling",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51504,
     "canary_id": 51504,
     "name": "slain bluebeak",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51505,
     "canary_id": 51505,
     "name": "slain bluebeak",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51506,
     "canary_id": 51506,
     "name": "slain cinder wyrmling",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51507,
     "canary_id": 51507,
     "name": "slain cinder wyrmling",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51508,
     "canary_id": 51508,
     "name": "slain cinder wyrmling",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51509,
     "canary_id": 51509,
     "name": "slain cinder wyrmling",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51510,
     "canary_id": 51510,
     "name": "painted healing herbs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51511,
     "canary_id": 51511,
     "name": "painted bandages",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51512,
     "canary_id": 51512,
     "name": "saturated painted bandages",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51526,
     "canary_id": 51526,
     "name": "special bat coffin",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51527,
     "canary_id": 51527,
     "name": "special bat coffin",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51529,
     "canary_id": 51529,
     "name": "slain norcferatu nightweaver",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51530,
     "canary_id": 51530,
     "name": "slain norcferatu nightweaver",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51531,
     "canary_id": 51531,
     "name": "slain norcferatu nightweaver",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51532,
     "canary_id": 51532,
     "name": "slain norcferatu nightweaver",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51533,
     "canary_id": 51533,
     "name": "slain norcferatu heartless",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51534,
     "canary_id": 51534,
     "name": "slain norcferatu heartless",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51535,
     "canary_id": 51535,
     "name": "slain norcferatu heartless",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51536,
     "canary_id": 51536,
     "name": "slain norcferatu heartless",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51537,
     "canary_id": 51537,
     "name": "slain dworc shadowstalker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51538,
     "canary_id": 51538,
     "name": "slain orclops bloodbreaker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51540,
     "canary_id": 51540,
     "name": "slain dworc shadowstalker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51541,
     "canary_id": 51541,
     "name": "slain dworc shadowstalker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51542,
     "canary_id": 51542,
     "name": "slain dworc shadowstalker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51543,
     "canary_id": 51543,
     "name": "slain orclops bloodbreaker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51544,
     "canary_id": 51544,
     "name": "slain orclops bloodbreaker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51545,
     "canary_id": 51545,
     "name": "slain orclops bloodbreaker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51546,
     "canary_id": 51546,
     "name": "slain varg",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51547,
     "canary_id": 51547,
     "name": "slain varg",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51548,
     "canary_id": 51548,
     "name": "slain varg",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51549,
     "canary_id": 51549,
     "name": "slain headwalker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51550,
     "canary_id": 51550,
     "name": "slain headwalker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51551,
     "canary_id": 51551,
     "name": "slain headwalker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51552,
     "canary_id": 51552,
     "name": "slain headwalker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51553,
     "canary_id": 51553,
     "name": "slain shell drake",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51554,
     "canary_id": 51554,
     "name": "slain shell drake",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51555,
     "canary_id": 51555,
     "name": "slain shell drake",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51556,
     "canary_id": 51556,
     "name": "slain shell drake",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51561,
     "canary_id": 51561,
     "name": "slain lion hydra",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51562,
     "canary_id": 51562,
     "name": "slain lion hydra",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51563,
     "canary_id": 51563,
     "name": "slain lion hydra",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51564,
     "canary_id": 51564,
     "name": "slain lion hydra",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51568,
     "canary_id": 51568,
     "name": "boat ticket",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51569,
     "canary_id": 51569,
     "name": "slain vladrukh",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51570,
     "canary_id": 51570,
     "name": "slain vladrukh",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51571,
     "canary_id": 51571,
     "name": "slain vladrukh",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51572,
     "canary_id": 51572,
     "name": "slain vladrukh",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51584,
     "canary_id": 51584,
     "name": "slain gloom maw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51585,
     "canary_id": 51585,
     "name": "slain gloom maw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51586,
     "canary_id": 51586,
     "name": "slain gloom maw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51587,
     "canary_id": 51587,
     "name": "slain gloom maw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51588,
     "canary_id": 51588,
     "name": "proficiency catalyst",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51589,
     "canary_id": 51589,
     "name": "greater proficiency catalyst",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51592,
     "canary_id": 51592,
     "name": "slain vampiric maessencew",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51593,
     "canary_id": 51593,
     "name": "slain vampiric essence",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51594,
     "canary_id": 51594,
     "name": "slain vampiric essence",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51595,
     "canary_id": 51595,
     "name": "slain vampiric essence",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51623,
     "canary_id": 51623,
     "name": "deer fur brush",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51641,
     "canary_id": 51641,
     "name": "norcferatu heartless soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51642,
     "canary_id": 51642,
     "name": "varg soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51643,
     "canary_id": 51643,
     "name": "norcferatu nightweaver soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51644,
     "canary_id": 51644,
     "name": "dworc shadowstalker soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51645,
     "canary_id": 51645,
     "name": "orclops bloodbreaker soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51646,
     "canary_id": 51646,
     "name": "gloom maw soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51647,
     "canary_id": 51647,
     "name": "cinder wyrmling soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51648,
     "canary_id": 51648,
     "name": "bramble wyrmling soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51649,
     "canary_id": 51649,
     "name": "headwalker soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51650,
     "canary_id": 51650,
     "name": "bluebeak soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51651,
     "canary_id": 51651,
     "name": "hawk hopper soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51652,
     "canary_id": 51652,
     "name": "shell drake soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51653,
     "canary_id": 51653,
     "name": "crusader soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51654,
     "canary_id": 51654,
     "name": "lion hydra soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51656,
     "canary_id": 51656,
     "name": "scallop shell",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51657,
     "canary_id": 51657,
     "name": "sand-filled horn",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51666,
     "canary_id": 51666,
     "name": "ink sword",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51702,
     "canary_id": 51702,
     "name": "the Tale of Joran and Yvette - Part I",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51703,
     "canary_id": 51703,
     "name": "the Tale of Joran and Yvette - Part II",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51704,
     "canary_id": 51704,
     "name": "the Tale of Joran and Yvette - Part III",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51706,
     "canary_id": 51706,
     "name": "effigy of winged vengeance",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51707,
     "canary_id": 51707,
     "name": "effigy of winged vengeance",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51708,
     "canary_id": 51708,
     "name": "effigy of winged vengeance",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51709,
     "canary_id": 51709,
     "name": "effigy of winged vengeance",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51710,
     "canary_id": 51710,
     "name": "effigy of winged vengeance",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51711,
     "canary_id": 51711,
     "name": "effigy of winged vengeance",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51712,
     "canary_id": 51712,
     "name": "effigy of winged vengeance",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51713,
     "canary_id": 51713,
     "name": "effigy of winged vengeance",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51714,
     "canary_id": 51714,
     "name": "norcferatu talisman",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51721,
     "canary_id": 51721,
     "name": "ink splash soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51724,
     "canary_id": 51724,
     "name": "intricate bash scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51725,
     "canary_id": 51725,
     "name": "intricate blockade scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51726,
     "canary_id": 51726,
     "name": "intricate chop scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51727,
     "canary_id": 51727,
     "name": "intricate cloud fabric scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51728,
     "canary_id": 51728,
     "name": "intricate demon presence scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51729,
     "canary_id": 51729,
     "name": "intricate dragon hide scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51730,
     "canary_id": 51730,
     "name": "intricate electrify scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51731,
     "canary_id": 51731,
     "name": "intricate epiphany scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51732,
     "canary_id": 51732,
     "name": "intricate featherweight scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51733,
     "canary_id": 51733,
     "name": "intricate frost scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51734,
     "canary_id": 51734,
     "name": "intricate lich shroud scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51735,
     "canary_id": 51735,
     "name": "intricate precision scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51736,
     "canary_id": 51736,
     "name": "intricate punch scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51737,
     "canary_id": 51737,
     "name": "intricate quara scale scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51738,
     "canary_id": 51738,
     "name": "intricate reap scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51739,
     "canary_id": 51739,
     "name": "intricate scorch scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51740,
     "canary_id": 51740,
     "name": "intricate slash scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51741,
     "canary_id": 51741,
     "name": "intricate snake skin scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51742,
     "canary_id": 51742,
     "name": "intricate strike scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51743,
     "canary_id": 51743,
     "name": "intricate swiftness scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51744,
     "canary_id": 51744,
     "name": "intricate vampirism scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51745,
     "canary_id": 51745,
     "name": "intricate venom scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51746,
     "canary_id": 51746,
     "name": "intricate vibrancy scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51747,
     "canary_id": 51747,
     "name": "intricate void scroll",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51760,
     "canary_id": 51760,
     "name": "refined bow",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51895,
     "canary_id": 51895,
     "name": "brooch",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51976,
     "canary_id": 51976,
     "name": "jade dragon head",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51977,
     "canary_id": 51977,
     "name": "book of wisdom",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 51978,
     "canary_id": 51978,
     "name": "bounty talisman",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52113,
     "canary_id": 52113,
     "name": "dead the corruptor",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52114,
     "canary_id": 52114,
     "name": "dead the corruptor",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52115,
     "canary_id": 52115,
     "name": "dead the corruptor",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52116,
     "canary_id": 52116,
     "name": "dead the corruptor",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52117,
     "canary_id": 52117,
     "name": "dead Muglex Clan Chief",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52118,
     "canary_id": 52118,
     "name": "dead Muglex Clan Chief",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52119,
     "canary_id": 52119,
     "name": "dead Muglex Clan Chief",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52120,
     "canary_id": 52120,
     "name": "dead Muglex Clan Chief",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52332,
     "canary_id": 52332,
     "name": "crypt spine",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52333,
     "canary_id": 52333,
     "name": "crypt splitter",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52334,
     "canary_id": 52334,
     "name": "crypt breaker",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52335,
     "canary_id": 52335,
     "name": "crypt strike",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52336,
     "canary_id": 52336,
     "name": "crypt bile",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52337,
     "canary_id": 52337,
     "name": "crypt jaw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52338,
     "canary_id": 52338,
     "name": "crypt slicer",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52348,
     "canary_id": 52348,
     "name": "stag helmet",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52349,
     "canary_id": 52349,
     "name": "stag robe",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52350,
     "canary_id": 52350,
     "name": "stag plate",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52351,
     "canary_id": 52351,
     "name": "stag legs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52352,
     "canary_id": 52352,
     "name": "stag shinguards",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52353,
     "canary_id": 52353,
     "name": "stag boots",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52354,
     "canary_id": 52354,
     "name": "stag footwraps",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52355,
     "canary_id": 52355,
     "name": "stag spellbook",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52356,
     "canary_id": 52356,
     "name": "stag scrolls",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52357,
     "canary_id": 52357,
     "name": "stag shield",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52358,
     "canary_id": 52358,
     "name": "muglex clan footman soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52359,
     "canary_id": 52359,
     "name": "muglex clan assassin soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52360,
     "canary_id": 52360,
     "name": "corrupted ghost soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52361,
     "canary_id": 52361,
     "name": "corrupted skeleton soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52548,
     "canary_id": 52548,
     "name": "dead cyclursus",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52549,
     "canary_id": 52549,
     "name": "dead cyclursus",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52550,
     "canary_id": 52550,
     "name": "dead cyclursus",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52551,
     "canary_id": 52551,
     "name": "dead cyclursus",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52552,
     "canary_id": 52552,
     "name": "dead crypt fiend",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52553,
     "canary_id": 52553,
     "name": "dead crypt fiend",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52554,
     "canary_id": 52554,
     "name": "dead crypt fiend",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52555,
     "canary_id": 52555,
     "name": "dead crypt fiend",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52556,
     "canary_id": 52556,
     "name": "dead roaming dread",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52557,
     "canary_id": 52557,
     "name": "dead roaming dread",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52558,
     "canary_id": 52558,
     "name": "dead roaming dread",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52559,
     "canary_id": 52559,
     "name": "dead roaming dread",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52560,
     "canary_id": 52560,
     "name": "dead crypt mage",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52561,
     "canary_id": 52561,
     "name": "dead crypt mage",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52562,
     "canary_id": 52562,
     "name": "dead crypt mage",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52563,
     "canary_id": 52563,
     "name": "dead crypt mage",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52564,
     "canary_id": 52564,
     "name": "dead bone bear",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52565,
     "canary_id": 52565,
     "name": "dead bone bear",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52566,
     "canary_id": 52566,
     "name": "dead bone bear",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52567,
     "canary_id": 52567,
     "name": "dead bone bear",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52568,
     "canary_id": 52568,
     "name": "dead haunted hunter",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52569,
     "canary_id": 52569,
     "name": "dead haunted hunter",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52570,
     "canary_id": 52570,
     "name": "dead haunted hunter",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52571,
     "canary_id": 52571,
     "name": "dead haunted hunter",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52572,
     "canary_id": 52572,
     "name": "dead creepy crawler",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52573,
     "canary_id": 52573,
     "name": "dead creepy crawler",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52574,
     "canary_id": 52574,
     "name": "dead creepy crawler",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52575,
     "canary_id": 52575,
     "name": "dead creepy crawler",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52586,
     "canary_id": 52586,
     "name": "ice-covered certificate of ancestry",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52589,
     "canary_id": 52589,
     "name": "folded artefact carpet VIII",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52632,
     "canary_id": 52632,
     "name": "night harpy beak",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52633,
     "canary_id": 52633,
     "name": "night harpy feathers",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52634,
     "canary_id": 52634,
     "name": "oak wood",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52635,
     "canary_id": 52635,
     "name": "salvaged iron parts",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52636,
     "canary_id": 52636,
     "name": "tender venison",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52637,
     "canary_id": 52637,
     "name": "repair kit for boats",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52638,
     "canary_id": 52638,
     "name": "marinated sturgeon",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52649,
     "canary_id": 52649,
     "name": "refined stag shield",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52657,
     "canary_id": 52657,
     "name": "fiery crypt rune",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52658,
     "canary_id": 52658,
     "name": "icy crypt rune",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52659,
     "canary_id": 52659,
     "name": "deathly crypt rune",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52660,
     "canary_id": 52660,
     "name": "ancient crypt rune",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52661,
     "canary_id": 52661,
     "name": "necromantic crypt rune",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52662,
     "canary_id": 52662,
     "name": "silver poniard",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52663,
     "canary_id": 52663,
     "name": "cuirass plate",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52664,
     "canary_id": 52664,
     "name": "stag parchment",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52677,
     "canary_id": 52677,
     "name": "dead night harpy",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52678,
     "canary_id": 52678,
     "name": "dead night harpy",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52679,
     "canary_id": 52679,
     "name": "dead night harpy",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52680,
     "canary_id": 52680,
     "name": "dead night harpy",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52681,
     "canary_id": 52681,
     "name": "dead raubritter skirmisher",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52682,
     "canary_id": 52682,
     "name": "dead raubritter skirmisher",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52683,
     "canary_id": 52683,
     "name": "dead raubritter skirmisher",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52684,
     "canary_id": 52684,
     "name": "dead raubritter skirmisher",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52685,
     "canary_id": 52685,
     "name": "dead raubritter marksman",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52686,
     "canary_id": 52686,
     "name": "dead raubritter marksman",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52687,
     "canary_id": 52687,
     "name": "dead raubritter marksman",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52688,
     "canary_id": 52688,
     "name": "dead raubritter marksman",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52689,
     "canary_id": 52689,
     "name": "dead raubritter chastener",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52690,
     "canary_id": 52690,
     "name": "dead raubritter chastener",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52691,
     "canary_id": 52691,
     "name": "dead raubritter chastener",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52692,
     "canary_id": 52692,
     "name": "dead raubritter chastener",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52693,
     "canary_id": 52693,
     "name": "dead Court Warlock",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52694,
     "canary_id": 52694,
     "name": "dead Court Warlock",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52695,
     "canary_id": 52695,
     "name": "dead Court Warlock",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52696,
     "canary_id": 52696,
     "name": "dead Court Warlock",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52705,
     "canary_id": 52705,
     "name": "necromantic core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52706,
     "canary_id": 52706,
     "name": "toe nails",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52707,
     "canary_id": 52707,
     "name": "giant tusk",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52708,
     "canary_id": 52708,
     "name": "fetid heart",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52709,
     "canary_id": 52709,
     "name": "cryptic fossil",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52710,
     "canary_id": 52710,
     "name": "worn guide book",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52711,
     "canary_id": 52711,
     "name": "golden claw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52712,
     "canary_id": 52712,
     "name": "shrunken head",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52713,
     "canary_id": 52713,
     "name": "ancient scales",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52714,
     "canary_id": 52714,
     "name": "soul trap",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52715,
     "canary_id": 52715,
     "name": "skull tendril",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52716,
     "canary_id": 52716,
     "name": "ancient eye stalk",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52717,
     "canary_id": 52717,
     "name": "bone spikes",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52718,
     "canary_id": 52718,
     "name": "deadly fangs",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52719,
     "canary_id": 52719,
     "name": "crystallized death",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52720,
     "canary_id": 52720,
     "name": "cluster of crystallized death",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52725,
     "canary_id": 52725,
     "name": "ancient bonelord santa",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52726,
     "canary_id": 52726,
     "name": "icy scales",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52727,
     "canary_id": 52727,
     "name": "icy horns",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52728,
     "canary_id": 52728,
     "name": "frozen crapace",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52729,
     "canary_id": 52729,
     "name": "frozen claw",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52732,
     "canary_id": 52732,
     "name": "guardian ring",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52743,
     "canary_id": 52743,
     "name": "salvaged silver parts",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52744,
     "canary_id": 52744,
     "name": "personal letter of Michael the Stalwart I",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52745,
     "canary_id": 52745,
     "name": "bottle of Raubritter Lager",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52746,
     "canary_id": 52746,
     "name": "twisted marionette",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52747,
     "canary_id": 52747,
     "name": "broken staff of mind control",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52748,
     "canary_id": 52748,
     "name": "battle tactics",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52750,
     "canary_id": 52750,
     "name": "dead goblin scavenger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52751,
     "canary_id": 52751,
     "name": "dead goblin scavenger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52752,
     "canary_id": 52752,
     "name": "dead goblin scavenger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52753,
     "canary_id": 52753,
     "name": "dead goblin scavenger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52758,
     "canary_id": 52758,
     "name": "salvaged bronze parts",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52759,
     "canary_id": 52759,
     "name": "the mariner's compass from the Antoinette",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52781,
     "canary_id": 52781,
     "name": "stag shield refinement plans",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52783,
     "canary_id": 52783,
     "name": "falcon circlet",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52785,
     "canary_id": 52785,
     "name": "cool bottle of Raubritter Lager",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52788,
     "canary_id": 52788,
     "name": "meal from the beak of a night harpy",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52789,
     "canary_id": 52789,
     "name": "bottle of enhanced Raubritter Lager",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52800,
     "canary_id": 52800,
     "name": "raubritter skirmisher soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52801,
     "canary_id": 52801,
     "name": "raubritter marksman soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52802,
     "canary_id": 52802,
     "name": "raubritter chastener soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52807,
     "canary_id": 52807,
     "name": "cyclursus soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52808,
     "canary_id": 52808,
     "name": "crypt fiend soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52809,
     "canary_id": 52809,
     "name": "walking dread soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52810,
     "canary_id": 52810,
     "name": "crypt construct soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52811,
     "canary_id": 52811,
     "name": "haunted hunter soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52812,
     "canary_id": 52812,
     "name": "creepy crawler soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52813,
     "canary_id": 52813,
     "name": "night harpy soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52814,
     "canary_id": 52814,
     "name": "roaming dread soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52815,
     "canary_id": 52815,
     "name": "crypt mage soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52816,
     "canary_id": 52816,
     "name": "personal letter of Clavius I",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52817,
     "canary_id": 52817,
     "name": "personal letter of Clavius II",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52818,
     "canary_id": 52818,
     "name": "personal letter of Clavius III",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52819,
     "canary_id": 52819,
     "name": "personal letter of Adlerauge I",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52820,
     "canary_id": 52820,
     "name": "personal letter of Adlerauge II",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52821,
     "canary_id": 52821,
     "name": "personal letter of Adlerauge III",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52822,
     "canary_id": 52822,
     "name": "personal letter of Michael the Stalwart II",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52823,
     "canary_id": 52823,
     "name": "personal letter of Michael the Stalwart III",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52824,
     "canary_id": 52824,
     "name": "the broken sword of Eldoran Etzel",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52828,
     "canary_id": 52828,
     "name": "brass-shod chest",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52830,
     "canary_id": 52830,
     "name": "lit candlestick",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52838,
     "canary_id": 52838,
     "name": "dead stag",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52839,
     "canary_id": 52839,
     "name": "dead stag",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52840,
     "canary_id": 52840,
     "name": "dead stag",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52841,
     "canary_id": 52841,
     "name": "dead stag",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52842,
     "canary_id": 52842,
     "name": "dead imperial",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52843,
     "canary_id": 52843,
     "name": "dead imperial",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52844,
     "canary_id": 52844,
     "name": "dead imperial",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52845,
     "canary_id": 52845,
     "name": "dead imperial",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52846,
     "canary_id": 52846,
     "name": "dead Michael the Stalwart",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52847,
     "canary_id": 52847,
     "name": "dead Michael the Stalwart",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52848,
     "canary_id": 52848,
     "name": "dead Michael the Stalwart",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52849,
     "canary_id": 52849,
     "name": "dead Michael the Stalwart",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52850,
     "canary_id": 52850,
     "name": "dead Adlerauge",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52851,
     "canary_id": 52851,
     "name": "dead Adlerauge",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52852,
     "canary_id": 52852,
     "name": "dead Adlerauge",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52853,
     "canary_id": 52853,
     "name": "dead Adlerauge",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52854,
     "canary_id": 52854,
     "name": "dead Clavius",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52855,
     "canary_id": 52855,
     "name": "dead Clavius",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52856,
     "canary_id": 52856,
     "name": "dead Clavius",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52857,
     "canary_id": 52857,
     "name": "dead Clavius",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52858,
     "canary_id": 52858,
     "name": "dead Overseer Osverger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52859,
     "canary_id": 52859,
     "name": "dead Overseer Osverger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52860,
     "canary_id": 52860,
     "name": "dead Overseer Osverger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52861,
     "canary_id": 52861,
     "name": "dead Overseer Osverger",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52864,
     "canary_id": 52864,
     "name": "test proficiency catalyst",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52865,
     "canary_id": 52865,
     "name": "stag soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52866,
     "canary_id": 52866,
     "name": "imperial soul core",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52867,
     "canary_id": 52867,
     "name": "barebone grill",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52868,
     "canary_id": 52868,
     "name": "barebone grill",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52869,
     "canary_id": 52869,
     "name": "barebone grill",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52870,
     "canary_id": 52870,
     "name": "barebone grill",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52871,
     "canary_id": 52871,
     "name": "barebone grill",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52873,
     "canary_id": 52873,
     "name": "inert dragon head",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52874,
     "canary_id": 52874,
     "name": "jade dragon head",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52963,
     "canary_id": 52963,
     "name": "skill trainer",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 52964,
     "canary_id": 52964,
     "name": "charred mask",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53002,
     "canary_id": 53002,
     "name": "gold tooth",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53003,
     "canary_id": 53003,
     "name": "lizard tail",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53004,
     "canary_id": 53004,
     "name": "infernoid ember",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53005,
     "canary_id": 53005,
     "name": "sailor's burn cure",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53073,
     "canary_id": 53073,
     "name": "bunch of turnips",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53074,
     "canary_id": 53074,
     "name": "adventurer backpack",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53078,
     "canary_id": 53078,
     "name": "dead lizard henchman",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53082,
     "canary_id": 53082,
     "name": "dead lizard magician",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53086,
     "canary_id": 53086,
     "name": "dead lizard swordmaster",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53090,
     "canary_id": 53090,
     "name": "dead lizard commander",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53094,
     "canary_id": 53094,
     "name": "dead lizard executioner",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53098,
     "canary_id": 53098,
     "name": "dead pirate navigator",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53103,
     "canary_id": 53103,
     "name": "dead pirate quartermaster",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53108,
     "canary_id": 53108,
     "name": "dead herald of fire",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53110,
     "canary_id": 53110,
     "name": "dead pirate gunner",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53113,
     "canary_id": 53113,
     "name": "dead pirate cook",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53119,
     "canary_id": 53119,
     "name": "dead sea captain",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53122,
     "canary_id": 53122,
     "name": "dead infernoid hound",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53125,
     "canary_id": 53125,
     "name": "dead infernoid soul",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53128,
     "canary_id": 53128,
     "name": "dead infernoid spiritual",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53132,
     "canary_id": 53132,
     "name": "dead infernoid blob",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53158,
     "canary_id": 53158,
     "name": "old treasure map",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53162,
     "canary_id": 53162,
     "name": "superior mana potion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53163,
     "canary_id": 53163,
     "name": "distilled superior mana potion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53164,
     "canary_id": 53164,
     "name": "distilled ultimate mana potion",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53167,
     "canary_id": 53167,
     "name": "sail pass",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53168,
     "canary_id": 53168,
     "name": "shatterstorm arrow",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53169,
     "canary_id": 53169,
     "name": "firestorm arrow",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53170,
     "canary_id": 53170,
     "name": "terrastorm arrow",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53171,
     "canary_id": 53171,
     "name": "froststorm arrow",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 53172,
     "canary_id": 53172,
     "name": "thunderstorm arrow",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   },
   {
     "crystal_id": 54266,
     "canary_id": 54266,
     "name": "lesser proficiency catalyst",
-    "reason": "free-crystal-id-preserved"
+    "reason": "same-id-same-name"
   }
 ]
