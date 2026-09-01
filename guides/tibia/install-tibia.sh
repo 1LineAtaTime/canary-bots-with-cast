@@ -90,7 +90,7 @@ LOGFILE="/tmp/tibia-launch.log"
 
 # Our public fork (forked from opentibiabr/canary at the commit below).
 REPO="https://github.com/1LineAtaTime/canary-bots-with-cast"
-RELEASE_TAG="v2026.06.23"
+RELEASE_TAG="v2026.09.01"
 RELEASE="$REPO/releases/download/$RELEASE_TAG"
 FORK_COMMIT="ded10949d5731d1a7f05de5a087aacefaa85c82c"
 UPSTREAM="https://github.com/opentibiabr/canary"
@@ -288,9 +288,11 @@ init_database() {
         $m -e "CREATE USER IF NOT EXISTS '$DB_USER'@'127.0.0.1' IDENTIFIED BY '$DB_PASS'; GRANT ALL ON \`$DB_NAME\`.* TO '$DB_USER'@'127.0.0.1'; FLUSH PRIVILEGES;"
         print_info "Importing schema + bot data (this takes a moment)..."
         $m "$DB_NAME" < "$SERVER_DIR/schema.sql"
-        for f in "$SERVER_DIR"/database/bots/00_bot_schema.sql \
-                 "$SERVER_DIR"/database/bots/0[1-9]_*.sql \
-                 "$SERVER_DIR"/database/bots/1[0-3]_*.sql; do
+        # Numeric order, whatever is present. The set is deliberately sparse:
+        # hunt/route/equipment data is CSV in the repo now, not SQL. 14/15 are the
+        # bot house ownership + furniture dumps and MUST be imported (an earlier
+        # glob stopped at 13 and silently skipped them).
+        for f in $(ls "$SERVER_DIR"/database/bots/[0-9][0-9]_*.sql 2>/dev/null | sort -V); do
             [ -f "$f" ] && $m "$DB_NAME" < "$f"
         done
         $m "$DB_NAME" -e "ALTER TABLE accounts AUTO_INCREMENT=65001; ALTER TABLE players AUTO_INCREMENT=66100;"
