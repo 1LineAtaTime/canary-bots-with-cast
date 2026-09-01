@@ -1,0 +1,32 @@
+source_name,waypoint_type,pos_x,pos_y,pos_z,action_label
+
+# --- carlin|boat~depot: (14 waypoints) ---
+carlin|boat~depot:,stand,32387,31820,6,
+carlin|boat~depot:,stand,32379,31815,6,
+carlin|boat~depot:,stand,32378,31815,6,
+carlin|boat~depot:,stand,32372,31815,7,
+carlin|boat~depot:,stand,32368,31809,7,
+carlin|boat~depot:,stand,32368,31803,7,
+carlin|boat~depot:,stand,32368,31797,7,
+carlin|boat~depot:,stand,32368,31791,7,
+carlin|boat~depot:,stand,32362,31790,7,
+carlin|boat~depot:,stand,32356,31790,7,
+carlin|boat~depot:,stand,32350,31790,7,
+carlin|boat~depot:,stand,32344,31790,7,
+carlin|boat~depot:,stand,32338,31790,7,
+carlin|boat~depot:,stand,32337,31784,7,
+
+# --- carlin|depot~boat: (13 waypoints) ---
+carlin|depot~boat:,stand,32343,31788,7,
+carlin|depot~boat:,stand,32349,31789,7,
+carlin|depot~boat:,stand,32355,31789,7,
+carlin|depot~boat:,stand,32361,31789,7,
+carlin|depot~boat:,stand,32367,31789,7,
+carlin|depot~boat:,stand,32368,31795,7,
+carlin|depot~boat:,stand,32368,31801,7,
+carlin|depot~boat:,stand,32368,31807,7,
+carlin|depot~boat:,stand,32368,31813,7,
+carlin|depot~boat:,stand,32374,31816,7,
+carlin|depot~boat:,ladder,32378,31815,7,
+carlin|depot~boat:,stand,32384,31815,6,
+carlin|depot~boat:,stand,32387,31820,6,

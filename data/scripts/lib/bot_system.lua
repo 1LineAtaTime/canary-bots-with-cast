@@ -15,7 +15,15 @@ BOT_CONFIG = {
 	-- Active bot count comes from config.lua botPlayersOnline (default 200 if unset).
 	-- Capped by BotStartup against the actual DB pool size (currently 997 bots in MySQL).
 	TARGET_ONLINE = (configManager and configManager.getNumber(configKeys.BOT_PLAYERS_ONLINE)) or 200,
-	MANAGER_INTERVAL = 10000,         -- ms between population manager ticks
+	-- Sole consumer is botManager:interval() (bot_manager.lua), whose onThink body is now
+	-- ONLY the bot_commands queue poll — the population manager it was named for is disabled.
+	-- Was 10000, which made every /cavebot command wait 0-10s (mean 5s) and made agentic
+	-- debugging impractical. The 10s was never a DB-safety value: `git show ad4210bcd~1`
+	-- shows this interval predated the DB poll, pacing a population ramp at 2 bots/tick.
+	-- Safe to lower: the poll is async on the dedicated bot-DB worker (g_botDatabaseTasks,
+	-- own thread + own connection, never touches databaseLock), and GlobalEvents::think()
+	-- already runs a 200ms floor in production via jitter_heartbeat.lua.
+	MANAGER_INTERVAL = 1000,          -- ms between bot_commands queue polls
 	THINK_INTERVAL = 100,             -- ms between AI ticks (100ms for smooth walking)
 	THINK_INTERVAL_WALK = 500,        -- ms for bots walking/traveling (engine handles steps)
 	THINK_INTERVAL_IDLE = 2000,       -- ms between AI ticks for IDLE/DWELLING bots
@@ -66,11 +74,11 @@ BOT_CONFIG = {
 	DEBUG_COMBAT_INTERVAL = 5,       -- seconds between debug log entries per bot
 	-- Debug mode: set to true to load only 1 bot for testing z-transitions
 	DEBUG_MODE = false,
-	DEBUG_BOT_NAME = "Ophelia Flamecrest",  -- nil = first bot in DB; set "BotName" to pick specific bot
+	DEBUG_BOT_NAME = "Bashana Parra",  -- nil = first bot in DB; set "BotName" to pick specific bot
 	-- 2026-05-28: when TARGET_ONLINE (i.e. config.lua botPlayersOnline) is set to 1, BotManager
 	-- will load the named bot specifically instead of the lowest-id bot from stratification.
 	-- Set to "" to use default stratified pick. Useful for isolated cast-watch testing.
-	SINGLE_BOT_NAME = "Jorth Elsoutchawnc",
+	SINGLE_BOT_NAME = "Dya Blackwind",
 	-- Cached at load time: true when binary compiled with -DDEBUG_LOG (cmake Debug build)
 	IS_DEBUG_BUILD = Game.isDebugBuild and Game.isDebugBuild() or false,
 }
@@ -438,8 +446,45 @@ end
 BotPlayers = {}    -- {[guid] = playerRef}
 BotState = {}      -- {[guid] = state_table}
 BotActive = {}     -- {[guid] = true/false}
+-- Debug-pinned bots: {[guid] = true}. Set by `reload debug,<names|N>`, cleared by
+-- `reload debug off`. bot_hibernation.lua refuses to hibernate these so a bot under
+-- observation stays awake indefinitely; the C++ side separately refuses to give them tasks.
+BotDebugPinned = {}
 
 BotSystem = {}
+
+-- Parse the argument of `reload debug,<arg>`.
+--   numeric  -> that many bots, chosen automatically (legacy behaviour)
+--   names    -> semicolon-separated bot NAMES, e.g. `reload debug,Isolde Torehkeron;Naji Bot`
+--   "off"    -> leave debug mode
+-- Returns (countOrOff, namesListOrNil). MUST be given the ORIGINAL-CASE command: bot names
+-- are display-cased and Player(name) lookups need them intact, which is why the callers
+-- cannot reuse their lowercased copy for this.
+function BotSystem.parseDebugSpec(rawCmd)
+	local low = rawCmd:lower()
+	if low:match("^reload%s+debug%s+off") or low:match("^reload%s+debug%-off") then
+		return "off", nil
+	end
+	local arg = rawCmd:match("^%s*[Rr][Ee][Ll][Oo][Aa][Dd]%s+[Dd][Ee][Bb][Uu][Gg]%s*,%s*(.+)$")
+	if not arg then
+		return nil, nil
+	end
+	arg = arg:gsub("^%s+", ""):gsub("%s+$", "")
+	if arg:match("^%d+$") then
+		return tonumber(arg), nil
+	end
+	local names = {}
+	for n in arg:gmatch("[^;]+") do
+		n = n:gsub("^%s+", ""):gsub("%s+$", "")
+		if n ~= "" then
+			names[#names + 1] = n
+		end
+	end
+	if #names == 0 then
+		return nil, nil
+	end
+	return #names, names
+end
 
 -- ============================================================================
 -- Core Navigation (Gesior-style: getPathTo -> startAutoWalk)
@@ -1048,6 +1093,37 @@ function BotSystem.executeReload(opts)
 		emit("reload already in progress — ignoring concurrent request")
 		return { ok = false, message = "reload already in progress", lines = lines }
 	end
+
+	-- BOT_CSV pre-flight. Authored data lives in data/bot/authored/*.csv, and
+	-- Game.botReload() DESTROYS the engine before the new one parses those files —
+	-- so a malformed CSV has nothing to fall back to. It poisons the fresh engine and
+	-- every bot refuses to activate until a human fixes the file.
+	--
+	-- Asking the still-live engine to parse-check first turns that outage into a
+	-- refused reload with the population untouched. Runs BEFORE _reloadInProgress is
+	-- set and before anything is deactivated, so an abort leaves zero residue.
+	--
+	-- Caveat: this validates with the CURRENTLY LOADED .so. If the .so is also
+	-- changing in this deploy, the check uses the old parser — it is a sanity check,
+	-- not a proof. tools/bot_csv/validate.py is the real gate and runs pre-deploy.
+	do
+		local ok, csvResult = pcall(Game.botCommand, "_global", "csvcheck")
+		if ok and type(csvResult) == "string" and csvResult ~= "" then
+			if csvResult:sub(1, 2) ~= "OK" then
+				emit("reload ABORTED — authored CSV failed to parse, nothing was touched:")
+				emit("  " .. csvResult)
+				emit("  Fix the file (or: git checkout -- data/bot/authored) and reload again.")
+				return { ok = false, message = "csv pre-flight failed: " .. csvResult, lines = lines }
+			end
+			logger.info("[reload:{}] csv pre-flight {}", source, csvResult)
+		else
+			-- Older .so without csvcheck, or an unexpected return: do not block the
+			-- reload on a missing diagnostic. Say so, so it is visible rather than
+			-- silently skipped.
+			logger.warn("[reload:{}] csv pre-flight unavailable — proceeding without it", source)
+		end
+	end
+
 	BotSystem._reloadInProgress = true
 
 	-- Steps 1-4 are synchronous; wrap in pcall so a Lua error in the prefix
@@ -1077,6 +1153,29 @@ function BotSystem.executeReload(opts)
 				if b.hibernated then
 					hibernatedNames[#hibernatedNames + 1] = b.name
 				end
+			end
+		end
+		-- Debug-by-NAME only ever runs the bots you asked for; every other bot is despawned a few
+		-- lines later ("despawned 499/500 non-target bots"). Materializing them first is pure
+		-- waste, and it is SLOW waste: step 4b staggers one DB load per 100ms on purpose (to
+		-- avoid the dispatcher freeze that ping-timeouts real players), so 467 bots cost ~67s of
+		-- wall clock before the reload finalizes. Load only the targets.
+		if opts.debugBotNames and #opts.debugBotNames > 0 then
+			local wanted = {}
+			for _, n in ipairs(opts.debugBotNames) do
+				wanted[n:lower()] = true
+			end
+			local filtered = {}
+			for _, n in ipairs(hibernatedNames) do
+				if wanted[n:lower()] then
+					filtered[#filtered + 1] = n
+				end
+			end
+			local skipped = #hibernatedNames - #filtered
+			hibernatedNames = filtered
+			if skipped > 0 then
+				emit("debug mode: skipping re-materialization of " .. skipped
+					.. " non-target hibernated bot(s) (~" .. math.floor(skipped * 0.1) .. "s saved)")
 			end
 		end
 		emit("Found " .. #hibernatedNames .. " hibernated bots to re-load from DB")
@@ -1151,6 +1250,7 @@ function BotSystem.executeReload(opts)
 		local debugCount = opts.debugCount
 		local activateGuids = {}
 		local debugTargets = {}
+		local debugTargetNames = {}  -- guid -> name; survives async materialization
 
 		if debugCount == "off" then
 			-- Clear persisted debug mode, re-activate everything
@@ -1173,15 +1273,45 @@ function BotSystem.executeReload(opts)
 			Game.botCommand("_global", "schedule off")
 			emit("scheduler OFF (debug mode controls active set)")
 
-			-- Pick which bots to debug
-			-- Priority: explicit opts.debugBotName > BOT_CONFIG.DEBUG_BOT_NAME > first N from onlineGuids > first N from BotPlayers
+			-- Pick which bots to debug.
+			-- Priority: explicit NAME LIST (reload debug,<Name>[;<Name2>]) > opts.debugBotName >
+			-- BOT_CONFIG.DEBUG_BOT_NAME > first N from onlineGuids > first N from BotPlayers.
+			local picked = {}
+			if opts.debugBotNames then
+				-- Resolve names against the REGISTERED bot map, not Player(name): during a
+				-- reload the pool is re-materialized asynchronously, so Player(name) can still
+				-- return nil for a bot that is perfectly well registered. Match case-insensitively
+				-- so the operator does not have to reproduce display casing exactly.
+				local byName = {}
+				for g, ref in pairs(BotPlayers or {}) do
+					if ref and not ref:isRemoved() then
+						byName[ref:getName():lower()] = g
+					end
+				end
+				for _, wanted in ipairs(opts.debugBotNames) do
+					local g = byName[wanted:lower()]
+					if not g then
+						local p = Player(wanted) -- fallback for bots not yet in BotPlayers
+						if p then g = p:getGuid() end
+					end
+					if g then
+						if not picked[g] then
+							picked[g] = true
+							activateGuids[#activateGuids + 1] = g
+							debugTargetNames[g] = wanted
+						end
+					else
+						emit("debug: bot '" .. wanted .. "' not found/registered — skipped")
+					end
+				end
+			end
+
 			local preferredName = opts.debugBotName
 			if not preferredName and BOT_CONFIG.DEBUG_BOT_NAME and BOT_CONFIG.DEBUG_BOT_NAME ~= "" then
 				preferredName = BOT_CONFIG.DEBUG_BOT_NAME
 			end
 
-			local picked = {}
-			if preferredName then
+			if preferredName and not opts.debugBotNames then
 				local prefP = Player(preferredName)
 				if prefP then
 					local prefGuid = prefP:getGuid()
@@ -1212,9 +1342,18 @@ function BotSystem.executeReload(opts)
 				end
 			end
 
-			-- These are the debug targets — debug stream will be enabled on them
+			-- These are the debug targets — debug stream will be enabled on them.
+			-- Record the NAME too: step 8 runs while the pool may still be materializing, so
+			-- BotPlayers[guid] can be nil for a perfectly valid target. Game.botCommand resolves
+			-- against the engine's own registry by name, so a name is enough.
 			for _, guid in ipairs(activateGuids) do
 				debugTargets[guid] = true
+				if not debugTargetNames[guid] then
+					local ref = (BotPlayers or {})[guid]
+					if ref and not ref:isRemoved() then
+						debugTargetNames[guid] = ref:getName()
+					end
+				end
 			end
 			emit("debug mode ON — activating " .. #activateGuids .. " bot(s); rest stay offline")
 		else
@@ -1244,21 +1383,57 @@ function BotSystem.executeReload(opts)
 			emit("Re-activated " .. reactivated .. "/" .. #activateGuids .. " bots.")
 		end
 
+		-- 7b. Debug mode: REMOVE every non-target bot from the world.
+		-- "rest stay offline" only ever cleared the AI flag; the reload had already
+		-- re-materialized all 500 as live Player objects, so 499 of them stayed standing in
+		-- the world as motionless statues. That defeats the entire point of debug mode (and is
+		-- what an operator sees in-game as "why are there still bots everywhere?").
+		-- botForceDeactivateForReload despawns them, leaving exactly the debug targets.
+		if type(debugCount) == "number" and debugCount > 0 then
+			-- Iterate the ENGINE's registry, not BotPlayers: materialization is async, so
+			-- BotPlayers held only ~10 entries here and the first attempt despawned 9 of 500.
+			-- getBotHibernationStates is the same authoritative list the hibernation loop uses.
+			local despawned = 0
+			local all = Game.getBotHibernationStates() or {}
+			for i = 1, #all do
+				local guid = all[i].guid
+				if guid and not debugTargets[guid] then
+					if Game.botForceDeactivateForReload(guid) then
+						despawned = despawned + 1
+					end
+					if BotActive ~= nil then BotActive[guid] = false end
+					if BotPlayers ~= nil then BotPlayers[guid] = nil end
+				end
+			end
+			emit("debug mode: despawned " .. despawned .. "/" .. #all .. " non-target bot(s) from the world")
+		end
+
 		-- 8. Toggle debug stream on the chosen targets (one per active bot in debug mode)
 		if debugCount == "off" then
-			-- Best-effort: turn off debug for all bots that might have had it on
+			-- Best-effort: turn off debug for all bots that might have had it on, and UNPIN
+			-- everything so the normal AI resumes (a leftover pin would freeze a bot forever).
 			for guid, _ in pairs(BotPlayers or {}) do
 				local p = BotPlayers[guid]
 				if p and not p:isRemoved() then
 					Game.botCommand(p:getName(), "debug off")
+					Game.botCommand(p:getName(), "pin off")
 				end
 			end
+			BotDebugPinned = {}
 		elseif type(debugCount) == "number" and debugCount > 0 then
 			for guid, _ in pairs(debugTargets) do
 				local p = BotPlayers[guid]
-				if p and not p:isRemoved() then
-					local r = Game.botCommand(p:getName(), "debug on")
-					emit("debug stream enabled on '" .. p:getName() .. "' — " .. tostring(r))
+				local nm = debugTargetNames[guid] or (p and not p:isRemoved() and p:getName()) or nil
+				if nm then
+					local r = Game.botCommand(nm, "debug on")
+					-- PIN the debug bot: no self-assigned tasks (the C++ activity reroll returns
+					-- early) and no hibernation (BotDebugPinned is checked by bot_hibernation).
+					-- Without this the bot picks a hunt mid-observation and any manual `goto` is
+					-- silently overwritten, which is exactly what made debug mode unusable for
+					-- watching one bot do one thing.
+					Game.botCommand(nm, "pin on")
+					BotDebugPinned[guid] = true
+					emit("debug stream + PIN enabled on '" .. nm .. "' — " .. tostring(r))
 				end
 			end
 		end

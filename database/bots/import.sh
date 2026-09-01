@@ -5,7 +5,11 @@
 # Prerequisite: the main `schema.sql` (repo root) must already be imported into
 # the target database. This script then creates the bot tables and loads the
 # bundled bot data (god account, bot account, GOD character, and all bot players
-# + hunt/route/market/equipment data), in foreign-key order.
+# + market price reference and house data), in foreign-key order.
+#
+# NOTE: hunt scripts, waypoints, city routes, POIs, equipment and town mapping are
+# NOT imported here — since the BOT_CSV migration they live in data/bot/authored/*.csv
+# and are read straight from the repo by the engine. Nothing to load.
 #
 # Usage:
 #   ./import.sh                 # uses the defaults below (local install)
@@ -40,16 +44,7 @@ FILES=(
   01_accounts.sql
   02_players.sql
   03_player_storage.sql
-  04_bot_hunt_scripts.sql
-  05_bot_hunt_waypoints.sql
-  06_bot_hunt_targets.sql
-  07_bot_hunt_fields.sql
-  08_bot_hunt_exclusion_zones.sql
-  09_bot_city_routes.sql
-  10_bot_city_route_waypoints.sql
   11_bot_market_item_prices.sql
-  12_bot_equipment.sql
-  13_bot_town_mapping.sql
   14_houses.sql
   15_tile_store.sql
 )

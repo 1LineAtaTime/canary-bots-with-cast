@@ -81,7 +81,16 @@ function fishing.onUse(player, item, fromPosition, target, toPosition, isHotkey)
 		return true
 	end
 
-	if useWorms and targetId == 21414 and player:removeItem("worm", 1) then
+	-- Bot players fish from an infinite worm, mirroring the rune-charge bypass in spells.cpp.
+	-- The catch itself is still awarded for real; only the bait is not consumed.
+	local function takeWorm()
+		if player:isBotPlayer() then
+			return true
+		end
+		return player:removeItem("worm", 1)
+	end
+
+	if useWorms and targetId == 21414 and takeWorm() then
 		if player:getStorageValue(Storage.Quest.U10_55.Dawnport.TheDormKey) == 2 then
 			if math.random(100) >= 97 then
 				player:addItem(21402, 1)
@@ -99,7 +108,7 @@ function fishing.onUse(player, item, fromPosition, target, toPosition, isHotkey)
 	end
 
 	if math.random(100) <= math.min(math.max(10 + (player:getEffectiveSkillLevel(SKILL_FISHING) - 10) * 0.597, 10), 50) then
-		if useWorms and not player:removeItem("worm", 1) then
+		if useWorms and not takeWorm() then
 			return true
 		end
 

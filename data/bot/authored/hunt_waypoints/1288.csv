@@ -1,0 +1,38 @@
+phase,waypoint_type,pos_x,pos_y,pos_z,label,extra_data
+
+# --- travel_to (7 waypoints) ---
+travel_to,node,32330,31117,7,,
+travel_to,node,32320,31118,7,,
+travel_to,node,32310,31126,7,,
+travel_to,stand,32300,31134,7,,
+travel_to,node,32307,31130,7,,
+travel_to,node,32314,31123,7,,
+travel_to,node,32322,31118,7,,
+
+# --- hunt_patrol (17 waypoints) ---
+hunt_patrol,node,32340,31118,7,,
+hunt_patrol,ladder,32341,31119,7,,
+hunt_patrol,stand,32352,31124,6,,
+hunt_patrol,node,32352,31124,6,,
+hunt_patrol,teleport,31947,31045,6,,synth_bridge
+hunt_patrol,node,31947,31045,6,,
+hunt_patrol,npc_interact,31947,31045,6,,npc
+hunt_patrol,stand,31942,31042,6,,
+hunt_patrol,node,31942,31042,6,,
+hunt_patrol,stand,31949,31044,6,,
+hunt_patrol,stand,31943,31046,7,,
+hunt_patrol,use_with,31943,31045,2,,0
+hunt_patrol,stand,31943,31046,2,,
+hunt_patrol,stand,31949,31044,7,,
+hunt_patrol,stand,31948,31046,6,,
+hunt_patrol,teleport,32339,31117,7,,synth_bridge
+hunt_patrol,node,32339,31117,7,,
+
+# --- travel_from (7 waypoints) ---
+travel_from,node,32322,31118,7,,
+travel_from,node,32314,31123,7,,
+travel_from,node,32307,31130,7,,
+travel_from,stand,32300,31134,7,,
+travel_from,node,32310,31126,7,,
+travel_from,node,32320,31118,7,,
+travel_from,node,32330,31117,7,,

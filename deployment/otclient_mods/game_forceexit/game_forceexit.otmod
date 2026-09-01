@@ -1,0 +1,10 @@
+Module
+  name: game_forceexit
+  description: Hotkeys to force-logout or hard-drop the socket without closing the client
+  author: 1LineAtaTime
+  website: -
+  autoload: true
+  sandboxed: true
+  scripts: [ forceexit ]
+  @onLoad: init()
+  @onUnload: terminate()

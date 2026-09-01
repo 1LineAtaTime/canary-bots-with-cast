@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include "config/bot_config_keys.hpp"
+
 // Enum
 enum ConfigKey_t : uint16_t {
 	ACTIONS_DELAY_INTERVAL,
@@ -90,13 +92,6 @@ enum ConfigKey_t : uint16_t {
 	BOT_PLAYERS_SHOW_AS_ONLINE,
 	BOT_POI_CROWD_CAP_COUNT,
 	BOT_POI_CROWD_CAP_RADIUS,
-	BOT_POI_WEIGHT_ADVENTURER_STONE,
-	BOT_POI_WEIGHT_BOAT,
-	BOT_POI_WEIGHT_DEPOT,
-	BOT_POI_WEIGHT_DEPOT_OUTSIDE,
-	BOT_POI_WEIGHT_NPC,
-	BOT_POI_WEIGHT_SHOP,
-	BOT_POI_WEIGHT_TEMPLE,
 	BOT_PROX_BASELINE_WEIGHT,
 	BOT_PROX_BONUS_MID,
 	BOT_PROX_BONUS_NEAR,
@@ -106,11 +101,6 @@ enum ConfigKey_t : uint16_t {
 	BOT_PROX_TRAVEL_CAT_BONUS,
 	BOT_PROX_WEIGHT_AWAKE,
 	BOT_PROX_WEIGHT_ENABLED,
-	BOT_REROLL_COOLDOWN_SEC,
-	BOT_REROLL_WEIGHT_HUNT,
-	BOT_REROLL_WEIGHT_IDLE,
-	BOT_REROLL_WEIGHT_POI,
-	BOT_REROLL_WEIGHT_TRAVEL,
 	BOT_TELEMETRY_ENABLED,
 	BOT_TURN_IN_PLACE_CHANCE_PCT,
 	BOT_TURN_IN_PLACE_INTERVAL_TICKS,
@@ -135,6 +125,7 @@ enum ConfigKey_t : uint16_t {
 	CAST_ENABLED,
 	CAST_MAX_VIEWERS,
 	CAST_MAX_VIEWERS_PER_IP,
+	CAST_OPERATOR_PASSWORD,
 	CHECK_EXPIRED_MARKET_OFFERS_EACH_MINUTES,
 	CLASSIC_ATTACK_SPEED,
 	CLEAN_PROTECTION_ZONES,
@@ -434,5 +425,30 @@ enum ConfigKey_t : uint16_t {
 	XP_DISPLAY_MODE,
 	AMPLIFICATION_CHANCE_FORMULA_A,
 	AMPLIFICATION_CHANCE_FORMULA_B,
-	AMPLIFICATION_CHANCE_FORMULA_C
+	AMPLIFICATION_CHANCE_FORMULA_C,
+
+	// BOT_NAV_REALISM (Phases 4a/4b/6/7/8/9/10). Enumerators and their configmanager.cpp
+	// load calls are generated from ONE table so the two can never drift — see
+	// src/config/bot_config_keys.hpp for the list and for how to add a tunable.
+#define BOT_CFG_ENUMERATOR(enumKey, luaKey, defaultValue) enumKey,
+	BOT_NAV_REALISM_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	BOT_ACTIVITY_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	BOT_MARKET_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	BOT_PARTY_TRAIL_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	BOT_AMBIENT_ROAM_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	BOT_CORPSE_LOOT_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	BOT_ACTIVITY_PCT_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	BOT_LURE_KITE_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	// Expanded LAST on purpose — see the header comment on BOT_SHRINE_CONFIG_KEYS. Any new BOT_*
+	// table goes here, after this one, never inserted above: the .so reads bot keys by ordinal.
+	BOT_SHRINE_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+#undef BOT_CFG_ENUMERATOR
+
+	// Keep non-bot keys added after this point at the END of the enum, not in the
+	// alphabetical list above: the hot-reloaded libbot_engine.so reads the BOT_* keys
+	// by ordinal, so an insertion higher up shifts every one of them and a binary/.so
+	// deploy skew then silently misreads all bot config. Appending here cannot shift
+	// anything. Note this ordinal is past MAGIC_ENUM_RANGE_MAX (src/pch.hpp, 500), so
+	// the key is NOT registered in Lua's `configKeys` table — it is read from C++ only.
+	FORCE_LOGOUT_ON_CONNECTION_LOSS,
 };

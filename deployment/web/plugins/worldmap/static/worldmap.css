@@ -1,0 +1,94 @@
+#worldmap-wrap {
+	max-width: 100%;
+	font-family: Verdana, Arial, sans-serif;
+	font-size: 11px;
+	color: #453c25;
+}
+
+#worldmap {
+	width: 100%;
+	height: 640px;
+	background: #0d1b2a;
+	border: 1px solid #5a5348;
+	cursor: grab;
+}
+
+#worldmap:active { cursor: grabbing; }
+
+/* Floors are 1 px per tile: keep them crisp when magnified. The Overview JPEG
+   is painted artwork and looks better with the browser's default smoothing, so
+   the rule is scoped to the floors overlay only. */
+#worldmap img.wm-pixelated {
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+}
+
+#worldmap-bar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin: 0 0 6px 0;
+}
+
+.wm-group { display: inline-flex; align-items: center; gap: 4px; }
+
+/* A `display` rule on the element beats the UA stylesheet's [hidden]{display:none},
+   so the floor stepper stayed visible on the Overview layer without this. */
+#worldmap-wrap [hidden] { display: none !important; }
+
+.wm-btn {
+	font: inherit;
+	line-height: 1;
+	padding: 4px 10px;
+	border: 1px solid #5a5348;
+	background: #d9cfb4;
+	color: #453c25;
+	cursor: pointer;
+}
+
+.wm-btn:hover { background: #e8dfc6; }
+.wm-btn.is-active { background: #8a7a52; color: #fff; font-weight: bold; }
+
+.wm-layer { border-radius: 0; }
+.wm-layer:first-child { border-right: none; }
+
+#wm-floor-label {
+	display: inline-block;
+	min-width: 2.2em;
+	text-align: center;
+	font-weight: bold;
+}
+
+.wm-status { margin-left: auto; color: #6b6250; }
+.wm-status.wm-warn { color: #a33; font-weight: bold; }
+
+#wm-legend {
+	margin: 6px 0 0 0;
+	display: flex;
+	gap: 14px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+#wm-legend i {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	margin-right: 4px;
+	vertical-align: -1px;
+	border: 1px solid rgba(0, 0, 0, .45);
+}
+
+#wm-foot {
+	margin: 8px 0 0 0;
+	color: #6b6250;
+	line-height: 1.5;
+}
+
+.leaflet-tooltip.wm-tip {
+	font-family: Verdana, Arial, sans-serif;
+	font-size: 11px;
+	white-space: nowrap;
+}

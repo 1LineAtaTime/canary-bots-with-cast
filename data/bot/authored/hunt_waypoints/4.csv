@@ -1,0 +1,39 @@
+phase,waypoint_type,pos_x,pos_y,pos_z,label,extra_data
+
+# --- travel_to (7 waypoints) ---
+travel_to,node,32341,31769,7,,
+travel_to,node,32341,31760,7,,
+travel_to,node,32341,31743,7,,
+travel_to,node,32343,31715,7,,
+travel_to,node,32331,31692,7,,
+travel_to,node,32335,31668,7,,
+travel_to,node,32344,31653,7,,
+
+# --- hunt_patrol (19 waypoints) ---
+hunt_patrol,node,32352,31651,7,,
+hunt_patrol,ladder,32353,31643,7,,
+hunt_patrol,node,32356,31646,6,,
+hunt_patrol,ladder,32354,31642,6,,
+hunt_patrol,node,32355,31647,5,,
+hunt_patrol,ladder,32353,31643,5,,
+hunt_patrol,node,32356,31645,4,,
+hunt_patrol,ladder,32354,31642,4,,
+hunt_patrol,node,32355,31646,3,,
+hunt_patrol,ladder,32353,31643,3,,
+hunt_patrol,node,32355,31646,2,,
+hunt_patrol,stand,32353,31643,2,,
+hunt_patrol,stand,32354,31642,3,,
+hunt_patrol,stand,32353,31643,4,,
+hunt_patrol,stand,32354,31642,5,,
+hunt_patrol,stand,32353,31643,6,,
+hunt_patrol,node,32354,31638,7,,
+hunt_patrol,node,32355,31651,7,,
+hunt_patrol,node,32342,31652,7,,
+
+# --- travel_from (6 waypoints) ---
+travel_from,node,32338,31672,7,,
+travel_from,node,32336,31701,7,,
+travel_from,node,32342,31737,7,,
+travel_from,node,32341,31743,7,,
+travel_from,node,32341,31769,7,,pretend_delay
+travel_from,stand,32338,31782,6,,

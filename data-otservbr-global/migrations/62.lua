@@ -228,7 +228,11 @@ function onUpdateDatabase()
 			`result` TEXT,
 			`executed_at` INT UNSIGNED DEFAULT NULL,
 			PRIMARY KEY (`id`),
-			KEY `idx_bot_processed` (`bot_name`,`processed`)
+			KEY `idx_bot_processed` (`bot_name`,`processed`),
+			-- The queue poll is `WHERE processed=0 ORDER BY id LIMIT 10`, which cannot use
+			-- idx_bot_processed (leading column is bot_name), so it walked the whole table
+			-- every poll. Matters now that the poll runs every second, not every 10s.
+			KEY `idx_processed_id` (`processed`,`id`)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 	]])
 end

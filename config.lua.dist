@@ -283,172 +283,6 @@ autoLoot = false
 autoBank = false
 toggleGoldPouchAllowAnything = false
 toggleGoldPouchQuickLootOnly = false
-
--- NOTE: botPlayersOnline sets how many bot players to load on startup (drawn
--- stratified by level/vocation/town from the bot pool in MySQL). Capped at the
--- total bots seeded in the players table (account_id=65000). Default 500.
-botPlayersOnline = 500
-
--- NOTE: botPlayersShowAsOnline includes bot players (both hibernated and awake)
--- in the website's online list / player count. Set to false to only show real
--- players + awake bots (pre-hibernation behavior).
-botPlayersShowAsOnline = true
-
--- NOTE: Phase B density-capped wake — limits how many hibernated bots can wake
--- within proximity rings of a real-player anchor (or cast-watched bot anchor).
--- Real players + cast-watched bots within `botDensityAnchorClusterRadius` tiles
--- merge into a single anchor cluster (centroid). Per cluster, bots that would
--- wake near the centroid are gated against three concentric ring caps:
---   inner ring (botDensityCapInnerRadius)  — ~screen-visible (7 tiles) / 0.6% of botPlayersOnline
---   mid ring   (botDensityCapMidRadius)    — 50 tiles / 2.0%
---   outer ring (botDensityCapOuterRadius)  — 100 tiles / 3.0%
--- Ring LIMITS are PERCENTAGES of botPlayersOnline, truncated to whole bots
--- (at 500: 0.6% -> 3, 2.0% -> 10, 3.0% -> 15). NOTE the truncation: the inner
--- pct floors to 0 below ~167 total bots, which gates ALL wakes near players.
--- Radii stay absolute tile distances.
--- When a cap is hit, the would-be-woken bot stays hibernated (passive cap; no
--- force-hibernate of already-awake bots). Party-leader cascades are EXEMPT —
--- a granted leader wakes all party members regardless of cap.
--- Set `botDensityCapEnabled = false` to disable all gating (telemetry still fires).
-botDensityCapEnabled = true
-botDensityCapInnerRadius = 7
-botDensityCapInnerLimitPct = 0.6
-botDensityCapMidRadius = 50
-botDensityCapMidLimitPct = 2.0
-botDensityCapOuterRadius = 100
-botDensityCapOuterLimitPct = 3.0
-botDensityAnchorClusterRadius = 50
-
--- NOTE: Bot Liveness Pack tuning knobs. See data/scripts/lib/BOT_SYSTEM_DOCS.md
--- for the full design. All bot* keys are load-once (configmanager reads them inside
--- the initial-load block only) — edit config.lua and RESTART the server; /reload
--- config does NOT re-read them. Do not touch unless you understand the trade-offs
--- documented in the plan.
--- ---- POI selection weights (relative) ----
--- Higher value = bots roll this POI type more often during activity reroll.
-botPoiWeightDepot           = 40
-botPoiWeightDepotOutside    = 20
-botPoiWeightTemple          = 10
-botPoiWeightBoat            = 20
-botPoiWeightShop            = 10  -- bumped 5->10 to populate shop fronts
-botPoiWeightNpc             = 8   -- bumped 3->8 to populate banks / quest NPCs
-botPoiWeightAdventurerStone = 10
--- ---- Top-level activity reroll weights (must sum to 100) ----
-botRerollWeightIdle   = 15
-botRerollWeightPoi    = 35   -- bumped 25->35 (deducted from hunt)
-botRerollWeightHunt   = 25   -- trimmed 35->25
-botRerollWeightTravel = 25
--- ---- Dwell / cooldown durations (seconds) ----
-botRerollCooldownSec   = 30
-botDwellRerollMinSec   = 60
-botDwellRerollMaxSec   = 300
-botDwellPoiMinSec      = 180  -- widened from 120 — bots linger long enough to be noticed
-botDwellPoiMaxSec      = 900  -- widened from 600
-botDwellNpcMinSec      = 15
-botDwellNpcMaxSec      = 60
-botDwellPostTravelSec  = 60
--- ---- Adventurer's Stone dwell ranges (seconds) ----
-botAdvStoneDwellIdleMinSec   = 60
-botAdvStoneDwellIdleMaxSec   = 300
-botAdvStoneDwellChestMinSec  = 300   -- NEW: chest dwell distinct from idle (was 60-300)
-botAdvStoneDwellChestMaxSec  = 1200
-botAdvStoneDwellDummyMinSec  = 180
-botAdvStoneDwellDummyMaxSec  = 1800
--- Max % of botPlayersOnline concurrently in the reward-chest + training-dummy
--- sub-activities (live + hibernated trips both count; capped bots demote to
--- waypoint idling). 2.5% of 500 -> floor(12.5) = 12. Floors to 0 below 40 bots.
-botAdvStoneChestDummyCapPct  = 2.5
--- ---- Visual identity ----
-botMountChancePct                = 60     -- chance a bot is mounted at activation (was dead-code 30)
-botPersonalityRerollOnRestart    = true   -- shuffle mount+outfit+colors at every server restart
--- ---- POI crowd cap ----
--- Skip a POI if >= count bots are already within radius tiles. Exempts AdvStone island.
-botPoiCrowdCapCount  = 3
-botPoiCrowdCapRadius = 2
--- ---- Idle micro-actions ----
--- Halved from 20 to 10 after observation showed turning was too frequent.
-botTurnInPlaceChancePct     = 10
-botTurnInPlaceIntervalTicks = 25
--- Idle litter drop (drop-only): bots that stop for >=1s while idle/dwelling roll a
--- chance to drop one cheap NPC-buyable item on the floor (never picked back up).
--- Chance is scaled per-bot then clamped to 95%, and capped at one drop per awake session.
-botFidgetChancePct          = 38
-botFidgetIntervalMinSec     = 60   -- unused (legacy timer-based fidget); kept for compat
-botFidgetIntervalMaxSec     = 300  -- unused (legacy timer-based fidget); kept for compat
-botFidgetMaxItemValueGp     = 1000 -- max NPC buy price (gp): item drops if 0 < buyPrice < this
--- ---- Gang-PK alpha-strike ----
--- Idle bots in a PZ jump an exposed victim just outside it: stage, step out together, surround +
--- magic-wall-box, burst with single-target nukes only (no AoE = no collateral). EDs paralyze a
--- fleeing victim. Very rare, observer-gated, 5%-skull-cap bounded. 50/50 nuke-first vs trap-first.
-botGangEnable            = true
-botGangRequireObserver   = true   -- only form near a real player / cast-viewer
-botGangTargetPlayers     = true   -- include real players as victims (false = bots-only)
-botGangMinSize           = 5      -- attackers required for a raid (summoned from town)
-botGangMaxSize           = 6      -- (unused — raids gather exactly botGangMinSize)
-botGangRecruitRadius     = 5      -- tiles: pull idle bots in the same PZ to join
-botGangVictimBand        = 3      -- tiles outside the PZ edge the victim must be within
-botGangStageWindowMs     = 2500   -- barrier timeout before forced burst
-botGangScanCooldownMs    = 4000
-botGangOddsVsPlayer      = 660    -- 1-in-N per eligible scan vs a real player (~0.15%) — 1/5 chance
-botGangOddsVsBot         = 400    -- 1-in-N per eligible scan vs a bot (~0.25%)
-botGangWallChancePct     = 80     -- chance to magic-wall a claimed open escape tile
-botGangParalyzeChancePct = 75     -- chance an ED paralyzes a moving victim
-botGangVictimCooldownSec = 86400  -- seconds before the SAME victim can be jumped again (default 1 day)
--- ---- PZ-blocked roaming ----
-botPzRoamEnable          = true
-botPzRoamIntervalMinSec  = 20
-botPzRoamIntervalMaxSec  = 60
-botPzRoamStayPct         = 40     -- stay+turn vs walk to a non-PZ tile
--- ---- Mid-walk pause ----
--- Hard cap per route avoids the clustering that motivated removing the old
--- LOITER_CHANCE feature in commit ead32465d. Pauses fire ONLY in IDLE/DWELLING/
--- TRAVELING states (never hunting/patrolling/party/PvP/PK/flee/floor-change).
--- Unobserved tier (nobody watching): short, modest, no personality gate.
-botWalkPauseChancePct   = 2
-botWalkPauseMinMs       = 400
-botWalkPauseMaxMs       = 5000
-botWalkPauseMaxPerRoute = 3
--- Observed tier (a real player or cast-watched bot is on screen): longer, more
--- frequent pauses so bots look human while someone is actually watching. Gated by
--- each bot's personality (walkBias trait): ~bottom 25% of bots never pause this way,
--- and the rest scale their chance up with the trait, so some bots reliably pause
--- near players while others ignore it. Tune frequency via ObservedChancePct without
--- a rebuild (hot-reloadable via /cavebot reload).
-botWalkPauseObservedChancePct   = 12
-botWalkPauseObservedMinMs       = 500
-botWalkPauseObservedMaxMs       = 20000
-botWalkPauseObservedMaxPerRoute = 8
--- ---- Local chat ----
-botChatCooldownMinMs = 30000
-botChatCooldownMaxMs = 300000
--- ---- World Chat + Advertising channel posting ----
--- World Chat: per-bot 20-40 min => ~1 post/min server-wide at 30 awake bots.
-botWorldChatIntervalMinMs = 1200000
-botWorldChatIntervalMaxMs = 2400000
--- Advertising: server-side script enforces 2-min mute condition regardless.
-botAdvertisingIntervalMinMs = 300000
-botAdvertisingIntervalMaxMs = 600000
--- ---- Anti-repeat ring ----
-botChatAntiRepeatRingSize = 8  -- Playerbots doesn't have anti-repeat; this is our addition
--- ---- Master chat-rate knob ----
--- Multiplier on overall chat rate (Local Chat + World Chat + Advertising combined).
--- 100 = no-op (per-category chance values stand alone). 50 = halve overall rate.
--- 0 = silence all chat. Useful as a single dial without re-tuning per-category.
-botChatMasterChancePct = 100
--- ---- Hibernated bot channel chat ----
--- When true, hibernated bots (off-world) can still post to World Chat (channel 3)
--- and Advertising (channel 5). They never post Local Chat (TALKTYPE_SAY) since
--- they're not physically in the world. Set false to silence hibernated traffic.
-botHibernatedChatEnabled = true
--- ---- Verbose chat logging ----
-botChatVerboseLog = false  -- set true to log every chat emission to journalctl
--- ---- Telemetry (off by default) ----
--- When true, bots write a row to bot_chat_emissions on every confirmed chat line
--- (offline dup-rate measurement only). These tables are NEVER read by runtime logic
--- — chat anti-repeat/throttle is fully in-memory — so leaving this false has no
--- behavioral effect. Hot-reloadable via /cavebot reload.
-botTelemetryEnabled = false
-
 toggleServerIsRetroPVP = false
 toggleTravelsFree = false
 buyAolCommandFee = 0
@@ -544,14 +378,6 @@ housePurchasedShowPrice = false
 houseLoseAfterInactivity = 30 -- days; 0 = never
 onlyInvitedCanMoveHouseItems = true
 togglehouseTransferOnRestart = true
-
--- House backfill (used by the /housebackfill admin talkaction)
--- houseOccupancyTargetPct        — % of total houses bots should own + decorate. Remaining % stays unowned for real players to rent.
--- houseBackfillHirelingChancePct — per-house chance to receive a random fantasy-seller hireling during backfill. Deterministic: floor(N * pct/100) houses get one.
--- houseBackfillTileDecorationPct — per-tile chance, inside a backfilled house, to place a random decoration template drawn from the existing dump.
-houseOccupancyTargetPct = 80
-houseBackfillHirelingChancePct = 5
-houseBackfillTileDecorationPct = 75
 
 -- Item Usage
 timeBetweenActions = 200
@@ -783,11 +609,6 @@ metricsPrometheusAddress = "0.0.0.0:9464"
 metricsEnableOstream = false
 metricsOstreamInterval = 1000
 
--- Cast/Livestream System
-castEnabled = true
-castMaxViewers = 50
-castMaxViewersPerIp = 3
-
 -- OTC Features
 -- NOTE: Features added in this list will be forced to be used on OTCR
 -- These features can be found in "modules/gamelib/const.lua"
@@ -801,3 +622,859 @@ OTCRFeatures = {
     disableFeature = {
     }
 }
+
+-- ############################################################################
+-- #                                                                          #
+-- #                  CAST & BOT CUSTOMIZATION  —  BEGIN                      #
+-- #                                                                          #
+-- ############################################################################
+--
+--
+-- HOW TO CHANGE SOMETHING (three different costs — check before you edit):
+--   * change a VALUE below      -> `systemctl restart canary`. Some bot keys
+--                                  also answer to `/cavebot _global reloadconfig`
+--                                  (noted per block); NONE are re-read by
+--                                  `/reload config`, which does not touch this file.
+--   * ADD or RENAME a bot key   -> declare it in src/config/bot_config_keys.hpp
+--                                  (or configmanager.cpp) and do a FULL rebuild.
+--   * verify what actually loaded -> `/cavebot botcfg` dumps every key as the
+--                                  running server read it. Use it. A key deleted
+--                                  from this file does NOT error — it silently
+--                                  falls back to its built-in default, which for
+--                                  most bot features means OFF.
+--
+-- CONTENTS
+--   A. Server behaviour tweaks (non-bot)
+--   B. Cast / livestream
+--   C. House backfill (admin talkaction)
+--   D. Bot activity percentages  (TABLE A / B / C + cadence)
+--   E. Bot population, navigation, parties, roam, loot, supply, quests, houses, fishing
+--   F. Bot wake density caps + player-proximity weighting
+--   G. Bot market acceptance
+--   H. Bot liveness pack (dwell, identity, idle micro-actions, walk pause, chat)
+--
+-- ############################################################################
+
+
+-- ============================================================================
+-- A. SERVER BEHAVIOUR TWEAKS (non-bot)
+-- ============================================================================
+
+-- NOTE: playerLoseItemsOnDeath controls the blessing-based loot-drop system (separate
+-- from deathLosePercent above, which only governs skill/experience loss — NOT items).
+-- true  = stock behavior (unblessed players drop backpack + gear on death).
+-- false = players NEVER drop items on a non-skulled death (regardless of blessings/AoL).
+-- Red/black-skull (PvP-punished) players STILL drop 100% regardless of this setting.
+playerLoseItemsOnDeath = false
+
+-- NOTE: forceLogoutOnConnectionLoss = kick a player out of the world the moment their
+-- connection dies (client closed, process killed), instead of leaving the character
+-- standing in the world until the fight/pz-lock expires. Removal is identical to /kick,
+-- so it also bypasses NOLOGOUT tiles. A voluntary logout (the client's logout button)
+-- still obeys the normal "may not logout during a fight" rule. Timing: <=1s when the
+-- socket closes cleanly, ~31s for a silent link death (bounded by the 30s read timeout).
+forceLogoutOnConnectionLoss = true
+
+-- ============================================================================
+-- B. CAST / LIVESTREAM
+-- ============================================================================
+-- Global viewer cap for a cast. Enforced in protocolgame.cpp when a viewer joins.
+castMaxViewers = 50
+-- NOTE: castEnabled and castMaxViewersPerIp are LOADED but never read by any code
+-- path — casting is unconditionally on and there is no per-IP viewer limit today.
+-- They are kept so the keys exist if either check is ever implemented; changing
+-- them right now does nothing.
+castEnabled = true
+castMaxViewersPerIp = 3
+
+-- Cast operator: drive the bot AI with /cavebot from the Cast Chat channel.
+-- Log in with account "@cast" (or "@livestream"), THIS string as the password, and the
+-- bot's name as the character. Empty string = feature off; a wrong password silently
+-- leaves you an ordinary read-only viewer (5 failures per IP / 5 min -> 15 min lockout).
+-- Only "/cavebot" is ever dispatched, and only when the watched character is a bot.
+-- Depends on authType = "password" above -- under session auth the login password field
+-- is never parsed and this can never match (the server warns about that at startup).
+castOperatorPassword = ""
+
+-- ============================================================================
+-- C. HOUSE BACKFILL (admin talkaction: /housebackfill)
+-- ============================================================================
+-- houseOccupancyTargetPct        — % of total houses bots should own + decorate. Remaining % stays unowned for real players to rent.
+-- houseBackfillHirelingChancePct — per-house chance to receive a random fantasy-seller hireling during backfill. Deterministic: floor(N * pct/100) houses get one.
+-- houseBackfillTileDecorationPct — per-tile chance, inside a backfilled house, to place a random decoration template drawn from the existing dump.
+houseOccupancyTargetPct = 80
+houseBackfillHirelingChancePct = 5
+houseBackfillTileDecorationPct = 75
+
+-- ============================================================================
+-- D. BOT ACTIVITY PERCENTAGES  (TABLE A / B / C + cadence)
+--
+-- Everything deciding WHAT A BOT DOES NEXT lives in this one block. Two tables,
+-- each of which MUST SUM TO 100. If one does not, the server still boots and still
+-- uses the numbers exactly as written, but it logs an error and stamps
+-- "TABLE A/B INVALID" on `/cavebot botcfg` and on the 5-minute REROLL summary
+-- until it is fixed. Nothing is silently rescaled.
+--
+-- Retuning any VALUE here is free -- edit and run `/cavebot _global reloadconfig`.
+-- No rebuild, no restart. Only ADDING or RENAMING a key needs a rebuild.
+--
+-- Do not write derived "effective share" arithmetic into these comments: it goes
+-- stale the moment either table is edited, which is exactly what happened to the
+-- old pool-arithmetic notes this block replaces. Run `/cavebot activity` instead --
+-- it prints nominal, eligible-now and realised shares, split by awake vs hibernated.
+--
+-- WHY THIS REPLACED THE OLD WEIGHTS: botRerollWeightTravel advertised 25, was read
+-- into a variable that was never used, and delivered a 15% residual tail -- while
+-- the bots actually travelled 46.5% of the time, because TRAVEL was the untested
+-- last branch and silently absorbed every failed HUNT and PARTY attempt. Three
+-- different numbers for one behaviour. Now every bin is tested, and a bin whose
+-- attempt fails takes a short dwell (botActivityFallbackDwell*) instead of donating its
+-- share to a neighbour.
+-- ============================================================================
+
+-- ---- TABLE A: what activity to start. MUST SUM TO 100. ----
+-- Sampled every botActivityRerollCooldownSec while a bot is idle.
+botActivityDwell  = 12
+botActivityPoi    = 30
+botActivityHunt   = 10
+-- Deliberately small. Parties run 2-3 hours and occupy botPartyMaxPct of the whole
+-- population, so the cap only absorbs roughly ten NEW formations an hour. A bigger
+-- number here does not create more parties -- it creates more refused attempts,
+-- which become dwell. Raise botPartyMaxPct if you want more parties, but note that
+-- uncapping once put 448 of 500 bots into parties and starved solo hunting.
+botActivityParty  = 2
+botActivityTravel = 46
+-- (12 + 30 + 10 + 2 + 46 = 100)
+
+-- ---- TABLE B: which POI, once TABLE A picks POI. MUST SUM TO 100. ----
+-- Rolled over whatever the bot's CURRENT TOWN actually has, so these are shares of
+-- the available candidates. Coverage is uneven and no number here can change that:
+-- all 19 towns have a depot and a temple, 14 have an adventurer's stone, 9 have a
+-- boat, and exactly ONE has a shop. A HIBERNATED bot additionally cannot reach
+-- npc/water/house (those are awake-only), so its table is the other six rows.
+botPoiDepot         = 19
+botPoiDepotOutside  = 9
+botPoiTemple        = 5
+botPoiBoat          = 8
+botPoiShop          = 5
+botPoiNpc           = 13
+botPoiWater         = 14
+botPoiHouse         = 13
+botPoiAdvStone      = 6
+botPoiRewardShrine  = 4
+botPoiImbuingShrine = 4
+-- (19 + 9 + 5 + 8 + 5 + 13 + 14 + 13 + 6 + 4 + 4 = 100)
+
+-- ---- TABLE C: what to do once INSIDE a house. MUST SUM TO 100. ----
+-- botPoiHouse (TABLE B) only gets the bot through the door; this decides what it
+-- does in there. Rolled over what that HOUSE actually has -- most houses have no
+-- training dummy and no hireling -- so idle's realised share runs well above its
+-- number here. Plain idle is always available, so the roll never comes up empty.
+--
+-- Replaces botHouseSubActivityPct, which was a single "do something?" chance
+-- followed by a hardcoded UNIFORM pick between hireling/dummy/locker: there was no
+-- way to prefer training over locker use. Idle is simply its own row now.
+botHouseIdle     = 26
+botHouseHireling = 20
+botHouseDummy    = 20
+botHouseLocker   = 19
+botHouseShrine   = 15
+-- (26 + 20 + 20 + 19 + 15 = 100)
+
+-- ---- Cadence, and the rolls that used to be hardcoded in C++ ----
+-- How often an idle bot samples TABLE A. The single biggest lever in this block:
+-- it scales every activity's absolute rate at once.
+botActivityRerollCooldownSec = 30
+-- The dwell taken when a bin is ineligible or its attempt fails. Kept SHORT and
+-- separate from botDwellRerollMin/MaxSec (a CHOSEN dwell): HUNT and PARTY are
+-- finite pools -- 221 hunt scripts held 2-3h each, and the party cap -- so their
+-- attempts fail routinely, and borrowing the long range would turn that into
+-- minutes of standing still per bot.
+botActivityFallbackDwellMinSec = 30
+botActivityFallbackDwellMaxSec = 90
+-- Of TRAVEL rolls, how many walk a city route instead of taking a boat.
+-- CAVEAT: needs a live Player, so it is structurally inert for hibernated bots and
+-- the realised rate across the whole population is far below this number (measured
+-- 0.4% at 30). It is a share of AWAKE travel, not of all travel.
+botTravelCityWalkPct = 30
+-- Where a bot walks when it LANDS in a destination town. Before this it was always
+-- the depot (temple only if no depot route existed), so stepping off the boat always
+-- looked identical. These four are a WEIGHT WALK, not four independent gates: they
+-- are summed and one bucket is drawn, so they behave as percentages when they SUM TO
+-- 100 and degrade proportionally when they do not. Depot=100 with the rest 0 is an
+-- exact rollback to the old behaviour; all four 0 falls back to depot.
+-- CAVEAT, and it is a big one: the REALISED split is depot-heavier than configured.
+-- Shops are authored in only 9 of the 18 towns (Thais, Venore, Ankrahmun, Edron,
+-- Darashia, Liberty Bay, Port Hope, Svargrond, Yalahar) and non-core POIs in the same
+-- 9, so a shop/other roll in Farmine, Roshamuul, Rathleton, Krailos, Issavi, Feyrist,
+-- Ab'Dendriel, Carlin or Kazordoon has nothing to resolve to and falls through to the
+-- depot. Watch [ARRIVE] in the log for the realised split and the fell-back count.
+-- Hunt-bound and party-assembly bots are forced to the depot regardless: both walk
+-- straight to a depot on arrival anyway, so any other roll is a visible wasted leg.
+botTravelArriveDepotPct  = 55
+botTravelArriveTemplePct = 20
+botTravelArriveShopPct   = 20
+botTravelArriveOtherPct  = 5
+-- After resupplying, chance to go straight back out hunting instead of returning to
+-- TABLE A. Applies at both LIVE resupply sites; the virtual (hibernated) path has no
+-- such roll and always returns to TABLE A, so this describes awake bots only.
+botResupplyRehuntPct = 50
+-- On reaching a depot, chance to stay at the locker. The remainder splits evenly
+-- between roaming to a nearby PZ tile and stepping outside.
+botDepotLockerPct = 40
+
+
+-- ============================================================================
+-- E. BOT POPULATION, NAVIGATION, PARTIES, ROAM, LOOT, SUPPLY, QUESTS, HOUSES, FISHING
+-- ============================================================================
+-- Number of bot players to load on startup. Default 200 (matches pre-997 behavior).
+-- Stratified-pick by level/voc/town from the bot pool (account_id=65000, currently 997 bots).
+botPlayersOnline = 500
+-- Nav jitter mask (bitfield) — de-trains routes so bots do not walk identical lanes.
+botNavJitterMask = 3
+-- Lane reservation: bots claim the tile they are stepping into, so a queue forms
+-- instead of several bots piling onto one sqm.
+botLaneEnable = true
+-- ---- Party trail-follow (BOT_PARTY_TRAIL_FOLLOW) ----
+-- Party support bots walk the route their leader actually took (per-party breadcrumb trail)
+-- instead of teleporting; teleport survives only as a watchdog. SHIPS OFF: flip
+-- botPartyTrailEnable to true only after ~24h of [PTRAIL] baseline has been collected
+-- (the counters and the 60s [PTRAIL] journal line run regardless of this switch).
+botPartyTrailEnable = true
+-- Also applies to human-led parties (doPartyFollow), not just autonomous party hunts.
+botPartyTrailHumanLead = true
+-- No-progress watchdog before the fallback teleport fires.
+botPartyTrailStuckMs = 30000
+-- Hard lag cap (tiles behind the trail) before the fallback teleport fires.
+botPartyTrailMaxLagTiles = 40
+-- Breadcrumb ring size per leader.
+botPartyTrailMaxNodes = 256
+-- Tiles per A* leg while replaying the trail.
+botPartyTrailHorizon = 10
+-- Trail staleness: nodes older than this are never anchor candidates; an idle trail is
+-- re-recorded rather than resumed (hibernate/re-wake safety).
+botPartyTrailMaxAgeMs = 15000
+-- Bot leader holds waypoint advancement (still fights/lures) while a party member is
+-- farther than this, for at most botPartyLeaderWaitMaxMs. Human leaders are never held.
+botPartyLeaderWaitDist = 9
+botPartyLeaderWaitMaxMs = 20000
+-- Max %% of LOGGED-IN bots (hibernated + awake) that may be party-bound at once. Counted in
+-- BOTS, not parties. 0 = uncapped. Gates FORMATION only, so after a change the count decays as
+-- running hunts end rather than dropping immediately.
+botPartyMaxPct = 20
+-- ---- Party invites + unified assembly (BOT_PARTY_INVITE_RENDEZVOUS) ----
+-- Bots accept real party invites (click-invite, /party, /cavebot party), and ONE assembly
+-- machine serves both bot-led party hunts and human-led parties: members walk in from
+-- off-screen instead of popping in next to the leader. BOTH switches ship OFF; flip them
+-- only after the headless matrix passes, then watch [PINVITE]/[PARTYRV].
+-- Accept unless busy: a bot in an autonomous party hunt declines outright, a bot mid-fight
+-- holds until the fight resolves (or botPartyInviteHoldMaxMs expires), everything else
+-- accepts and tears down whatever it was doing.
+botPartyInviteEnable = true
+botPartyInvitePollMs = 1000
+botPartyInviteAcceptMinMs = 1500
+botPartyInviteAcceptMaxMs = 4500
+botPartyInviteHoldMaxMs = 30000
+-- Human-led start-walking threshold. NOT the same quantity as the trail's arrival ring (3):
+-- aliasing them would make direct follow stop exactly where the trail retires.
+botPartyFollowDist = 2
+-- Assembly master switch (both kinds). false = today's instant teleport assembly.
+-- Independent of botPartyInviteEnable, so invites-on + assembly-off is a valid stage.
+botPartyRvEnable = true
+-- Per-member travel+walk budget from TRAVELLING entry; expiry teleports the straggler in.
+botPartyRvMaxMs = 300000
+-- Per-member graceful wind-down cap. Clamped up to LEAVING_PHASE_MAX_MS (300s) if set lower,
+-- or a graceful hunt exit would be force-torn mid-walk.
+botPartyRvFinishMaxMs = 300000
+
+-- ---- Ambient roam (BOT_AMBIENT_ROAM) ----
+-- Bots materialise on a vetted tile just outside a player's viewport, then walk between random
+-- reachable tiles near them (floors above/below included, via the normal planner + floor-change
+-- machine), dwelling at each stop. When the player leaves, the roamer is hibernated and restored
+-- to where it came from, then rolls a fresh task like any other bot.
+--
+-- SHIPS ENABLED, unlike every other bot feature here, which ship structurally unreachable at 0.
+-- What bounds this one is botRoamReserveSlots, not the master switch.
+botRoamEnable = true
+-- EXTRA awake slots per density ring, usable ONLY by roamers. Ordinary wakes are measured
+-- against their full base limit (the organic check subtracts roam bots), so this is a true
+-- addition: at botPlayersOnline=500 the rings become inner 3+3 and mid 10+3, of which at most
+-- 3 may be roamers. Set 0 to keep the feature but let it use only spare organic capacity.
+botRoamReserveSlots = 3
+-- Roamers wanted per anchor CLUSTER (players within botDensityAnchorClusterRadius merge into
+-- one). Effective value is min(this, botRoamReserveSlots) — a higher number would only produce
+-- permanently-gated attempts and noisy telemetry.
+botRoamTargetPerCluster = 3
+botRoamMaxTotal = 24
+-- Leg destinations come from within this many tiles of the player; floors each way.
+botRoamRadius = 20
+botRoamMaxDz = 1
+-- Minimum leg length measured FROM THE BOT. Must stay above the arrival tolerance (3) or a leg
+-- finishes in one step and the bot shuffles in place instead of walking.
+botRoamMinLegDist = 8
+botRoamDwellMinMs = 5000
+botRoamDwellMaxMs = 40000
+botRoamInjectIntervalMs = 4000
+-- Anchor distance that ends a session: the bot is hibernated and teleported back to its
+-- pre-injection position. Tighter than the 100-tile hibernation radius in bot_hibernation.lua
+-- on purpose — a roamer released at 100 would never start its hysteresis and would sit awake
+-- holding a density slot it no longer uses.
+botRoamReleaseTiles = 40
+-- Max session length, so a stationary player does not keep the same few bots orbiting forever.
+botRoamSessionMaxMs = 240000
+botRoamLedgerTtlMs = 300000
+botRoamDefendMaxMs = 90000
+botRoamRegionTtlMs = 5000
+botRoamRegionMoveTiles = 10
+botRoamRegionBudget = 2048
+botRoamMaxFailStreak = 3
+
+-- ---- Corpse opening while hunting (BOT_CORPSE_LOOT) ----
+-- A hunting bot (solo, or the leader of a bot-only party hunt) opens the corpses of monsters it
+-- killed, so the client's "this corpse can be looted" highlight goes away. It does NOT take the
+-- loot -- the corpse keeps every item and any player can still loot it normally.
+--
+-- Why it matters more than it looks: Item::setID strips CORPSEOWNER on every decay stage while
+-- the highlight flag survives, so 746 of 802 monster corpse types become highlighted for EVERY
+-- player just 10 seconds after the kill, and stay lit for the next 300-600s. Unopened bot kills
+-- therefore litter hunting grounds with lit corpses for anyone walking past.
+--
+-- Ships DISABLED. Flip to true, then `/cavebot _global reloadconfig` (no restart needed).
+botLootOpenEnable = true
+-- Census half-width, in tiles. 7 = viewport. The corpse drops on the MONSTER's tile, and mages
+-- and paladins kill at range, so a smaller radius silently skips most ranged kills.
+botLootRadius = 7
+-- How long after a kill the bot will WALK to a corpse. Refreshed on each successful open.
+botLootWindowMs = 20000
+-- Census cadence. Forced to run on the tick after any kill regardless of this.
+botLootScanMs = 750
+-- false = never detour; only open corpses that are already adjacent. Cheapest possible mode.
+botLootWalk = true
+-- Per-corpse walk budget. Keep short: an unreachable corpse costs pathfinding every tick.
+botLootMaxWalkMs = 4000
+-- Human pause before the corpse opens, so corpses do not unsparkle the instant they drop.
+botLootDelayMinMs = 300
+botLootDelayMaxMs = 800
+-- Also clean up OWNERLESS lit corpses (>10s old, owner stripped by decay), but only when no
+-- real player is on screen. This is what actually keeps a hunting ground clean; own-kill
+-- claims alone still leak every corpse the bot could not reach within the 10s window.
+-- Set false for strictly-own-kills behaviour with zero collateral.
+botLootPublicCleanup = true
+
+-- The six settings below were validated and running in PRODUCTION, but existed only as
+-- uncommitted edits to the server's config.lua and were lost. Every key in this file defaults
+-- to OFF/neutral, so losing a line silently reverts the feature with no error anywhere — the
+-- awake-tick budget in particular had been quietly disabled, removing the only guard against
+-- bot AI saturating the dispatcher under load. They live in git now so this cannot recur.
+-- Verify what the server actually loaded with `/cavebot botcfg`.
+--
+-- Multi-hop city routing over the town pair graph ("all" = every town participates).
+botNavGraphTowns = "all"
+-- Route phase desync — staggers bots through route phases so they do not move in lockstep.
+botRoutePhaseDesync = true
+-- Closed-loop awake-tick budget. Bots a real player can SEE are never throttled; only
+-- unobserved bots defer PATHFIND/SCAN/PLAN, and only once load crosses a tier. Inert at idle.
+botAwakeBudgetEnable = true
+-- Roll chance (0-100) that the NPC-visit candidate is OFFERED when an awake bot in a town
+-- rolls a POI. NPC visits are the only automatic consumer of the scoped route planner, so this
+-- doubles as the planner's master switch: at 0 the NPC block never runs at all (zero CPU, not
+-- just zero odds).
+--
+-- Eligibility only: whether the NPC-visit candidate is OFFERED at all. 0 = the whole
+-- block is skipped (zero CPU, not merely zero odds); any non-zero value = enabled.
+-- The SHARE is botPoiNpc in the BOT ACTIVITY PERCENTAGES block.
+botNpcVisitPct = 100
+-- ---- Supply realism: potions, food, rune crafting, fishing ----
+-- All four are per-bot and independent — there is NO cap on how many bots do them at once
+-- (unlike hunting, where a script is reserved to one bot). Nothing here reserves anything.
+--
+-- Potions + food fire in ANY state while the bot is awake: walking, travelling, hunting,
+-- PvP, dummy training, Adventurer's Stone. Checks ride the 500ms heal cadence, and the
+-- per-bot interval floor is what actually paces them.
+botPotionChancePct = 8
+botPotionMinIntervalMs = 20000
+botFoodChancePct = 6
+botFoodMinIntervalMs = 60000
+-- Rune crafting: only when the bot is genuinely IDLE IN PLACE for more than 10s (the
+-- 60-900s dwell roll, the depot-locker wait — NOT the 3-8s thinking pause, the mid-walk
+-- pause, or the gap between path chunks), or while it is actively FISHING. Never while
+-- hunting (party hunts included). The 10s threshold is hard-coded in bot_supply.cpp.
+-- A bot only ever crafts its ONE signature spell, picked at registration from its
+-- vocation-eligible set — real players conjure their preferred rune repeatedly rather
+-- than cycling all of them.
+botRuneCraftChancePct = 10
+botRuneCraftIntervalMinMs = 8000
+botRuneCraftIntervalMaxMs = 25000
+botRuneCraftRefillMana = true
+-- Support spells: any awake state EXCEPT hunting — travelling, navigating, POI walks,
+-- NPC visits, depot, roaming, idling, fishing, and WHILE WALKING. The pool is built from
+-- the live spell registry: self-target, non-aggressive, no-param, no-target instants in
+-- the support/healing groups, filtered per bot by vocation, level, cooldown and mana.
+-- There is no condition gating — a bot may re-cast a buff it already has. Inspect a
+-- bot's actual pool with `/cavebot <bot> supportlist`.
+botSupportSpellChancePct = 35
+botSupportSpellIntervalMinMs = 15000
+botSupportSpellIntervalMaxMs = 45000
+-- Quests. A quest is a linear one-shot walkthrough: it runs travel_to -> hunt_patrol ->
+-- travel_from ONCE, never loops the patrol, and is bounded by the 1h hunt safety timeout
+-- rather than the ordinary hunt clock. Unlike a hunt spawn it is SHARED — several bots may
+-- run the same quest, gated only by how soon the next one may start it. Note the cooldown
+-- does not prevent overlap: these walkthroughs run 5-15+ minutes, so concurrent runners are
+-- expected and quest actions must tolerate being repeated.
+botQuestScriptCooldownSec = 180
+-- Share of bots eligible to run quests at all (percent, applied at registration). 5 keeps
+-- the historical ~5%; raising it widens the pool that can pick up a quest.
+botQuestBotPct = 5
+-- House visits: an awake bot walks to a bot-owned house in the town it is standing in, opens
+-- the door, and idles at one interior tile, optionally greeting a hireling, standing at a
+-- locker, or training at a dummy. SAME FLOOR ONLY, by design — the idle tile, the locker and
+-- the dummy are all on the floor the bot walks in on, so this never depends on the cross-floor
+-- planner stall that also holds botFishZBand at 0.
+--
+-- Two INDEPENDENT switches, and the order you turn them off matters:
+--   botHouseAccessEnable  grants the access (bots become sub-owners of bot-owned houses).
+--   botHouseVisitPct      decides whether they deliberately go there.
+-- With access on and the roll at 0, bots can still end up inside a house via the depot dwell's
+-- PZ roam, whose tile search has no house filter. That is accepted, not a bug. To switch the
+-- feature OFF, set botHouseVisitPct = 0 and wait out one idle window BEFORE clearing
+-- botHouseAccessEnable, or bots still indoors are locked in until the stuck-threshold rescue
+-- teleports them to the temple.
+botHouseAccessEnable = true
+-- The account whose houses count as bot-owned. All 997 bots share account 65000.
+botHouseAccountId = 65000
+-- Eligibility only (0 = off, non-zero = on). The share is botPoiHouse, which covers ALL
+-- house activity; TABLE C below then decides what the bot does once it is inside.
+botHouseVisitPct = 100
+-- How long the bot stays inside. Long on purpose — a player who goes home stays a while.
+botHouseIdleMinSec = 120
+botHouseIdleMaxSec = 600
+-- Reach cap on the house entry, in tiles. Matches the NPC visit's.
+botHouseMaxDist = 150
+-- Concurrent visitors per house, so a popular house does not turn into a bot convention.
+botHouseMaxOccupants = 2
+-- Seconds allowed to reach the exact interior tile after first setting foot in the house. On
+-- expiry the bot settles where it stands and downgrades to a plain idle; if it never got inside
+-- at all, the visit is abandoned and the POI fails normally.
+botHouseSettleSec = 45
+-- Awake bots only, offered at reroll like any other POI, walked by the scoped route planner
+-- (the shrine sits inside the depot or temple building, behind a door). Purely cosmetic: the
+-- bot never USES either shrine, because both actions are client-only and a bot has no client.
+--
+-- Discovery is a RUNTIME SCAN (findNearbyShrines), memoized per town for the life of the
+-- engine -- there is no index and no cache file, so nothing here can be made stale by a warm
+-- zgraph cache. Verify with `/cavebot shrines`, which force-fills every town and prints what
+-- it found, and drive one bot end to end with `/cavebot <bot> shrine reward|imbuing`.
+--
+-- Eligibility only (0 = off, non-zero = on). ONE roll gates BOTH kinds, so at 25 the reward and
+-- imbuing candidates are offered together in the same 25% of rerolls; the split between them is
+-- botPoiRewardShrine / botPoiImbuingShrine in TABLE B above.
+botShrineVisitPct = 25
+-- How many bots may hold a stand tile at ONE shrine at once. A town has about one shrine of each
+-- kind, so without a cap every eligible bot converges on the same tile-ring and a player walking
+-- into the depot finds a halo around it.
+botShrineMaxOccupants = 2
+botShrineIdleMinSec = 60
+botShrineIdleMaxSec = 240
+-- Deadline for closing the last tiles onto the reserved tile once the bot is within 3 of it. On
+-- expiry the visit ends and the shrine is blacklisted FOR THAT BOT, rather than the bot standing
+-- somewhere it did not mean to be, "facing" a shrine through a wall.
+botShrineSettleSec = 45
+
+-- Fishing: awake, in a town, offered at reroll like any other POI, then walked by the
+-- scoped route planner (cross-floor included). SHIPS DISABLED at 0 — same rollout as
+-- botNpcVisitPct: verify with `/cavebot fishspots <town>` and a manual `/cavebot <bot>
+-- goto <standTile>` first, then raise.
+-- Eligibility only (0 = off, non-zero = on). The share is botPoiWater.
+botFishPct = 100
+botFishMaxDist = 150
+botFishMaxDz = 7
+botFishCastIntervalMinMs = 1000
+botFishCastIntervalMaxMs = 2000
+botFishDurationMinSec = 120
+botFishDurationMaxSec = 1800
+botFishMaxSpotsPerTown = 64
+-- Floors above/below the bot to consider for water. Set to 0 (same-floor only) DELIBERATELY:
+-- selection across floors works and picks correctly, but the walk does not finish — the route
+-- planner keeps choosing a distant portal and ZLEG stalls on it (verified twice, Rathleton z6),
+-- which shows up in game as a bot standing still until the 4-minute walk budget clears it. That
+-- is a planScopedWalk/ZLEG issue shared with NPC visits, tracked separately. Same-floor fishing
+-- is fully verified end to end, so 0 is the setting that actually looks right in game.
+-- Raise back to 1 once the planner stall is fixed — nothing else needs to change.
+botFishZBand = 1
+-- Human-jitter pack: occasional dwell, route reroll and u-turn, as percentages.
+botJitterDwellPct = 4
+botJitterRerollPct = 3
+botJitterUturnPct = 1
+-- Master "try to talk" gate (0-100). Scales overall bot chat rate without
+-- touching per-category percentages. 100 = no-op, 70 = ~30% fewer chat attempts.
+botChatMasterChancePct = 70
+-- Hunt session duration in seconds (was hardcoded 1800-10800 = 30 min to 3 h).
+-- Shorter hunts → bots cycle back to towns faster → more frequent reroll →
+-- more visible activity in cities. 20-40 min target.
+botHuntTimeMinSec = 1200
+botHuntTimeMaxSec = 2400
+-- POI dwell time in seconds after a bot arrives at a depot/temple/boat/shop
+-- (default 180-900 = 3-15 min). Shorter dwell → faster reroll cadence → more
+-- bots cycling through visible POIs. 1-5 min target.
+botDwellPoiMinSec = 60
+botDwellPoiMaxSec = 300
+-- Idle litter drop (drop-only): bots that stop for >=1s while idle/dwelling roll a
+-- chance to drop one cheap NPC-buyable item on the floor (never picked back up).
+-- Chance is scaled per-bot then clamped to 95%, capped at one drop per awake session.
+-- 10 -> 5 (2026-08-06): litter was accumulating faster than it read as "lived in".
+-- The gate is linear (one uniform_random(1,100) <= this per genuine stop, before the
+-- per-bot fidgetiness scale), so halving the number halves the drop rate exactly.
+botFidgetChancePct      = 5     -- base drop chance per genuine stop (pre per-bot scaling)
+botFidgetMaxItemValueGp = 1000  -- max NPC buy price (gp): item drops if 0 < buyPrice < this
+-- ---- Gang-PK alpha-strike ----
+-- A few idle bots standing in a PZ jump an exposed victim just outside it: stage at the PZ
+-- edge, step out together, surround + magic-wall-box the victim, burst it with single-target
+-- nukes only (no AoE = no collateral). EDs paralyze a fleeing victim. Very rare, observer-gated,
+-- bounded by the 5% skull cap. 50/50 per gang: open with a nuke, or engage+trap first then nuke.
+botGangEnable            = true
+botGangRequireObserver   = true   -- only form near a real player / cast-viewer (spectacle gating)
+botGangTargetPlayers     = true   -- include real players as victims (false = bots-only)
+botGangMinSize           = 5      -- attackers required for a raid (incl. initiator); summoned from town
+botGangMaxSize           = 6      -- (unused — raids gather exactly botGangMinSize)
+botGangRecruitRadius     = 5      -- tiles: pull idle bots in the same PZ to join
+botGangVictimBand        = 3      -- tiles outside the PZ edge the victim must be within
+botGangStageWindowMs     = 2500   -- barrier timeout: burst when all staged OR this elapses
+botGangScanCooldownMs    = 4000   -- per-bot min interval between gang-initiation scans
+botGangOddsVsPlayer      = 660    -- 1-in-N per eligible scan vs a real player (~0.15%) — 1/5 chance
+botGangOddsVsBot         = 400    -- 1-in-N per eligible scan vs a bot (~0.25%)
+botGangWallChancePct     = 80     -- chance to magic-wall a claimed open escape tile
+botGangParalyzeChancePct = 75     -- chance an ED paralyzes a moving victim
+botGangVictimCooldownSec = 86400  -- seconds before the SAME victim can be jumped again (default 1 day)
+-- ---- PZ-blocked roaming ----
+-- While genuinely pz-locked (60s after a PvP hit) a bot cannot enter depot/temple/boat PZ. It
+-- stops rolling HUNT/TRAVEL and mills around non-PZ tiles until the lock clears.
+botPzRoamEnable          = true
+botPzRoamIntervalMinSec  = 20     -- min seconds between mill-around moves while pz-locked
+botPzRoamIntervalMaxSec  = 60     -- max seconds between mill-around moves
+botPzRoamStayPct         = 40     -- chance to stay+turn-in-place vs walk to a non-PZ tile
+
+-- ============================================================================
+-- F. BOT WAKE DENSITY CAPS + PLAYER-PROXIMITY WEIGHTING
+-- ============================================================================
+-- Phase B density-capped wake — limits how many hibernated bots can wake within
+-- proximity rings of a real-player anchor (or cast-watched bot anchor). Real
+-- players + cast-watched bots within botDensityAnchorClusterRadius tiles merge
+-- into one anchor cluster (centroid). Per cluster, three concentric ring caps
+-- apply. Party-leader cascade is EXEMPT (cap shapes WHICH party wakes; never
+-- which members). Set botDensityCapEnabled=false to disable gating (telemetry
+-- still fires).
+-- Ring LIMITS are PERCENTAGES of botPlayersOnline, truncated to whole bots
+-- (at 500: 0.6% -> 3, 2.0% -> 10, 3.0% -> 15). NOTE the truncation: the inner
+-- pct floors to 0 below ~167 total bots, which gates ALL wakes near players.
+-- SPECIAL CASE: botDensityCapOuterLimitPct = 0 makes everything beyond
+-- midRadius of EVERY anchor (raw player/cast positions, not cluster centroids)
+-- a hard no-wake zone — liveness concentrates inside midRadius around players;
+-- inner/mid caps apply unchanged. Explicit wakes (cast-viewer login by name,
+-- partyhunt support assembly, /cavebot wake) bypass the band via a single-shot
+-- exemption. (2026-06-12, replaces the reverted crowd-skip approach to the
+-- multi-aggro-center lag fuel.)
+-- Radii stay absolute tile distances. Restart required to change (load-once keys).
+botDensityCapEnabled = true
+botDensityCapInnerRadius = 7
+botDensityCapInnerLimitPct = 0.6
+botDensityCapMidRadius = 50
+botDensityCapMidLimitPct = 2.0
+botDensityCapOuterRadius = 100
+botDensityCapOuterLimitPct = 0
+botDensityAnchorClusterRadius = 50
+-- Max % of botPlayersOnline concurrently in the Adventurer's Stone reward-chest
+-- + training-dummy sub-activities (live + hibernated trips both count; capped
+-- bots demote to waypoint idling on the island). 2.5% of 500 -> floor(12.5) = 12.
+-- Floors to 0 below 40 total bots (no chest/dummy visits at all).
+botAdvStoneChestDummyCapPct = 2.5
+
+-- Player-proximity weighting (2026-06-15) — biases HIBERNATED bots' next task/location
+-- roll toward routes/towns whose waypoints are near real players (or cast-watched bots),
+-- so the virtual simulator funnels ambient traffic toward where players are. All levers
+-- gated to hibernated bots (set botProxWeightAwake=true to also bias awake bots). Restart
+-- to change (load-once keys). Balanced defaults; "strong" preset ~ Near=40, Mid=12, TravelCat=50.
+--   distance tiers (Chebyshev to nearest anchor): <=NearTiles -> +BonusNear ;
+--   <=MidTiles -> +BonusMid ; else +0. botProxBaselineWeight is the floor every candidate
+--   keeps (>=1) so no route/town is ever starved.
+-- botProxTravelCatBonus widens the reroll's TRAVEL catch-all for non-local bots (travel
+-- share ~25%->40% at 25). Set 0 to disable that nudge only (keeps destination/POI/hunt bias).
+-- If non-player towns look depleted (watch the [PROXBIAS] per-town telemetry), lower it first.
+botProxWeightEnabled = true
+botProxWeightAwake = false
+botProxBaselineWeight = 1
+botProxNearTiles = 100
+botProxMidTiles = 350
+-- Rescaled 18 -> 10 alongside the TABLE B pool (185 -> 100). These are ADDITIVE
+-- into the same pool the POI percentages are drawn from, so leaving them at 18
+-- would have nearly doubled their relative pull for every hibernated bot.
+botProxBonusNear = 10
+botProxBonusMid = 3
+botProxSampleCap = 8
+botProxTravelCatBonus = 25
+
+-- Telemetry off: bots no longer write bot_chat_emissions rows (offline measurement
+-- only; never read by runtime logic). Hot-reloadable via /cavebot reload.
+botTelemetryEnabled = false
+
+
+-- ============================================================================
+-- G. BOT MARKET ACCEPTANCE — when bots take a real player offer
+-- ============================================================================
+-- How a sweep works: every botMarketAcceptIntervalMin..MaxSec, the bots look at
+-- EVERY market offer owned by a non-bot player and give each one its OWN
+-- independent roll. There is no shared budget, so if player A has 2 offers and
+-- player B has 3, that sweep makes 5 separate rolls and every order has exactly
+-- the same chance. An offer that wins its roll is then checked against a price
+-- gate, and only then accepted.
+--
+-- "Reference value" below always means: market_max from bot_market_item_prices,
+-- or if that is 0, the item's NPC price (npc_sell, else npc_buy). An item with
+-- none of those is a "no-ref" item and is governed by the botMarketNoref* keys
+-- at the bottom instead.
+--
+-- Diagnosing it: every sweep logs one [MARKET_ACCEPT] line with a per-reason
+-- breakdown (roll_lost, gate_pass, gate_fail_overpriced, gate_fail_underbid,
+-- noref_accept, noref_unit_too_high, noref_unit_too_low, noref_budget_exhausted),
+-- so "why was my offer not accepted" is answerable from the journal alone.
+-- `/cavebot botcfg` dumps every value below as actually loaded.
+--
+-- ALL of these need a `systemctl restart canary` to take effect. `/cavebot
+-- reload` only swaps the .so and will NOT re-read this file.
+-- ============================================================================
+
+-- How often a sweep runs, in seconds (random in this range each time). At 900-2700
+-- a given offer gets roughly 1-4 chances per hour. Lower = offers clear faster.
+botMarketAcceptIntervalMinSec = 900
+botMarketAcceptIntervalMaxSec = 2700
+
+-- Chance (0-100) that any ONE offer is considered on any ONE sweep. This is per
+-- offer, not per player and not per sweep, so raising it speeds up every player's
+-- orders equally. At 35 an offer takes ~3 sweeps on average to be picked up (~1.5h
+-- at the default interval); measured at 20 it was ~5 sweeps / ~2.6h.
+-- 0 disables bot acceptance entirely.
+botMarketAcceptChancePct = 35
+
+-- SELL side: a player is selling, the bot is buying. The bot buys when the asking
+-- price is at or below this percentage of the reference value. Deliberately ABOVE
+-- 100 — bots overpay, which is what makes a fairly-priced listing actually sell.
+-- The threshold is rounded UP to a whole gp, always in the seller's favour: at 120
+-- a reference of 15 gives 18.0, and a reference of 13 gives 15.6 -> 16.
+-- Raise this if players complain their fair prices are ignored.
+botMarketSellCeilingPct = 120
+
+-- BUY side: a player is buying, the bot is selling to them. The bot fills the
+-- order when the player's bid is at or above this percentage of the reference
+-- value. The threshold is TRUNCATED to a whole gp, always in the buyer's favour:
+-- at 85 a reference of 10 gives 8.5 -> 8, so a 9 gp bid is filled. (At the old 95
+-- it computed 9.5, which no integer bid below 10 could satisfy — two 300+ unit
+-- orders bid at 9 were refused 24 times over 23 hours for being half a gold short.)
+-- Lower this if players' bids are being ignored as too cheap.
+botMarketBuyFloorPct = 85
+
+-- Milliseconds between the individual acceptances a sweep decided on. A sweep
+-- never settles them all in one tick: each acceptance does synchronous database
+-- work on the main thread (loading both traders, writing two history rows,
+-- deleting the offer, sometimes a full player save), and doing many at once is a
+-- known cause of server stutter. Only raise this if a sweep ever causes lag.
+botMarketAcceptDrainMs = 400
+
+-- ── No-reference items ──────────────────────────────────────────────────────
+-- These three ONLY apply to items with no market_max AND no NPC price, so the
+-- server has no idea what they are worth. Live count: 53 items, and they are
+-- almost entirely free-to-farm debris — wooden trash, stone rubbish, rotten meat,
+-- broken bottle, box, chest.
+--
+-- That debris is exactly why the guards exist rather than just accepting whatever
+-- was typed. An unlimited supply of worthless items combined with an unchecked
+-- price is a gold printer: a player can list trash at up to 999,999,999,999
+-- gp/unit (the engine's own cap), and the bot's bank balance is NOT a backstop
+-- because a hibernated bot's spending is never saved, so it re-reads full funds on
+-- every single purchase and never runs dry.
+
+-- Most gold a bot will pay PER UNIT for a no-ref item. Debris is realistically
+-- worth 0-5 gp, so 10 accepts it at a fair price while keeping the worst case
+-- small (debris is non-stackable, capped at 2000 per offer, so 10 x 2000 = 20k).
+-- Set this to 999999999999 to get literal "accept whatever the player listed".
+botMarketNorefMaxUnitPrice = 10
+
+-- Least gold a player must bid PER UNIT before a bot will sell them a no-ref
+-- item. This side needs a floor rather than a ceiling because the bot CONJURES
+-- the goods out of nothing — without it, someone could bid 1 gp and have the bot
+-- materialise items for them. Must stay at or below the cheapest legitimate bid
+-- you want filled.
+botMarketNorefMinUnitPrice = 20
+
+-- Total gold that may leave bots through no-ref PURCHASES in a single sweep. The
+-- per-unit cap above bounds one order; this bounds the other direction, since one
+-- player may hold up to maxMarketOffersAtATimePerPlayer offers and every one of
+-- them gets its own roll. Offers that DO have a reference value are never charged
+-- against this budget and keep being accepted after it is exhausted.
+botMarketNorefFireGoldBudget = 1000000
+
+-- ============================================================================
+-- H. BOT LIVENESS PACK — dwell, identity, idle micro-actions, walk pause, chat
+-- ============================================================================
+-- These keys had drifted out of config.lua and survived only in config.lua.dist,
+-- which the server never reads — so every one of them was running on its built-in
+-- C++ default. They are written back here AT THAT SAME DEFAULT, so restoring them
+-- changed no behaviour; they are now visible and editable instead of invisible.
+-- See data/scripts/lib/BOT_SYSTEM_DOCS.md for the full design.
+
+-- ---- Population visibility ----
+-- Include bot players (hibernated and awake) in the website's online list / player
+-- count. false = only real players + awake bots (pre-hibernation behaviour).
+botPlayersShowAsOnline = true
+
+-- ---- Dwell / cooldown durations (seconds) ----
+-- How long a bot lingers before rerolling. botDwellPoiMinSec/MaxSec live in
+-- section E, retuned down from 180/900 to 60/300.
+botDwellRerollMinSec  = 60
+botDwellRerollMaxSec  = 300
+botDwellNpcMinSec     = 15
+botDwellNpcMaxSec     = 60
+botDwellPostTravelSec = 60
+
+-- ---- Adventurer's Stone dwell ranges (seconds) ----
+-- Chest dwell is deliberately longer than plain island idling; dummy training is
+-- the longest of the three. The concurrency cap for chest+dummy is
+-- botAdvStoneChestDummyCapPct in section F.
+botAdvStoneDwellIdleMinSec  = 60
+botAdvStoneDwellIdleMaxSec  = 300
+botAdvStoneDwellChestMinSec = 300
+botAdvStoneDwellChestMaxSec = 1200
+botAdvStoneDwellDummyMinSec = 180
+botAdvStoneDwellDummyMaxSec = 1800
+
+-- ---- Visual identity ----
+botMountChancePct             = 60    -- chance a bot is mounted at activation
+botPersonalityRerollOnRestart = true  -- reshuffle mount + outfit + colours every restart
+
+-- ---- POI crowd cap ----
+-- Skip a POI if >= Count bots are already within Radius tiles. Exempts the
+-- Adventurer's Stone island, which is meant to look busy.
+botPoiCrowdCapCount  = 3
+botPoiCrowdCapRadius = 2
+
+-- ---- Idle micro-actions ----
+-- Turn-in-place while idle. config.lua.dist carried 10 with a note that 20 "was too
+-- frequent" — but 10 never reached the server, so what has actually been running,
+-- and what is written here, is 20. Drop it to 10 if the observation still holds.
+botTurnInPlaceChancePct     = 20
+botTurnInPlaceIntervalTicks = 25
+-- Legacy timer-based fidget interval; unused by the current drop-on-stop litter
+-- code (botFidgetChancePct / botFidgetMaxItemValueGp, section E). Kept for compat.
+botFidgetIntervalMinSec = 60
+botFidgetIntervalMaxSec = 300
+
+-- ---- Mid-walk pause ----
+-- Fires ONLY in IDLE/DWELLING/TRAVELING — never hunting, patrolling, party, PvP,
+-- PK, fleeing or mid-floor-change. The per-route cap is what stops these from
+-- clustering, which is what sank the old LOITER_CHANCE feature (commit ead32465d).
+-- Unobserved tier — nobody is watching: short, modest, no personality gate.
+botWalkPauseChancePct   = 2
+botWalkPauseMinMs       = 400
+botWalkPauseMaxMs       = 5000
+botWalkPauseMaxPerRoute = 3
+-- Observed tier — a real player or cast-watched bot is on screen: longer and more
+-- frequent, so bots read as human while someone is actually looking. Gated by each
+-- bot's walkBias personality trait: the bottom ~25% of bots never pause this way and
+-- the rest scale up with the trait, so some bots reliably pause near players and
+-- others ignore it. Hot-reloadable via `/cavebot reload`.
+botWalkPauseObservedChancePct   = 12
+botWalkPauseObservedMinMs       = 500
+botWalkPauseObservedMaxMs       = 20000
+botWalkPauseObservedMaxPerRoute = 8
+
+-- ---- Chat cadence ----
+-- The corpus and its own tunables live in data/bot_chat/phrases.json (_meta.config),
+-- which IS hot-reloadable; only the intervals below come from this file.
+-- Local chat: per-bot cooldown between ambient say lines.
+botChatCooldownMinMs = 30000
+botChatCooldownMaxMs = 300000
+-- World Chat: per-bot 20-40 min => roughly 1 post/min server-wide at 30 awake bots.
+botWorldChatIntervalMinMs = 1200000
+botWorldChatIntervalMaxMs = 2400000
+-- Advertising channel: the server-side script enforces a 2-min mute regardless.
+botAdvertisingIntervalMinMs = 300000
+botAdvertisingIntervalMaxMs = 600000
+-- Per-bot anti-repeat ring (cross-bot dedup is separate, in phrases.json).
+botChatAntiRepeatRingSize = 8
+-- Hibernated (off-world) bots may still post to World Chat and Advertising. They
+-- never post local say lines, having no body in the world. false silences them.
+botHibernatedChatEnabled = true
+-- Log every chat emission to journalctl.
+botChatVerboseLog = false
+
+-- ---- Navigation realism: the knobs whose master switches are in section E ----
+-- botLaneEnable, botNavJitterMask, botNavGraphTowns, botAwakeBudgetEnable,
+-- botRoutePhaseDesync and the botJitter*Pct chances are all set in section E; these
+-- are the secondary parameters those features read once they are on.
+-- Waypoints to hold centre after a stairs/door/fail lane-recovery trigger.
+botLaneRecoveryWps = 4
+-- Awake-tick budget: PATHFIND requests served per tick at the >30ms and >60ms load
+-- tiers, plus how the deferred bots are rotated so none starves.
+botAwakePathfindPerTickMid  = 8
+botAwakePathfindPerTickHigh = 3
+botAwakeRotatePct           = 50
+botAwakeRotateWindowSec     = 30
+-- Chance (%) to re-sample among equal-cost routes when passing a junction.
+botJunctionSwitchPct = 20
+-- How long a botJitterDwellPct pause lasts, in ms. config.lua.dist carried
+-- 3000-60000 and called it the production setting, but it never reached the server:
+-- the values actually running, written here, are the 1000-8000 built-in defaults.
+-- Raise to 3000/60000 if you want the longer "stopped to type" reading — and keep
+-- botJitterDwellPct in single digits if you do, or the pauses stop looking incidental.
+botJitterDwellMinMs = 1000
+botJitterDwellMaxMs = 8000
+-- Per-arrival chance (%) of a narrowed route window. 0 = off.
+botJitterWindowPct = 0
+
+-- ---- Lure mode + keep-distance kite-backtrack (BOT_LURE_KITE) ----
+-- LURE: a hunting bot walks its patrol HOLDING FIRE while monsters aggro and trail
+-- it, then engages the whole pack at once. Armed by the hunt script's `min_monsters`
+-- column (data/bot/authored/hunt_scripts.csv) plus a level gate, OR unconditionally
+-- for a party hunt. Ships ON; with a script at min_monsters=0 the only
+-- thing that arms it is a party hunt.
+botLureEnable = true
+-- Arm only when the bot's level >= script min_level * this / 100.
+botLureLevelFactorPct = 130
+-- A party hunt lures regardless of level and regardless of min_monsters.
+botLurePartyAlways = true
+-- Pack size a party hunt uses when its script leaves min_monsters at 0.
+botLurePartyDefaultMin = 3
+-- Census radius, clamped to 10 (the spectator cache cannot see farther).
+botLureRadius = 7
+-- Hard ceiling on pack size, whatever the data asks for.
+botLureMaxPack = 12
+-- Stand still to let the tail of the pack catch up (never while anything is close).
+botLurePaceDist = 6
+botLurePaceMaxMs = 4000
+-- Absolute lure duration before engaging with whatever has gathered.
+botLureMaxMs = 60000
+-- Engage below this HP%. Keep-distance retreat is structurally off while luring,
+-- so this is the main survival valve — do not raise the lure timeouts without it.
+botLureHpFloorPct = 70
+-- No net movement for this long while luring = body-blocked corridor; engage.
+botLureBlockedMs = 3000
+-- Sustained melee contact (self or a party support) before engaging.
+botLureContactMs = 1500
+-- Pack shrinking below its peak for this long = shedding aggro; engage.
+botLureDecayMs = 6000
+-- KITE: a cornered keep-distance bot retraces the patrol waypoints it already
+-- walked instead of standing still and tanking. Ships ON.
+botKiteBacktrackEnable = true
+-- Ping-pong window: how many already-walked waypoints back, and how far in tiles.
+botKiteDepthWps = 6
+botKiteMaxSpanTiles = 30
+-- Reversals / total time before giving up and standing to fight.
+botKiteMaxLegs = 6
+botKiteMaxMs = 45000
+-- Re-entry cooldown after a GIVE-UP exit only. While kiting, both target-abandon
+-- checks are suppressed; this is what stops a give-up from re-arming immediately
+-- and starving them forever.
+botKiteCooldownMs = 12000
+
+
+-- ############################################################################
+-- #                     CAST & BOT CUSTOMIZATION  —  END                     #
+-- ############################################################################

@@ -1,0 +1,618 @@
+script_id,monster_name
+1,Elder Bonelord
+1,Bonelord
+1,Gazer
+2,Braindeath
+2,Elder Bonelord
+2,Bonelord
+4,Poison Spider
+4,Bat
+4,Amazon
+4,Valkyrie
+4,Bear
+4,Witch
+4,Mummy
+4,Ghoul
+4,Lion
+4,Xenia
+5,Werebadger
+5,Werefox
+5,Wereboar
+5,Werebear
+5,Werewolf
+6,Lizard Templar
+6,Lizard Snakecharmer
+6,Lizard Sentinel
+6,Novice Of The Cult
+6,Acolyte Of The Cult
+6,Adept Of The Cult
+6,Enlightened Of The Cult
+7,Carrion Worm
+7,Hunter
+7,Tarantula
+7,Rotworm
+7,Wild Warrior
+7,Smuggler
+7,Bandit
+7,Witch
+7,Dark Apprentice
+7,Dark Monk
+7,Monk
+7,Assassin
+7,Mummy
+7,Boar
+7,Wasp
+8,Mountain Troll
+8,Troll Marauder
+8,Trolltrained Salamander
+8,Woodling
+8,Meadow Strider
+8,Bear
+8,Dawnfly
+9,Infernalist
+9,Massive Fire Elemental
+9,Demon
+10,Wyrm
+10,Elder Wyrm
+10,Tyrn
+11,Orc Cult Fanatic
+11,Orc Cult Inquisitor
+11,Orc Cultist
+11,Orc Cult Minion
+11,Orclops Doomhauler
+11,Orc Cult Priest
+12,Werebadger
+12,Werefox
+12,Wereboar
+12,Werebear
+12,Werewolf
+13,Minotaur
+13,Minotaur Archer
+13,Minotaur Guard
+13,Elf
+13,Hunter
+13,Elf Scout
+13,Orc
+13,Orc Warrior
+13,Orc Spearman
+13,Orc Berserker
+13,Wasp
+13,Troll
+13,Dwarf
+13,Poacher
+14,Elf
+14,Elf Scout
+14,Elf Arcanist
+14,Firestarter
+14,Bog Frog
+14,Thornfire
+14,Toad
+14,Dragon
+15,Faun
+15,Dark Faun
+15,Twisted Pooka
+15,Boogy
+16,Faun
+16,Dark Faun
+16,Weakened Frazzlemaw
+16,Enfeebled Silencer
+17,Faun
+17,Dark Faun
+17,Weakened Frazzlemaw
+17,Enfeebled Silencer
+17,Nymph
+18,Faun
+18,Dark Faun
+18,Weakened Frazzlemaw
+18,Enfeebled Silencer
+18,Nymph
+19,Leaf Golem
+19,Wilting Leaf Golem
+19,Forest Fury
+19,Poacher
+19,Dryad
+19,Goblin
+20,Tarantula
+20,Giant Spider
+21,Glooth Bandit
+21,Glooth Brigand
+21,Metal Gargoyle
+21,Rustheap Golem
+21,Glooth Anemone
+21,Walker
+21,Glooth Golem
+21,Rot Elemental
+21,Glooth Blob
+21,Devourer
+21,Warlock
+22,Glooth Bandit
+22,Glooth Brigand
+22,Metal Gargoyle
+22,Rustheap Golem
+22,Glooth Anemone
+22,Walker
+22,Glooth Golem
+22,Rot Elemental
+22,Glooth Blob
+22,Devourer
+22,Warlock
+23,Glooth Bandit
+23,Glooth Brigand
+23,Metal Gargoyle
+23,Rustheap Golem
+23,Glooth Anemone
+23,Walker
+23,Glooth Golem
+23,Rot Elemental
+23,Glooth Blob
+23,Devourer
+23,Hydra
+23,Bog Raider
+24,Goblin
+24,Wolf
+25,Bonebeast
+25,Necromancer
+25,Vicious Squire
+25,Hero
+25,Blood Priest
+25,Lich
+25,Renegade Knight
+25,Vile Grandmaster
+26,Bonebeast
+26,Necromancer
+26,Vicious Squire
+26,Hero
+26,Blood Priest
+26,Lich
+26,Renegade Knight
+26,Vile Grandmaster
+27,Bonebeast
+27,Necromancer
+27,Vicious Squire
+27,Hero
+27,Blood Priest
+27,Lich
+27,Renegade Knight
+27,Vile Grandmaster
+28,Badger
+28,Penguin
+29,Ice Golem
+29,Ice Witch
+29,Crystal Spider
+30,Dragon
+31,Killer Caiman
+32,Nightmare
+32,Nightmare Scion
+32,Undead Gladiator
+33,Nightmare
+33,Nightmare Scion
+33,Undead Gladiator
+34,Wailing Widow
+34,Giant Spider
+34,Brimstone Bug
+35,Thornback Tortoise
+35,Blood Crab
+35,Tortoise
+35,Toad
+36,Tarantula
+36,Witch
+36,Novice Of The Cult
+36,Bonelord
+36,Elder Bonelord
+36,Monk
+36,Dark Monk
+36,Acolyte Of The Cult
+36,Adept Of The Cult
+36,Vampire
+36,Ghoul
+37,Dark Apprentice
+37,Dark Magician
+37,Mad Scientist
+40,Thornback Tortoise
+40,Tarantula
+40,Gargoyle
+40,Stone Golem
+40,Blood Crab
+41,Minotaur Cult Follower
+41,Minotaur Cult Zealot
+41,Minotaur Cult Prophet
+42,Minotaur
+42,Minotaur Mage
+42,Minotaur Archer
+42,Minotaur Guard
+43,Scarab
+43,Bonebeast
+43,Necromancer
+43,Ancient Scarab
+44,Cyclops
+44,Cyclops Drone
+44,Cyclops Smith
+44,Bat
+44,Ghoul
+44,Skeleton
+45,Mutated Human
+45,Mutated Rat
+45,Mercury Blob
+45,Slime
+46,Mutated Bat
+46,Mutated Tiger
+47,Grim Reaper
+47,Demon
+47,Metal Gargoyle
+48,Hydra
+48,Bog Raider
+48,Glooth Anemone
+48,Rot Elemental
+48,Glooth Blob
+48,Devourer
+49,Metal Gargoyle
+49,Rustheap Golem
+49,Glooth Anemone
+49,Blood Beast
+49,Walker
+49,Glooth Golem
+49,Rot Elemental
+49,Glooth Blob
+49,Devourer
+50,Metal Gargoyle
+50,Rustheap Golem
+50,Glooth Anemone
+50,Blood Beast
+50,Walker
+50,Glooth Golem
+50,Rot Elemental
+50,Glooth Blob
+50,Devourer
+52,Rot Elemental
+52,Devourer
+52,Blood Beast
+52,Glooth Blob
+52,Glooth Anemone
+52,Quara Constrictor Scout
+52,Quara Hydromancer Scout
+52,Quara Pincher Scout
+52,Quara Predator Scout
+53,Orc Leader
+53,Orc Berserker
+53,Orc Warrior
+53,Orc Shaman
+53,Orc Spearman
+53,Orc Warlord
+53,Orc Rider
+53,Orc
+53,Rorc
+53,Bear
+53,Wolf
+53,Hunter
+53,Cyclops
+53,Bonelord
+53,Dragon
+53,Amazon
+53,War Wolf
+53,Bat
+53,Slime
+53,Wyvern
+53,Snake
+54,Cobra
+54,Scarab
+54,Ghost
+54,Vampire
+54,Mummy
+54,Lich
+54,Necromancer
+54,Priestess
+54,Bonelord
+54,Demon Skeleton
+54,Crypt Shambler
+54,Ancient Scarab
+54,Bonebeast
+54,Green Djinn
+54,Stalker
+54,Vampire Bride
+55,Pirate Buccaneer
+55,Pirate Corsair
+55,Pirate Cutthroat
+55,Pirate Marauder
+56,Putrid Mummy
+56,Giant Spider
+57,Putrid Mummy
+57,Giant Spider
+57,Bonebeast
+58,Quara Hydromancer
+58,Quara Mantassin
+58,Quara Pincher
+58,Quara Constrictor
+58,Quara Predator
+60,Rotworm
+60,Carrion Worm
+61,Marsh Stalker
+61,Emerald Damselfly
+61,Swampling
+61,Salamander
+62,Sea Serpent
+62,Young Sea Serpent
+62,Deepsea Blood Crab
+64,Stonerefiner
+65,Swamp Troll
+65,Marsh Stalker
+65,Swampling
+65,Rotworm
+65,Bat
+66,Tarantula
+66,Poison Spider
+66,Spider
+67,Cyclops
+67,Cyclops Drone
+67,Cyclops Smith
+68,Squidgy Slime
+68,Bug
+69,Rotworm
+70,Necromancer
+70,Bonebeast
+70,Demon Skeleton
+70,Vampire
+70,Vampire Viscount
+70,Vampire Bride
+71,Necromancer
+71,Bonebeast
+71,Ghoul
+71,Demon Skeleton
+71,Mummy
+71,Vampire
+71,Vampire Viscount
+71,Vampire Bride
+73,Necromancer
+73,Vampire
+73,Bonebeast
+73,Demon Skeleton
+73,Mummy
+74,Poison Spider
+74,Bat
+74,Amazon
+74,Valkyrie
+74,Bear
+74,Witch
+74,Mummy
+74,Ghoul
+74,Lion
+74,Xenia
+75,Wasp
+75,Wolf
+75,Deer
+75,Starving Wolf
+75,Poacher
+76,Wasp
+77,Wasp
+77,Wolf
+77,Starving Wolf
+77,Poacher
+78,Wyrm
+78,Elder Wyrm
+79,Novice Of The Cult
+79,Acolyte Of The Cult
+79,Adept Of The Cult
+79,Enlightened Of The Cult
+80,Elf Arcanist
+80,Dragon
+81,Elf Arcanist
+81,Elf
+81,Elf Scout
+82,Necromancer
+82,Priestess
+82,Dark Apprentice
+82,Dark Magician
+247,Terramite
+249,Bug
+249,Witch
+249,"Haunted Treeling, Wilting Leaf Golem, Leaf Golem, Swampling"
+249,Swampling
+249,"Witch, Haunted Treeling, Wilting Leaf Golem, Leaf Golem, Swampli"
+249,Swampling
+249,Bug
+256,Demodras
+256,Dragon Lord
+256,Dragon
+256,Dragon Lord Hatchling
+256,Dragon Hatchling
+256,Dragon Lord
+256,Dragon
+265,"Rotworm, Carrion Worm"
+273,"Rotworm, Carrion Worm"
+277,"Rotworm, Carrion Worm"
+281,"Rotworm, Carrion Worm"
+294,"Askarak Demon, Shaburak Demon, Askarak Prince, Shaburak Prince, "
+294,"Askarak Demon, Shaburak Demon, Askarak Prince, Shaburak Prince, "
+294,"Hero, Dragon, Priestess, Hunter"
+301,Dragon Lord
+301,Dragon
+301,Dragon Lord Hatchling
+301,Dragon Hatchling
+301,Dragon Lord
+301,Dragon
+305,Earth Elemental
+307,Vicious Squire
+307,Vicious Squire
+307,Necromancer
+307,Bonebeast
+307,Bonebeast
+307,Bonebeast
+307,Necromancer
+311,"Vampire Viscount, Vampire Bride"
+311,Vampire
+311,Vampire Viscount
+311,Vampire Bride
+311,Necromancer
+311,Necromancer
+311,Bonebeast
+311,Vampire
+311,"Demon Skeleton, Mummy, Ghoul, Skeleton Warrior"
+311,Snake
+315,Earth Overlord
+315,Jagged Earth Elemental
+315,Muddy Earth Elemental
+315,Jagged Earth Elemental
+315,Muddy Earth Elemental
+315,Jagged Earth Elemental
+315,Muddy Earth Elemental
+316,Energy Overlord
+316,"Overcharged Energy Element, Charged Energy Elemental"
+319,Dragon Lord
+319,Dragon Lord
+319,Dragon Lord Hatchling
+319,"Dragon, Dragon Hatchling"
+319,"Elder Bonelord, Bonelord"
+323,"Tortoise, Crocodile"
+341,Braindeath
+341,Elder Bonelord
+341,Bonelord
+341,Braindeath
+341,Elder Bonelord
+341,Bonelord
+341,Gazer
+341,Vampire
+341,Crypt Shambler
+345,Ancient Scarab
+345,Roaring Lion
+345,Noble Lion
+349,"Mammoth, Elephant, Frost Giant"
+349,"Mammoth, Elephant, Frost Giant, Frost Giantess, Witch"
+349,"Mammoth, Elephant, Frost Giant, Frost Giantess, Witch"
+353,Omnivora
+353,"Medusa, Serpent Spawn"
+353,Behemoth
+353,"Medusa, Serpent Spawn"
+353,Omnivora
+353,Behemoth
+353,"Medusa, Serpent Spawn"
+353,Omnivora
+353,Behemoth
+353,"Clay Guardian, Stone Golem, Gargoyle"
+354,Gargoyle
+354,"Tarantula, Gargoyle, Stone Golem, Blood Crab, Thornback Tortoise"
+354,"Tarantula, Gargoyle, Stone Golem, Blood Crab, Thornback Tortoise"
+358,Ancient Scarab
+358,Necromancer
+358,Bonebeast
+358,Scarab
+358,Scarab
+358,"Mummy, Ghoul"
+358,Larva
+374,"Mutated Human, Mad Scientist, Carniphila"
+374,"Mutated Human, Mad Scientist, Carniphila"
+374,"Mutated Human, Mad Scientist, Carniphila"
+374,"Mutated Human, Mad Scientist, Carniphila"
+374,Haunted Treeling
+374,Swampling
+374,All Creatures
+378,Giant Spider
+378,Tarantula
+378,Poison Spider
+384,Bonelord
+384,Skeleton
+384,Crab
+384,Swamp Troll
+384,"Swamp Troll, Poison Spider, Spider, Bug, Cave Rat"
+388,Water Elemental
+388,Water Elemental
+388,Water Elemental
+388,Quara Mantassin Scout
+388,Quara Mantassin Scout
+388,Quara Mantassin Scout
+390,"Quara Predator Scout, Quara Pincher Scout, Quara Hydromancer Sco"
+390,"Quara Predator Scout, Quara Pincher Scout, Quara Hydromancer Sco"
+390,Crab
+394,Rotworm Queen
+394,Carrion Worm
+394,"Rotworm, Dwarf Guard"
+398,Terramite
+399,Wasp
+399,Bear
+399,Wolf
+400,Mummy
+400,Ghoul
+400,Witch
+400,Valkyrie
+400,"Amazon, Lion"
+401,Corym Skirmisher
+401,Corym Vanguard
+401,"Corym Skirmisher, Corym Charlatan, Corym Vanguard, Little Corym "
+402,Elf Arcanist
+402,Mornenion
+402,"Dragon, Elf Scout, Elf, Firestarter, Thornfire Wolf, Bog Frog, T"
+403,Corym Skirmisher
+403,Corym Vanguard
+403,"Corym Skirmisher, Corym Charlatan, Corym Vanguard, Little Corym "
+404,Corym Skirmisher
+404,Corym Vanguard
+404,"Corym Skirmisher, Corym Charlatan, Corym Vanguard, Little Corym "
+405,"Swampling, Marsh Stalker, Salamander, Emerald Damselfly"
+1434,Dragon
+1434,Dragon Hatchling
+1434,Dragon
+1441,"Mummy, Minotaur Mage, Minotaur Archer, Minotaur Guard, Minotaur"
+1459,Wyrm
+1459,Wyrm
+1459,Wyrm
+1459,Wyrm
+1459,Wyrm
+1459,Wyrm
+1459,Grim Reaper
+1459,Necromancer
+1464,Bog Raider
+1500,Behemoth
+1500,Behemoth
+1500,Behemoth
+1500,"Hydra, Giant Spider, Elephant, Terrified Elephant, Carniphila"
+1502,Crystal Spider
+1502,Ice Golem
+1511,Ancient Scarab
+1511,Scarab
+1511,Scarab
+1511,Larva
+1535,Slime
+1535,Carniphila
+1535,Terror Bird
+1535,Filth Toad
+1535,Crocodile
+1535,Rat
+1535,Centipede
+1535,Swamp Troll
+1535,Cobra
+1535,Bug
+1535,Snake
+1535,Skunk
+1535,Cave Rat
+1535,Wasp
+1535,Spider
+1535,Poison Spider
+1540,Scarab
+1540,"Scarab, Ghoul"
+1540,"Scarab, Ghoul, Scorpion, Larva, Poison Spider, Spider, Skeleton,"
+1544,Scarab
+1544,Crypt Shambler
+1544,"Mummy, Slime, Stone Golem, Scarab, Ghoul"
+1544,"Crypt Shambler, Mummy, Slime, Stone Golem, Scarab, Ghoul, Scorpi"
+1554,Massive Water Elemental
+1554,Water Elemental
+1554,Water Elemental
+1554,Water Elemental
+1554,"Quara Predator Scout, Quara Pincher Scout, Quara Constrictor Sco"
+1554,"Quara Predator Scout, Quara Pincher Scout, Quara Constrictor Sco"
+1554,"Quara Predator Scout, Quara Pincher Scout, Quara Constrictor Sco"
+1578,Grim Reaper
+1578,Grim Reaper
+1578,Grim Reaper
+1578,Grim Reaper
+1578,Grim Reaper
+1578,Nightmare
+1578,Nightmare Scion
+1616,Cobra
+1616,Scarab
+1616,Ghost
+1616,Vampire
+1616,Mummy
+1616,Crypt Shambler
+2068,Lizard Chosen
+2068,Ghastly Dragon
+2069,Lizard Chosen
+2069,Ghastly Dragon

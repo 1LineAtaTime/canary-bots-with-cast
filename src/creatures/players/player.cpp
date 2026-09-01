@@ -2255,6 +2255,27 @@ void Player::sendPing() {
 		setAttackedCreature(nullptr);
 	}
 
+	// Force-kick the moment the connection is gone, bypassing the anti-combat-log rules
+	// (CONDITION_INFIGHT / pzLocked / NOLOGOUT tile) that canLogout() enforces below.
+	// Triggered on isDisconnected() (getIP() == 0, set by Connection::close under lock)
+	// rather than on the noPong timer: on a silent link death nothing zeroes ip until
+	// CONNECTION_READ_TIMEOUT (30s), so a shortened pong threshold would evaluate first,
+	// fail canLogout() while in fight, and latch shouldForceLogout=false forever.
+	//   - !isConnecting keeps the REPLACE_KICK_ON_LOGIN 1s reconnect window intact; the
+	//     old player is already ip==0 there and would otherwise lose the race.
+	//   - getTile() guards removeCreature's postRemoveNotification against a null parent.
+	//   - removePlayer(true, true) is exactly what /kick does (kick.lua -> Creature:remove()
+	//     -> luaCreatureRemove forced=true -> removePlayer(true)): fires playerLogout for
+	//     its side effects, ignores the veto, removes unconditionally. Fires once —
+	//     removal deregisters this player from checkCreatures, so sendPing never runs again.
+	// Bots never reach this: Player::onThink returns early on botPlayer before sendPing.
+	if (g_configManager().getBoolean(FORCE_LOGOUT_ON_CONNECTION_LOSS)
+	    && !isConnecting && isDisconnected() && getTile() != nullptr) {
+		g_logger().info("Player {} has been kicked due to connection loss. (has client: {})", getName(), client != nullptr);
+		removePlayer(true, true);
+		return;
+	}
+
 	if (noPongTime >= 60000 && shouldForceLogout) {
 		if (canLogout() && g_creatureEvents().playerLogout(static_self_cast<Player>())) {
 			g_logger().info("Player {} has been kicked due to ping timeout. (has client: {})", getName(), client != nullptr);
@@ -8101,6 +8122,11 @@ void Player::sendNetworkMessage(NetworkMessage &message) const {
 
 void Player::receivePing() {
 	lastPong = OTSYS_TIME();
+	// Re-arm the ping-timeout kick. shouldForceLogout is a one-way latch in stock code:
+	// once a canLogout() refusal clears it (e.g. the player was in fight at the 60s mark)
+	// nothing ever sets it back, so that player is immune to the timeout kick for the rest
+	// of the session. A pong proves the client is alive again, so the latch can reset.
+	shouldForceLogout = true;
 }
 
 void Player::sendOpenStash(bool isNpc) const {
@@ -12620,7 +12646,10 @@ void Player::disconnectAllCastViewers() {
 	castViewers.clear();
 }
 
-uint32_t Player::getCastViewerCount() const {
+// Genuine human viewers only -- live weak_ptrs in castViewers. Callers that mean "an actual
+// person is watching this character" (verboseLog auto-toggle, roam cast narration, the cast
+// capacity check and the join/leave log lines) must use THIS, not getCastViewerCount().
+uint32_t Player::getRealCastViewerCount() const {
 	uint32_t count = 0;
 	for (const auto &wp : castViewers) {
 		if (wp.lock()) {
@@ -12628,6 +12657,13 @@ uint32_t Player::getCastViewerCount() const {
 		}
 	}
 	return count;
+}
+
+// Observer semantics: real viewers plus perf-harness synthetic ones. Every "is this bot
+// observed?" gate in the bot engine and in bot_hibernation.lua funnels through here, which is
+// exactly why the synthetic count is folded in at this level -- one accessor, no gate missed.
+uint32_t Player::getCastViewerCount() const {
+	return getRealCastViewerCount() + syntheticCastViewers;
 }
 
 void Player::castDiagnosticCheck() {

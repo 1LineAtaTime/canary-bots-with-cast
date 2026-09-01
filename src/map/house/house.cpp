@@ -194,6 +194,25 @@ AccessHouseLevel_t House::getHouseAccessLevel(const std::shared_ptr<Player> &pla
 		return HOUSE_OWNER;
 	}
 
+	// BOT_HOUSE_VISIT: bot players share every bot-owned house, so a bot can walk into one, open
+	// its door and use its furniture. SUBOWNER rather than GUEST because three separate gates need
+	// it: tile entry wants any level, Door::canUse wants >= SUBOWNER, and Game's house-item rules
+	// refuse a GUEST the use of a dummy. The cost to a real player is one bool test — isBotPlayer()
+	// is false for them and botAccess short-circuits ahead of it.
+	//
+	// Evaluated live from ownerAccountId, which setOwner() and clearHouseInfo() keep in lockstep
+	// with `owner`; a cached flag would go stale on the clearHouseInfo path that iomapserialize
+	// reaches without ever calling setOwner(). Config is read once per process, not per call.
+	//
+	// NB houseOwnedByAccount above would already hand every bot HOUSE_OWNER on every bot-owned
+	// house (all bots share one account), ahead of this check and bypassing botHouseAccessEnable
+	// entirely. It ships false and the engine logs a warning at startup if it is ever turned on.
+	static const bool botAccess = g_configManager().getBoolean(BOT_HOUSE_ACCESS_ENABLE);
+	static const auto botAcct = static_cast<uint32_t>(g_configManager().getNumber(BOT_HOUSE_ACCOUNT_ID));
+	if (botAccess && owner != 0 && ownerAccountId == botAcct && player->isBotPlayer()) {
+		return HOUSE_SUBOWNER;
+	}
+
 	if (player->getGUID() == owner) {
 		return HOUSE_OWNER;
 	}

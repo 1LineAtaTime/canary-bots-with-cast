@@ -697,7 +697,10 @@ function Player:conjureItem(reagentId, conjureId, conjureCount, effect)
 		end
 	end
 
-	if reagentId ~= 0 and not self:removeItem(reagentId, 1, -1) then
+	-- Bot players conjure from an infinite blank rune, mirroring the rune-charge bypass in
+	-- spells.cpp. The conjured item below is still created for real -- only the reagent is
+	-- not consumed, so a bot never has to go buy blanks.
+	if reagentId ~= 0 and not self:isBotPlayer() and not self:removeItem(reagentId, 1, -1) then
 		self:sendCancelMessage(RETURNVALUE_YOUNEEDAMAGICITEMTOCASTSPELL)
 		self:getPosition():sendMagicEffect(CONST_ME_POFF)
 		return false

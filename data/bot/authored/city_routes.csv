@@ -1,0 +1,1832 @@
+town_id,source_name,enabled
+10,ankrahmun|boat~boat:,1
+10,ankrahmun|depot~boat:,1
+10,ankrahmun|bank~tools:,1
+10,ankrahmun|tools~depot:,1
+10,ankrahmun|potions~boat:,1
+10,ankrahmun|runes~boat:,1
+10,ankrahmun|bank~boat:,1
+10,ankrahmun|loot~boat:,1
+10,ankrahmun|food~boat:,1
+10,ankrahmun|ammo~boat:,1
+10,ankrahmun|trainers~boat:,1
+10,ankrahmun|temple~boat:,1
+10,ankrahmun|east.gate~boat:,1
+10,ankrahmun|north.gate~boat:,1
+10,ankrahmun|west.gate~boat:,1
+10,ankrahmun|depot~depot:,1
+10,depot|ankrahmun|1:,1
+10,ankrahmun|boat~depot:,1
+10,ankrahmun|potions~depot:,1
+10,ankrahmun|runes~depot:,1
+10,ankrahmun|bank~depot:,1
+10,ankrahmun|loot~depot:,1
+10,ankrahmun|food~depot:,1
+10,ankrahmun|ammo~depot:,1
+10,ankrahmun|trainers~depot:,1
+10,ankrahmun|temple~depot:,1
+10,ankrahmun|west.gate~depot:,1
+10,ankrahmun|east.gate~depot:,1
+10,ankrahmun|north.gate~depot:,1
+10,ankrahmun|boat~potions:,1
+10,ankrahmun|depot~potions:,1
+10,ankrahmun|potions~potions:,1
+10,ankrahmun|runes~potions:,1
+10,ankrahmun|bank~potions:,1
+10,ankrahmun|Loot~potions:,1
+10,ankrahmun|food~potions:,1
+10,ankrahmun|ammo~potions:,1
+10,ankrahmun|trainers~potions:,1
+10,ankrahmun|temple~potions:,1
+10,ankrahmun|west.gate~potions:,1
+10,ankrahmun|east.gate~potions:,1
+10,ankrahmun|north.gate~potions:,1
+10,ankrahmun|boat~runes:,1
+10,ankrahmun|depot~runes:,1
+10,ankrahmun|potions~runes:,1
+10,ankrahmun|runes~runes:,1
+10,ankrahmun|bank~runes:,1
+10,ankrahmun|Loot~runes:,1
+10,ankrahmun|food~runes:,1
+10,ankrahmun|ammo~runes:,1
+10,ankrahmun|trainers~runes:,1
+10,ankrahmun|temple~runes:,1
+10,ankrahmun|west.gate~runes:,1
+10,ankrahmun|east.gate~runes:,1
+10,ankrahmun|north.gate~runes:,1
+10,ankrahmun|boat~bank:,1
+10,ankrahmun|depot~bank:,1
+10,ankrahmun|potions~bank:,1
+10,ankrahmun|runes~bank:,1
+10,ankrahmun|bank~bank:,1
+10,ankrahmun|loot~bank:,1
+10,ankrahmun|food~bank:,1
+10,ankrahmun|ammo~bank:,1
+10,ankrahmun|trainers~bank:,1
+10,ankrahmun|temple~bank:,1
+10,ankrahmun|west.gate~bank:,1
+10,ankrahmun|east.gate~bank:,1
+10,ankrahmun|north.gate~bank:,1
+10,ankrahmun|boat~food:,1
+10,ankrahmun|depot~food:,1
+10,ankrahmun|potions~food:,1
+10,ankrahmun|runes~food:,1
+10,ankrahmun|bank~food:,1
+10,ankrahmun|loot~food:,1
+10,ankrahmun|food~food:,1
+10,ankrahmun|ammo~food:,1
+10,ankrahmun|trainers~food:,1
+10,ankrahmun|temple~food:,1
+10,ankrahmun|west.gate~food:,1
+10,ankrahmun|east.gate~food:,1
+10,ankrahmun|north.gate~food:,1
+10,ankrahmun|boat~loot:,1
+10,ankrahmun|depot~loot:,1
+10,ankrahmun|potions~loot:,1
+10,ankrahmun|runes~loot:,1
+10,ankrahmun|bank~loot:,1
+10,ankrahmun|loot~loot:,1
+10,ankrahmun|food~loot:,1
+10,ankrahmun|ammo~loot:,1
+10,ankrahmun|trainers~loot:,1
+10,ankrahmun|temple~loot:,1
+10,ankrahmun|west.gate~loot:,1
+10,ankrahmun|east.gate~loot:,1
+10,ankrahmun|north.gate~loot:,1
+10,ankrahmun|boat~ammo:,1
+10,ankrahmun|depot~ammo:,1
+10,ankrahmun|potions~ammo:,1
+10,ankrahmun|runes~ammo:,1
+10,ankrahmun|bank~ammo:,1
+10,ankrahmun|loot~ammo:,1
+10,ankrahmun|food~ammo:,1
+10,ankrahmun|ammo~ammo:,1
+10,ankrahmun|trainers~ammo:,1
+10,ankrahmun|temple~ammo:,1
+10,ankrahmun|west.gate~ammo:,1
+10,ankrahmun|east.gate~ammo:,1
+10,ankrahmun|north.gate~ammo:,1
+10,ankrahmun|boat~trainers:,1
+10,ankrahmun|depot~trainers:,1
+10,ankrahmun|potions~trainers:,1
+10,ankrahmun|runes~trainers:,1
+10,ankrahmun|bank~trainers:,1
+10,ankrahmun|loot~trainers:,1
+10,ankrahmun|food~trainers:,1
+10,ankrahmun|ammo~trainers:,1
+10,ankrahmun|trainers~trainers:,1
+10,ankrahmun|temple~trainers:,1
+10,ankrahmun|west.gate~trainers:,1
+10,ankrahmun|east.gate~trainers:,1
+10,ankrahmun|north.gate~trainers:,1
+10,ankrahmun|boat~temple:,1
+10,ankrahmun|depot~temple:,1
+10,ankrahmun|potions~temple:,1
+10,ankrahmun|runes~temple:,1
+10,ankrahmun|bank~temple:,1
+10,ankrahmun|loot~temple:,1
+10,ankrahmun|food~temple:,1
+10,ankrahmun|ammo~temple:,1
+10,ankrahmun|trainers~temple:,1
+10,ankrahmun|temple~temple:,1
+10,ankrahmun|west.gate~temple:,1
+10,ankrahmun|east.gate~temple:,1
+10,ankrahmun|north.gate~temple:,1
+10,ankrahmun|boat~west.gate:,1
+10,ankrahmun|depot~west.gate:,1
+10,ankrahmun|potions~west.gate:,1
+10,ankrahmun|runes~west.gate:,1
+10,ankrahmun|bank~west.gate:,1
+10,ankrahmun|loot~west.gate:,1
+10,ankrahmun|food~west.gate:,1
+10,ankrahmun|ammo~west.gate:,1
+10,ankrahmun|trainers~west.gate:,1
+10,ankrahmun|temple~west.gate:,1
+10,ankrahmun|west.gate~west.gate:,1
+10,ankrahmun|east.gate~west.gate:,1
+10,ankrahmun|north.gate~west.gate:,1
+10,ankrahmun|boat~east.gate:,1
+10,ankrahmun|depot~east.gate:,1
+10,ankrahmun|potions~east.gate:,1
+10,ankrahmun|runes~east.gate:,1
+10,ankrahmun|bank~east.gate:,1
+10,ankrahmun|loot~east.gate:,1
+10,ankrahmun|food~east.gate:,1
+10,ankrahmun|ammo~east.gate:,1
+10,ankrahmun|trainers~east.gate:,1
+10,ankrahmun|temple~east.gate:,1
+10,ankrahmun|west.gate~east.gate:,1
+10,ankrahmun|east.gate~east.gate:,1
+10,ankrahmun|north.gate~east.gate:,1
+10,ankrahmun|boat~north.gate:,1
+10,ankrahmun|depot~north.gate:,1
+10,ankrahmun|potions~north.gate:,1
+10,ankrahmun|runes~north.gate:,1
+10,ankrahmun|bank~north.gate:,1
+10,ankrahmun|loot~north.gate:,1
+10,ankrahmun|food~north.gate:,1
+10,ankrahmun|ammo~north.gate:,1
+10,ankrahmun|trainers~north.gate:,1
+10,ankrahmun|temple~north.gate:,1
+10,ankrahmun|west.gate~north.gate:,1
+10,ankrahmun|east.gate~north.gate:,1
+10,ankrahmun|north.gate~north.gate:,1
+13,darashia|west.exit~boat:,1
+13,darashia|north.exit~boat:,1
+13,darashia|boat~boat:,1
+13,darashia|carpet~boat:,1
+13,darashia|depot~boat:,1
+13,darashia|temple~boat:,1
+13,darashia|loot.azil~boat:,1
+13,darashia|loot.habdel~boat:,1
+13,darashia|ammo~boat:,1
+13,darashia|trainers~boat:,1
+13,darashia|bank~boat:,1
+13,darashia|runes~boat:,1
+13,darashia|potions~boat:,1
+13,darashia|west.exit~depot:,1
+13,depot|darashia|1:,1
+13,darashia|north.exit~depot:,1
+13,darashia|depot~depot:,1
+13,darashia|temple~depot:,1
+13,darashia|loot.azil~depot:,1
+13,darashia|loot.habdel~depot:,1
+13,darashia|bank~depot:,1
+13,darashia|runes~depot:,1
+13,darashia|potions~depot:,1
+13,darashia|carpet~depot:,1
+13,darashia|boat~depot:,1
+13,darashia|ammo~depot:,1
+13,darashia|trainers~depot:,1
+13,darashia|west.exit~bank:,1
+13,darashia|north.exit~bank:,1
+13,darashia|bank~bank:,1
+13,darashia|boat~bank:,1
+13,darashia|carpet~bank:,1
+13,darashia|depot~bank:,1
+13,darashia|temple~bank:,1
+13,darashia|loot.azil~bank:,1
+13,darashia|loot.habdel~bank:,1
+13,darashia|ammo~bank:,1
+13,darashia|trainers~bank:,1
+13,darashia|west.exit~carpet:,1
+13,darashia|north.exit~carpet:,1
+13,darashia|carpet~carpet:,1
+13,darashia|boat~carpet:,1
+13,darashia|temple~carpet:,1
+13,darashia|depot~carpet:,1
+13,darashia|loot.azil~carpet:,1
+13,darashia|loot.habdel~carpet:,1
+13,darashia|ammo~carpet:,1
+13,darashia|runes~carpet:,1
+13,darashia|potions~carpet:,1
+13,darashia|bank~carpet:,1
+13,darashia|trainers~carpet:,1
+13,darashia|west.exit~potions:,1
+13,darashia|north.exit~potions:,1
+13,darashia|potions~potions:,1
+13,darashia|runes~potions:,1
+13,darashia|boat~potions:,1
+13,darashia|carpet~potions:,1
+13,darashia|depot~potions:,1
+13,darashia|temple~potions:,1
+13,darashia|bank~potions:,1
+13,darashia|loot.azil~potions:,1
+13,darashia|loot.habdel~potions:,1
+13,darashia|ammo~potions:,1
+13,darashia|trainers~potions:,1
+13,darashia|west.exit~runes:,1
+13,darashia|north.exit~runes:,1
+13,darashia|potions~runes:,1
+13,darashia|runes~runes:,1
+13,darashia|boat~runes:,1
+13,darashia|carpet~runes:,1
+13,darashia|depot~runes:,1
+13,darashia|temple~runes:,1
+13,darashia|bank~runes:,1
+13,darashia|loot.azil~runes:,1
+13,darashia|loot.habdel~runes:,1
+13,darashia|ammo~runes:,1
+13,darashia|trainers~runes:,1
+13,darashia|west.exit~temple:,1
+13,darashia|north.exit~temple:,1
+13,darashia|temple~temple:,1
+13,darashia|depot~temple:,1
+13,darashia|boat~temple:,1
+13,darashia|carpet~temple:,1
+13,darashia|ammo~temple:,1
+13,darashia|loot.azil~temple:,1
+13,darashia|loot.habdel~temple:,1
+13,darashia|runes~temple:,1
+13,darashia|potions~temple:,1
+13,darashia|bank~temple:,1
+13,darashia|trainers~temple:,1
+13,darashia|west.exit~ammo:,1
+13,darashia|north.exit~ammo:,1
+13,darashia|temple~ammo:,1
+13,darashia|depot~ammo:,1
+13,darashia|boat~ammo:,1
+13,darashia|carpet~ammo:,1
+13,darashia|bank~ammo:,1
+13,darashia|runes~ammo:,1
+13,darashia|potions~ammo:,1
+13,darashia|loot.azil~ammo:,1
+13,darashia|loot.habdel~ammo:,1
+13,darashia|ammo~ammo:,1
+13,darashia|trainers~ammo:,1
+13,darashia|west.exit~loot.azil:,1
+13,darashia|north.exit~loot.azil:,1
+13,darashia|temple~loot.azil:,1
+13,darashia|depot~loot.azil:,1
+13,darashia|boat~loot.azil:,1
+13,darashia|carpet~loot.azil:,1
+13,darashia|bank~loot.azil:,1
+13,darashia|runes~loot.azil:,1
+13,darashia|potions~loot.azil:,1
+13,darashia|ammo~loot.azil:,1
+13,darashia|loot.azil~loot.azil:,1
+13,darashia|loot.habdel~loot.azil:,1
+13,darashia|trainers~loot.azil:,1
+13,darashia|west.exit~loot.habdel:,1
+13,darashia|north.exit~loot.habdel:,1
+13,darashia|temple~loot.habdel:,1
+13,darashia|depot~loot.habdel:,1
+13,darashia|boat~loot.habdel:,1
+13,darashia|carpet~loot.habdel:,1
+13,darashia|bank~loot.habdel:,1
+13,darashia|runes~loot.habdel:,1
+13,darashia|potions~loot.habdel:,1
+13,darashia|ammo~loot.habdel:,1
+13,darashia|loot.azil~loot.habdel:,1
+13,darashia|loot.habdel~loot.habdel:,1
+13,darashia|trainers~loot.habdel:,1
+13,darashia|depot~trainers:,1
+13,darashia|west.exit~north.exit:,1
+13,darashia|temple~north.exit:,1
+13,darashia|depot~north.exit:,1
+13,darashia|boat~north.exit:,1
+13,darashia|carpet~north.exit:,1
+13,darashia|bank~north.exit:,1
+13,darashia|runes~north.exit:,1
+13,darashia|potions~north.exit:,1
+13,darashia|ammo~north.exit:,1
+13,darashia|loot.azil~north.exit:,1
+13,darashia|loot.habdel~north.exit:,1
+13,darashia|trainers~north.exit:,1
+13,darashia|temple~west.exit:,1
+13,darashia|depot~west.exit:,1
+13,darashia|boat~west.exit:,1
+13,darashia|carpet~west.exit:,1
+13,darashia|bank~west.exit:,1
+13,darashia|loot.azil~west.exit:,1
+13,darashia|loot.habdel~west.exit:,1
+13,darashia|ammo~west.exit:,1
+13,darashia|trainers~west.exit:,1
+13,darashia|runes~west.exit:,1
+13,darashia|potions~west.exit:,1
+13,darashia|west.exit~west.exit:,1
+13,darashia|boat~south.exit:,1
+13,darashia|depot~south.exit:,1
+13,darashia|bank~south.exit:,1
+13,darashia|carpet~south.exit:,1
+13,darashia|potions~south.exit:,1
+13,darashia|runes~south.exit:,1
+13,darashia|temple~south.exit:,1
+13,darashia|ammo~south.exit:,1
+13,darashia|loot.azil~south.exit:,1
+13,darashia|loot.habdel~south.exit:,1
+13,darashia|north.exit~south.exit:,1
+13,darashia|west.exit~south.exit:,1
+13,darashia|south.exit~south.exit:,1
+13,darashia|south.exit~boat:,1
+13,darashia|south.exit~depot:,1
+13,darashia|south.exit~bank:,1
+13,darashia|south.exit~carpet:,1
+13,darashia|south.exit~potions:,1
+13,darashia|south.exit~runes:,1
+13,darashia|south.exit~temple:,1
+13,darashia|south.exit~ammo:,1
+13,darashia|south.exit~loot.azil:,1
+13,darashia|south.exit~loot.habdel:,1
+13,darashia|south.exit~trainers:,1
+13,darashia|food~trainers:,1
+13,darashia|south.exit~north.exit:,1
+13,darashia|south.exit~west.exit:,1
+13,darashia|boat~food:,1
+13,darashia|depot~food:,1
+13,darashia|bank~food:,1
+13,darashia|carpet~food:,1
+13,darashia|potions~food:,1
+13,darashia|runes~food:,1
+13,darashia|temple~food:,1
+13,darashia|ammo~food:,1
+13,darashia|food~food:,1
+13,darashia|loot.azil~food:,1
+13,darashia|loot.habdel~food:,1
+13,darashia|north.exit~food:,1
+13,darashia|west.exit~food:,1
+13,darashia|south.exit~food:,1
+13,darashia|food~boat:,1
+13,darashia|food~depot:,1
+13,darashia|food~bank:,1
+13,darashia|food~carpet:,1
+13,darashia|food~potions:,1
+13,darashia|food~runes:,1
+13,darashia|food~temple:,1
+13,darashia|food~ammo:,1
+13,darashia|food~loot.azil:,1
+13,darashia|food~loot.habdel:,1
+13,darashia|food~north.exit:,1
+13,darashia|food~west.exit:,1
+13,darashia|food~south.exit:,1
+13,darashia|bank~tools:,1
+13,darashia|tools~depot:,1
+13,darashia|trainers~food:,1
+11,edron|towers~boat:,1
+11,edron|bank~tools:,1
+11,edron|tools~depot:,1
+11,edron|boat~boat:,1
+11,edron|temple~boat:,1
+11,edron|trainers~boat:,1
+11,edron|bank~boat:,1
+11,edron|depot~boat:,1
+11,edron|loot~boat:,1
+11,edron|ammo~boat:,1
+11,edron|bridge~boat:,1
+11,edron|runes~boat:,1
+11,edron|food~boat:,1
+11,edron|potions~boat:,1
+11,edron|carpet~boat:,1
+11,edron|towers~bank:,1
+11,edron|bank~bank:,1
+11,edron|depot~bank:,1
+11,edron|boat~bank:,1
+11,edron|trainers~bank:,1
+11,edron|carpet~bank:,1
+11,edron|loot~bank:,1
+11,edron|ammo~bank:,1
+11,edron|bridge~bank:,1
+11,edron|runes~bank:,1
+11,edron|food~bank:,1
+11,edron|potions~bank:,1
+11,edron|temple~bank:,1
+11,edron|towers~temple:,1
+11,edron|temple~temple:,1
+11,edron|trainers~temple:,1
+11,edron|boat~temple:,1
+11,edron|bank~temple:,1
+11,edron|depot~temple:,1
+11,edron|carpet~temple:,1
+11,edron|ammo~temple:,1
+11,edron|loot~temple:,1
+11,edron|bridge~temple:,1
+11,edron|runes~temple:,1
+11,edron|food~temple:,1
+11,edron|potions~temple:,1
+11,edron|towers~carpet:,1
+11,edron|carpet~carpet:,1
+11,edron|depot~carpet:,1
+11,edron|bank~carpet:,1
+11,edron|boat~carpet:,1
+11,edron|trainers~carpet:,1
+11,edron|loot~carpet:,1
+11,edron|ammo~carpet:,1
+11,edron|runes~carpet:,1
+11,edron|food~carpet:,1
+11,edron|potions~carpet:,1
+11,edron|bridge~carpet:,1
+11,edron|towers~depot:,1
+11,edron|depot~depot:,1
+11,edron|boat~depot:,1
+11,edron|bank~depot:,1
+11,edron|trainers~depot:,1
+11,edron|temple~depot:,1
+11,edron|loot~depot:,1
+11,edron|ammo~depot:,1
+11,edron|runes~depot:,1
+11,edron|food~depot:,1
+11,edron|potions~depot:,1
+11,edron|carpet~depot:,1
+11,edron|bridge~depot:,1
+11,depot|edron|1:,1
+11,depot|edron|2:,1
+11,edron|towers~trainers:,1
+11,edron|trainers~trainers:,1
+11,edron|boat~trainers:,1
+11,edron|loot~trainers:,1
+11,edron|ammo~trainers:,1
+11,edron|temple~trainers:,1
+11,edron|bank~trainers:,1
+11,edron|depot~trainers:,1
+11,edron|bridge~trainers:,1
+11,edron|runes~trainers:,1
+11,edron|food~trainers:,1
+11,edron|potions~trainers:,1
+11,edron|carpet~trainers:,1
+11,edron|towers~loot:,1
+11,edron|loot~loot:,1
+11,edron|boat~loot:,1
+11,edron|trainers~loot:,1
+11,edron|carpet~loot:,1
+11,edron|temple~loot:,1
+11,edron|bank~loot:,1
+11,edron|depot~loot:,1
+11,edron|ammo~loot:,1
+11,edron|bridge~loot:,1
+11,edron|runes~loot:,1
+11,edron|food~loot:,1
+11,edron|potions~loot:,1
+11,edron|towers~ammo:,1
+11,edron|ammo~ammo:,1
+11,edron|boat~ammo:,1
+11,edron|trainers~ammo:,1
+11,edron|carpet~ammo:,1
+11,edron|temple~ammo:,1
+11,edron|bank~ammo:,1
+11,edron|depot~ammo:,1
+11,edron|loot~ammo:,1
+11,edron|bridge~ammo:,1
+11,edron|runes~ammo:,1
+11,edron|food~ammo:,1
+11,edron|potions~ammo:,1
+11,edron|towers~runes:,1
+11,edron|runes~runes:,1
+11,edron|boat~runes:,1
+11,edron|trainers~runes:,1
+11,edron|carpet~runes:,1
+11,edron|temple~runes:,1
+11,edron|bank~runes:,1
+11,edron|depot~runes:,1
+11,edron|loot~runes:,1
+11,edron|ammo~runes:,1
+11,edron|potions~runes:,1
+11,edron|food~runes:,1
+11,edron|bridge~runes:,1
+11,edron|towers~food:,1
+11,edron|food~food:,1
+11,edron|boat~food:,1
+11,edron|trainers~food:,1
+11,edron|carpet~food:,1
+11,edron|temple~food:,1
+11,edron|bank~food:,1
+11,edron|depot~food:,1
+11,edron|loot~food:,1
+11,edron|ammo~food:,1
+11,edron|potions~food:,1
+11,edron|bridge~food:,1
+11,edron|runes~food:,1
+11,edron|towers~potions:,1
+11,edron|potions~potions:,1
+11,edron|boat~potions:,1
+11,edron|trainers~potions:,1
+11,edron|carpet~potions:,1
+11,edron|temple~potions:,1
+11,edron|bank~potions:,1
+11,edron|depot~potions:,1
+11,edron|loot~potions:,1
+11,edron|ammo~potions:,1
+11,edron|bridge~potions:,1
+11,edron|food~potions:,1
+11,edron|runes~potions:,1
+11,edron|towers~bridge:,1
+11,edron|bridge~bridge:,1
+11,edron|boat~bridge:,1
+11,edron|trainers~bridge:,1
+11,edron|carpet~bridge:,1
+11,edron|ammo~bridge:,1
+11,edron|loot~bridge:,1
+11,edron|temple~bridge:,1
+11,edron|bank~bridge:,1
+11,edron|depot~bridge:,1
+11,edron|potions~bridge:,1
+11,edron|runes~bridge:,1
+11,edron|food~bridge:,1
+11,edron|towers~towers:,1
+11,edron|boat~towers:,1
+11,edron|carpet~towers:,1
+11,edron|depot~towers:,1
+11,edron|bank~towers:,1
+11,edron|loot~towers:,1
+11,edron|ammo~towers:,1
+11,edron|temple~towers:,1
+11,edron|potions~towers:,1
+11,edron|runes~towers:,1
+11,edron|food~towers:,1
+11,edron|bridge~towers:,1
+11,edron|trainers~towers:,1
+14,liberty bay|boat~boat:,1
+14,liberty bay|boat~meriana.exit:,1
+14,liberty bay|depot~meriana.exit:,1
+14,liberty bay|potions~meriana.exit:,1
+14,liberty bay|runes~meriana.exit:,1
+14,liberty bay|ammo~meriana.exit:,1
+14,liberty bay|loot~meriana.exit:,1
+14,liberty bay|temple~meriana.exit:,1
+14,liberty bay|bank~meriana.exit:,1
+14,liberty bay|food~meriana.exit:,1
+14,liberty bay|trainers~meriana.exit:,1
+14,liberty bay|south.exit~meriana.exit:,1
+14,liberty bay|west.exit~meriana.exit:,1
+14,liberty bay|meriana.exit~meriana.exit:,1
+14,liberty bay|meriana.exit~boat:,1
+14,liberty bay|meriana.exit~depot:,1
+14,liberty bay|meriana.exit~potions:,1
+14,liberty bay|meriana.exit~runes:,1
+14,liberty bay|meriana.exit~ammo:,1
+14,liberty bay|meriana.exit~loot:,1
+14,liberty bay|meriana.exit~temple:,1
+14,liberty bay|meriana.exit~bank:,1
+14,liberty bay|meriana.exit~food:,1
+14,liberty bay|meriana.exit~trainers:,1
+14,liberty bay|meriana.exit~south.exit:,1
+14,liberty bay|meriana.exit~west.exit:,1
+14,liberty bay|bank~tools:,1
+14,liberty bay|tools~depot:,1
+14,liberty bay|trainers~boat:,1
+14,liberty bay|bank~boat:,1
+14,liberty bay|depot~boat:,1
+14,liberty bay|temple~boat:,1
+14,liberty bay|runes~boat:,1
+14,liberty bay|potions~boat:,1
+14,liberty bay|ammo~boat:,1
+14,liberty bay|loot~boat:,1
+14,liberty bay|food~boat:,1
+14,liberty bay|depot~depot:,1
+14,liberty bay|trainers~depot:,1
+14,liberty bay|boat~depot:,1
+14,liberty bay|bank~depot:,1
+14,liberty bay|ammo~depot:,1
+14,liberty bay|loot~depot:,1
+14,liberty bay|temple~depot:,1
+14,liberty bay|potions~depot:,1
+14,liberty bay|runes~depot:,1
+14,liberty bay|food~depot:,1
+14,depot|liberty bay|1:,1
+14,depot|liberty bay|2:,1
+14,liberty bay|bank~bank:,1
+14,liberty bay|trainers~bank:,1
+14,liberty bay|boat~bank:,1
+14,liberty bay|loot~bank:,1
+14,liberty bay|ammo~bank:,1
+14,liberty bay|temple~bank:,1
+14,liberty bay|potions~bank:,1
+14,liberty bay|runes~bank:,1
+14,liberty bay|food~bank:,1
+14,liberty bay|depot~bank:,1
+14,liberty bay|potions~potions:,1
+14,liberty bay|trainers~potions:,1
+14,liberty bay|boat~potions:,1
+14,liberty bay|depot~potions:,1
+14,liberty bay|bank~potions:,1
+14,liberty bay|temple~potions:,1
+14,liberty bay|loot~potions:,1
+14,liberty bay|ammo~potions:,1
+14,liberty bay|food~potions:,1
+14,liberty bay|runes~potions:,1
+14,liberty bay|runes~runes:,1
+14,liberty bay|trainers~runes:,1
+14,liberty bay|boat~runes:,1
+14,liberty bay|depot~runes:,1
+14,liberty bay|bank~runes:,1
+14,liberty bay|temple~runes:,1
+14,liberty bay|loot~runes:,1
+14,liberty bay|ammo~runes:,1
+14,liberty bay|food~runes:,1
+14,liberty bay|potions~runes:,1
+14,liberty bay|temple~temple:,1
+14,liberty bay|trainers~temple:,1
+14,liberty bay|bank~temple:,1
+14,liberty bay|depot~temple:,1
+14,liberty bay|potions~temple:,1
+14,liberty bay|runes~temple:,1
+14,liberty bay|ammo~temple:,1
+14,liberty bay|loot~temple:,1
+14,liberty bay|food~temple:,1
+14,liberty bay|boat~temple:,1
+14,liberty bay|ammo~ammo:,1
+14,liberty bay|loot~loot:,1
+14,liberty bay|trainers~loot:,1
+14,liberty bay|trainers~ammo:,1
+14,liberty bay|bank~ammo:,1
+14,liberty bay|depot~ammo:,1
+14,liberty bay|potions~ammo:,1
+14,liberty bay|runes~ammo:,1
+14,liberty bay|loot~ammo:,1
+14,liberty bay|food~ammo:,1
+14,liberty bay|temple~ammo:,1
+14,liberty bay|boat~ammo:,1
+14,liberty bay|bank~loot:,1
+14,liberty bay|depot~loot:,1
+14,liberty bay|potions~loot:,1
+14,liberty bay|runes~loot:,1
+14,liberty bay|ammo~loot:,1
+14,liberty bay|food~loot:,1
+14,liberty bay|temple~loot:,1
+14,liberty bay|boat~loot:,1
+14,liberty bay|food~food:,1
+14,liberty bay|trainers~food:,1
+14,liberty bay|bank~food:,1
+14,liberty bay|depot~food:,1
+14,liberty bay|potions~food:,1
+14,liberty bay|runes~food:,1
+14,liberty bay|temple~food:,1
+14,liberty bay|loot~food:,1
+14,liberty bay|ammo~food:,1
+14,liberty bay|boat~food:,1
+14,liberty bay|trainers~trainers:,1
+14,liberty bay|boat~trainers:,1
+14,liberty bay|temple~trainers:,1
+14,liberty bay|potions~trainers:,1
+14,liberty bay|runes~trainers:,1
+14,liberty bay|ammo~trainers:,1
+14,liberty bay|loot~trainers:,1
+14,liberty bay|food~trainers:,1
+14,liberty bay|bank~trainers:,1
+14,liberty bay|depot~trainers:,1
+14,liberty bay|boat~west.exit:,1
+14,liberty bay|depot~west.exit:,1
+14,liberty bay|potions~west.exit:,1
+14,liberty bay|runes~west.exit:,1
+14,liberty bay|ammo~west.exit:,1
+14,liberty bay|loot~west.exit:,1
+14,liberty bay|temple~west.exit:,1
+14,liberty bay|bank~west.exit:,1
+14,liberty bay|food~west.exit:,1
+14,liberty bay|trainers~west.exit:,1
+14,liberty bay|west.exit~west.exit:,1
+14,liberty bay|west.exit~boat:,1
+14,liberty bay|west.exit~depot:,1
+14,liberty bay|west.exit~potions:,1
+14,liberty bay|west.exit~runes:,1
+14,liberty bay|west.exit~ammo:,1
+14,liberty bay|west.exit~loot:,1
+14,liberty bay|west.exit~temple:,1
+14,liberty bay|west.exit~bank:,1
+14,liberty bay|west.exit~food:,1
+14,liberty bay|west.exit~trainers:,1
+14,liberty bay|boat~south.exit:,1
+14,liberty bay|temple~south.exit:,1
+14,liberty bay|depot~south.exit:,1
+14,liberty bay|bank~south.exit:,1
+14,liberty bay|potions~south.exit:,1
+14,liberty bay|runes~south.exit:,1
+14,liberty bay|food~south.exit:,1
+14,liberty bay|ammo~south.exit:,1
+14,liberty bay|loot~south.exit:,1
+14,liberty bay|west.exit~south.exit:,1
+14,liberty bay|trainers~south.exit:,1
+14,liberty bay|south.exit~south.exit:,1
+14,liberty bay|south.exit~boat:,1
+14,liberty bay|south.exit~depot:,1
+14,liberty bay|south.exit~potions:,1
+14,liberty bay|south.exit~runes:,1
+14,liberty bay|south.exit~ammo:,1
+14,liberty bay|south.exit~loot:,1
+14,liberty bay|south.exit~food:,1
+14,liberty bay|south.exit~temple:,1
+14,liberty bay|south.exit~trainers:,1
+14,liberty bay|south.exit~west.exit:,1
+15,port hope|south.exit~boat:,1
+15,port hope|bank~tools:,1
+15,port hope|tools~depot:,1
+15,port hope|east.exit~boat:,1
+15,port hope|boat~boat:,1
+15,port hope|north.exit~boat:,1
+15,port hope|temple~boat:,1
+15,port hope|depot~boat:,1
+15,port hope|potions~boat:,1
+15,port hope|runes~boat:,1
+15,port hope|bank~boat:,1
+15,port hope|ammo~boat:,1
+15,port hope|loot~boat:,1
+15,port hope|trainers~boat:,1
+15,port hope|south.exit~depot:,1
+15,port hope|east.exit~depot:,1
+15,port hope|depot~depot:,1
+15,port hope|north.exit~depot:,1
+15,port hope|boat~depot:,1
+15,port hope|temple~depot:,1
+15,port hope|potions~depot:,1
+15,port hope|runes~depot:,1
+15,port hope|bank~depot:,1
+15,port hope|ammo~depot:,1
+15,port hope|loot~depot:,1
+15,port hope|food~depot:,1
+15,port hope|trainers~depot:,1
+15,depot|port hope|1:,1
+15,depot|port hope|2:,1
+15,port hope|south.exit~temple:,1
+15,port hope|east.exit~temple:,1
+15,port hope|temple~temple:,1
+15,port hope|north.exit~temple:,1
+15,port hope|boat~temple:,1
+15,port hope|depot~temple:,1
+15,port hope|food~temple:,1
+15,port hope|potions~temple:,1
+15,port hope|runes~temple:,1
+15,port hope|bank~temple:,1
+15,port hope|ammo~temple:,1
+15,port hope|loot~temple:,1
+15,port hope|trainers~temple:,1
+15,port hope|south.exit~bank:,1
+15,port hope|east.exit~bank:,1
+15,port hope|bank~bank:,1
+15,port hope|north.exit~bank:,1
+15,port hope|boat~bank:,1
+15,port hope|temple~bank:,1
+15,port hope|food~bank:,1
+15,port hope|potions~bank:,1
+15,port hope|runes~bank:,1
+15,port hope|ammo~bank:,1
+15,port hope|loot~bank:,1
+15,port hope|trainers~bank:,1
+15,port hope|depot~bank:,1
+15,port hope|south.exit~potions:,1
+15,port hope|east.exit~potions:,1
+15,port hope|potions~potions:,1
+15,port hope|north.exit~potions:,1
+15,port hope|boat~potions:,1
+15,port hope|runes~potions:,1
+15,port hope|temple~potions:,1
+15,port hope|food~potions:,1
+15,port hope|depot~potions:,1
+15,port hope|bank~potions:,1
+15,port hope|ammo~potions:,1
+15,port hope|loot~potions:,1
+15,port hope|trainers~potions:,1
+15,port hope|south.exit~runes:,1
+15,port hope|east.exit~runes:,1
+15,port hope|runes~runes:,1
+15,port hope|north.exit~runes:,1
+15,port hope|boat~runes:,1
+15,port hope|potions~runes:,1
+15,port hope|temple~runes:,1
+15,port hope|food~runes:,1
+15,port hope|depot~runes:,1
+15,port hope|bank~runes:,1
+15,port hope|ammo~runes:,1
+15,port hope|loot~runes:,1
+15,port hope|trainers~runes:,1
+15,port hope|south.exit~ammo:,1
+15,port hope|east.exit~ammo:,1
+15,port hope|ammo~ammo:,1
+15,port hope|north.exit~ammo:,1
+15,port hope|boat~ammo:,1
+15,port hope|temple~ammo:,1
+15,port hope|food~ammo:,1
+15,port hope|depot~ammo:,1
+15,port hope|loot~ammo:,1
+15,port hope|bank~ammo:,1
+15,port hope|trainers~ammo:,1
+15,port hope|potions~ammo:,1
+15,port hope|runes~ammo:,1
+15,port hope|south.exit~loot:,1
+15,port hope|east.exit~loot:,1
+15,port hope|loot~loot:,1
+15,port hope|north.exit~loot:,1
+15,port hope|boat~loot:,1
+15,port hope|temple~loot:,1
+15,port hope|food~loot:,1
+15,port hope|depot~loot:,1
+15,port hope|ammo~loot:,1
+15,port hope|bank~loot:,1
+15,port hope|trainers~loot:,1
+15,port hope|potions~loot:,1
+15,port hope|runes~loot:,1
+15,port hope|south.exit~food:,1
+15,port hope|east.exit~food:,1
+15,port hope|food~food:,1
+15,port hope|north.exit~food:,1
+15,port hope|boat~food:,1
+15,port hope|temple~food:,1
+15,port hope|depot~food:,1
+15,port hope|runes~food:,1
+15,port hope|potions~food:,1
+15,port hope|bank~food:,1
+15,port hope|ammo~food:,1
+15,port hope|loot~food:,1
+15,port hope|trainers~food:,1
+15,port hope|south.exit~trainers:,1
+15,port hope|east.exit~trainers:,1
+15,port hope|trainers~trainers:,1
+15,port hope|north.exit~trainers:,1
+15,port hope|depot~trainers:,1
+15,port hope|temple~trainers:,1
+15,port hope|food~trainers:,1
+15,port hope|potions~trainers:,1
+15,port hope|runes~trainers:,1
+15,port hope|bank~trainers:,1
+15,port hope|ammo~trainers:,1
+15,port hope|loot~trainers:,1
+15,port hope|boat~trainers:,1
+15,port hope|south.exit~north.exit:,1
+15,port hope|east.exit~north.exit:,1
+15,port hope|north.exit~north.exit:,1
+15,port hope|boat~north.exit:,1
+15,port hope|depot~north.exit:,1
+15,port hope|temple~north.exit:,1
+15,port hope|loot~north.exit:,1
+15,port hope|potions~north.exit:,1
+15,port hope|runes~north.exit:,1
+15,port hope|bank~north.exit:,1
+15,port hope|ammo~north.exit:,1
+15,port hope|food~north.exit:,1
+15,port hope|trainers~north.exit:,1
+15,port hope|south.exit~east.exit:,1
+15,port hope|east.exit~east.exit:,1
+15,port hope|food~east.exit:,1
+15,port hope|temple~east.exit:,1
+15,port hope|depot~east.exit:,1
+15,port hope|runes~east.exit:,1
+15,port hope|potions~east.exit:,1
+15,port hope|bank~east.exit:,1
+15,port hope|ammo~east.exit:,1
+15,port hope|loot~east.exit:,1
+15,port hope|boat~east.exit:,1
+15,port hope|trainers~east.exit:,1
+15,port hope|north.exit~east.exit:,1
+15,port hope|boat~south.exit:,1
+15,port hope|temple~south.exit:,1
+15,port hope|food~south.exit:,1
+15,port hope|trainers~south.exit:,1
+15,port hope|depot~south.exit:,1
+15,port hope|north.exit~south.exit:,1
+15,port hope|runes~south.exit:,1
+15,port hope|potions~south.exit:,1
+15,port hope|bank~south.exit:,1
+15,port hope|ammo~south.exit:,1
+15,port hope|loot~south.exit:,1
+15,port hope|east.exit~south.exit:,1
+15,port hope|south.exit~south.exit:,1
+16,svargrond|boat~boat:,1
+16,svargrond|bank~tools:,1
+16,svargrond|tools~depot:,1
+16,svargrond|food~boat:,1
+16,svargrond|depot~boat:,1
+16,svargrond|potions~boat:,1
+16,svargrond|runes~boat:,1
+16,svargrond|bank~boat:,1
+16,svargrond|carpet~boat:,1
+16,svargrond|ammo~boat:,1
+16,svargrond|loot~boat:,1
+16,svargrond|trainers~boat:,1
+16,svargrond|temple~boat:,1
+16,svargrond|depot~depot:,1
+16,svargrond|food~depot:,1
+16,svargrond|temple~depot:,1
+16,svargrond|bank~depot:,1
+16,svargrond|runes~depot:,1
+16,svargrond|potions~depot:,1
+16,svargrond|boat~depot:,1
+16,svargrond|trainers~depot:,1
+16,svargrond|ammo~depot:,1
+16,svargrond|loot~depot:,1
+16,svargrond|carpet~depot:,1
+16,depot|svargrond|1:,1
+16,depot|svargrond|2:,1
+16,depot|svargrond|3:,1
+16,liberty bay|temple~temple:,1
+16,liberty bay|food~temple:,1
+16,svargrond|depot~temple:,1
+16,svargrond|bank~temple:,1
+16,svargrond|potions~temple:,1
+16,svargrond|runes~temple:,1
+16,svargrond|ammo~temple:,1
+16,svargrond|loot~temple:,1
+16,svargrond|trainers~temple:,1
+16,svargrond|carpet~temple:,1
+16,svargrond|boat~temple:,1
+16,svargrond|bank~bank:,1
+16,svargrond|food~bank:,1
+16,svargrond|temple~bank:,1
+16,svargrond|depot~bank:,1
+16,svargrond|potions~bank:,1
+16,svargrond|runes~bank:,1
+16,svargrond|boat~bank:,1
+16,svargrond|ammo~bank:,1
+16,svargrond|loot~bank:,1
+16,svargrond|trainers~bank:,1
+16,svargrond|carpet~bank:,1
+16,svargrond|potions~potions:,1
+16,svargrond|food~potions:,1
+16,svargrond|temple~potions:,1
+16,svargrond|depot~potions:,1
+16,svargrond|bank~potions:,1
+16,svargrond|boat~potions:,1
+16,svargrond|carpet~potions:,1
+16,svargrond|ammo~potions:,1
+16,svargrond|loot~potions:,1
+16,svargrond|runes~potions:,1
+16,svargrond|trainers~potions:,1
+16,svargrond|runes~runes:,1
+16,svargrond|food~runes:,1
+16,svargrond|temple~runes:,1
+16,svargrond|depot~runes:,1
+16,svargrond|bank~runes:,1
+16,svargrond|boat~runes:,1
+16,svargrond|carpet~runes:,1
+16,svargrond|ammo~runes:,1
+16,svargrond|loot~runes:,1
+16,svargrond|potions~runes:,1
+16,svargrond|trainers~runes:,1
+16,svargrond|ammo~ammo:,1
+16,svargrond|food~ammo:,1
+16,svargrond|temple~ammo:,1
+16,svargrond|depot~ammo:,1
+16,svargrond|boat~ammo:,1
+16,svargrond|bank~ammo:,1
+16,svargrond|runes~ammo:,1
+16,svargrond|potions~ammo:,1
+16,svargrond|loot~ammo:,1
+16,svargrond|trainers~ammo:,1
+16,svargrond|carpet~ammo:,1
+16,svargrond|loot~loot:,1
+16,svargrond|food~loot:,1
+16,svargrond|temple~loot:,1
+16,svargrond|depot~loot:,1
+16,svargrond|boat~loot:,1
+16,svargrond|bank~loot:,1
+16,svargrond|runes~loot:,1
+16,svargrond|potions~loot:,1
+16,svargrond|ammo~loot:,1
+16,svargrond|trainers~loot:,1
+16,svargrond|carpet~loot:,1
+16,svargrond|trainers~trainers:,1
+16,svargrond|food~trainers:,1
+16,svargrond|temple~trainers:,1
+16,svargrond|loot~trainers:,1
+16,svargrond|ammo~trainers:,1
+16,svargrond|depot~trainers:,1
+16,svargrond|bank~trainers:,1
+16,svargrond|runes~trainers:,1
+16,svargrond|potions~trainers:,1
+16,svargrond|boat~trainers:,1
+16,svargrond|carpet~trainers:,1
+16,svargrond|carpet~carpet:,1
+16,svargrond|food~carpet:,1
+16,svargrond|temple~carpet:,1
+16,svargrond|depot~carpet:,1
+16,svargrond|bank~carpet:,1
+16,svargrond|potions~carpet:,1
+16,svargrond|runes~carpet:,1
+16,svargrond|boat~carpet:,1
+16,svargrond|loot~carpet:,1
+16,svargrond|ammo~carpet:,1
+16,svargrond|trainers~carpet:,1
+16,svargrond|food~food:,1
+16,svargrond|temple~food:,1
+16,svargrond|trainers~food:,1
+16,svargrond|loot~food:,1
+16,svargrond|ammo~food:,1
+16,svargrond|carpet~food:,1
+16,svargrond|depot~food:,1
+16,svargrond|boat~food:,1
+16,svargrond|bank~food:,1
+16,svargrond|potions~food:,1
+16,svargrond|runes~food:,1
+16,svargrond|boat~north.exit:,1
+16,svargrond|depot~north.exit:,1
+16,svargrond|temple~north.exit:,1
+16,svargrond|bank~north.exit:,1
+16,svargrond|potions~north.exit:,1
+16,svargrond|runes~north.exit:,1
+16,svargrond|ammo~north.exit:,1
+16,svargrond|loot~north.exit:,1
+16,svargrond|trainers~north.exit:,1
+16,svargrond|carpet~north.exit:,1
+16,svargrond|food~north.exit:,1
+16,svargrond|north.exit~north.exit:,1
+16,svargrond|north.exit~boat:,1
+16,svargrond|north.exit~depot:,1
+16,svargrond|north.exit~temple:,1
+16,svargrond|north.exit~bank:,1
+16,svargrond|north.exit~potions:,1
+16,svargrond|north.exit~runes:,1
+16,svargrond|north.exit~ammo:,1
+16,svargrond|north.exit~loot:,1
+16,svargrond|north.exit~trainers:,1
+16,svargrond|north.exit~carpet:,1
+16,svargrond|north.exit~food:,1
+8,thais|boat~boat:,1
+8,thais|bank~tools:,1
+8,thais|tools~depot:,1
+8,thais|north.gate~boat:,1
+8,thais|south.gate~boat:,1
+8,thais|east.gate~boat:,1
+8,thais|west.gate~boat:,1
+8,thais|temple~boat:,1
+8,thais|bank~boat:,1
+8,thais|depot~boat:,1
+8,thais|loot~boat:,1
+8,thais|depot~bank:,1
+8,thais|north.gate~bank:,1
+8,thais|east.gate~bank:,1
+8,thais|south.gate~bank:,1
+8,thais|west.gate~bank:,1
+8,thais|temple~bank:,1
+8,thais|loot~bank:,1
+8,thais|boat~bank:,1
+8,thais|bank~depot:,1
+8,thais|depot~depot:,1
+8,thais|north.gate~depot:,1
+8,thais|east.gate~depot:,1
+8,thais|south.gate~depot:,1
+8,thais|west.gate~depot:,1
+8,thais|temple~depot:,1
+8,thais|loot~depot:,1
+8,thais|boat~depot:,1
+8,depot|thais|1:,1
+8,depot|thais|2:,1
+8,depot|thais|3:,1
+8,depot|thais|4:,1
+8,depot|thais|5:,1
+8,thais|temple~temple:,1
+8,thais|depot~temple:,1
+8,thais|bank~temple:,1
+8,thais|boat~temple:,1
+8,thais|loot~temple:,1
+8,thais|north.gate~temple:,1
+8,thais|east.gate~temple:,1
+8,thais|south.gate~temple:,1
+8,thais|west.gate~temple:,1
+8,thais|loot~loot:,1
+8,thais|depot~loot:,1
+8,thais|bank~loot:,1
+8,thais|temple~loot:,1
+8,thais|boat~loot:,1
+8,thais|north.gate~loot:,1
+8,thais|east.gate~loot:,1
+8,thais|south.gate~loot:,1
+8,thais|west.gate~loot:,1
+8,thais|potions~potions:,1
+8,thais|runes~runes:,1
+8,thais|runes~potions:,1
+8,thais|temple~potions:,1
+8,thais|loot~potions:,1
+8,thais|depot~potions:,1
+8,thais|bank~potions:,1
+8,thais|boat~potions:,1
+8,thais|east.gate~potions:,1
+8,thais|north.gate~potions:,1
+8,thais|south.gate~potions:,1
+8,thais|west.gate~potions:,1
+8,thais|north.gate~north.gate:,1
+8,thais|depot~north.gate:,1
+8,thais|bank~north.gate:,1
+8,thais|temple~north.gate:,1
+8,thais|boat~north.gate:,1
+8,thais|loot~north.gate:,1
+8,thais|temple~east.gate:,1
+8,thais|bank~east.gate:,1
+8,thais|depot~east.gate:,1
+8,thais|east.gate~east.gate:,1
+8,thais|boat~east.gate:,1
+8,thais|loot~east.gate:,1
+8,thais|bank~south.gate:,1
+8,thais|south.gate~south.gate:,1
+8,thais|depot~south.gate:,1
+8,thais|temple~south.gate:,1
+8,thais|loot~south.gate:,1
+8,thais|boat~south.gate:,1
+8,thais|boat~west.gate:,1
+8,thais|west.gate~west.gate:,1
+8,thais|bank~west.gate:,1
+8,thais|depot~west.gate:,1
+8,thais|loot~west.gate:,1
+8,thais|boat~ammo:,1
+8,thais|depot~ammo:,1
+8,thais|temple~ammo:,1
+8,thais|bank~ammo:,1
+8,thais|loot~ammo:,1
+8,thais|north.gate~ammo:,1
+8,thais|east.gate~ammo:,1
+8,thais|south.gate~ammo:,1
+8,thais|west.gate~ammo:,1
+8,thais|ammo~ammo:,1
+8,thais|ammo~boat:,1
+8,thais|ammo~depot:,1
+8,thais|ammo~temple:,1
+8,thais|ammo~bank:,1
+8,thais|ammo~loot:,1
+8,thais|ammo~potions:,1
+8,thais|ammo~runes:,1
+8,thais|ammo~north.gate:,1
+8,thais|ammo~east.gate:,1
+8,thais|ammo~south.gate:,1
+8,thais|ammo~west.gate:,1
+8,thais|west.gate~north.gate:,1
+8,thais|west.gate~south.gate:,1
+8,thais|west.gate~east.gate:,1
+8,thais|south.gate~west.gate:,1
+8,thais|south.gate~east.gate:,1
+8,thais|south.gate~north.gate:,1
+8,thais|east.gate~south.gate:,1
+8,thais|east.gate~west.gate:,1
+8,thais|east.gate~north.gate:,1
+8,thais|north.gate~east.gate:,1
+8,thais|north.gate~south.gate:,1
+8,thais|north.gate~west.gate:,1
+9,venore|boat~boat:,1
+9,venore|east.gate~boat:,1
+9,venore|bank~tools:,1
+9,venore|tools~depot:,1
+9,venore|soft.boots~boat:,1
+9,venore|food~boat:,1
+9,venore|runes~boat:,1
+9,venore|potions~boat:,1
+9,venore|temple~boat:,1
+9,venore|depot~boat:,1
+9,venore|bank~boat:,1
+9,venore|loot.yanni~boat:,1
+9,venore|loot.romella~boat:,1
+9,venore|ammo~boat:,1
+9,venore|west.gate~boat:,1
+9,venore|north.gate~boat:,1
+9,venore|south.gate~boat:,1
+9,venore|trainers~boat:,1
+9,venore|runes~runes:,1
+9,venore|east.gate~runes:,1
+9,venore|trainers~runes:,1
+9,venore|boat~runes:,1
+9,venore|potions~runes:,1
+9,venore|temple~runes:,1
+9,venore|bank~runes:,1
+9,venore|depot~runes:,1
+9,venore|ammo~runes:,1
+9,venore|loot.yanni~runes:,1
+9,venore|loot.romella~runes:,1
+9,venore|north.gate~runes:,1
+9,venore|west.gate~runes:,1
+9,venore|south.gate~runes:,1
+9,venore|food~runes:,1
+9,venore|soft.boots~runes:,1
+9,venore|potions~potions:,1
+9,venore|east.gate~potions:,1
+9,venore|trainers~potions:,1
+9,venore|food~potions:,1
+9,venore|boat~potions:,1
+9,venore|temple~potions:,1
+9,venore|bank~potions:,1
+9,venore|depot~potions:,1
+9,venore|ammo~potions:,1
+9,venore|loot.yanni~potions:,1
+9,venore|loot.romella~potions:,1
+9,venore|north.gate~potions:,1
+9,venore|west.gate~potions:,1
+9,venore|south.gate~potions:,1
+9,venore|soft.boots~potions:,1
+9,venore|soft.boots~soft.boots:,1
+9,venore|east.gate~soft.boots:,1
+9,venore|boat~soft.boots:,1
+9,venore|west.gate~soft.boots:,1
+9,venore|loot.yanni~soft.boots:,1
+9,venore|loot.romella~soft.boots:,1
+9,venore|ammo~soft.boots:,1
+9,venore|south.gate~soft.boots:,1
+9,venore|temple~soft.boots:,1
+9,venore|north.gate~soft.boots:,1
+9,venore|runes~soft.boots:,1
+9,venore|potions~soft.boots:,1
+9,venore|depot~soft.boots:,1
+9,venore|bank~soft.boots:,1
+9,venore|food~soft.boots:,1
+9,venore|trainers~soft.boots:,1
+9,venore|temple~temple:,1
+9,venore|east.gate~temple:,1
+9,venore|boat~temple:,1
+9,venore|food~temple:,1
+9,venore|depot~temple:,1
+9,venore|soft.boots~temple:,1
+9,venore|potions~temple:,1
+9,venore|runes~temple:,1
+9,venore|south.gate~temple:,1
+9,venore|north.gate~temple:,1
+9,venore|west.gate~temple:,1
+9,venore|loot.yanni~temple:,1
+9,venore|loot.romella~temple:,1
+9,venore|ammo~temple:,1
+9,venore|bank~temple:,1
+9,venore|trainers~temple:,1
+9,venore|bank~bank:,1
+9,venore|east.gate~bank:,1
+9,venore|boat~bank:,1
+9,venore|depot~bank:,1
+9,venore|food~bank:,1
+9,venore|north.gate~bank:,1
+9,venore|runes~bank:,1
+9,venore|potions~bank:,1
+9,venore|temple~bank:,1
+9,venore|soft.boots~bank:,1
+9,venore|ammo~bank:,1
+9,venore|loot.yanni~bank:,1
+9,venore|loot.romella~bank:,1
+9,venore|south.gate~bank:,1
+9,venore|west.gate~bank:,1
+9,venore|trainers~bank:,1
+9,venore|depot~depot:,1
+9,venore|east.gate~depot:,1
+9,venore|boat~depot:,1
+9,venore|north.gate~depot:,1
+9,venore|food~depot:,1
+9,venore|bank~depot:,1
+9,venore|potions~depot:,1
+9,venore|runes~depot:,1
+9,venore|temple~depot:,1
+9,venore|soft.boots~depot:,1
+9,venore|south.gate~depot:,1
+9,venore|west.gate~depot:,1
+9,venore|ammo~depot:,1
+9,venore|loot.yanni~depot:,1
+9,venore|loot.romella~depot:,1
+9,venore|trainers~depot:,1
+9,depot|venore|1:,1
+9,depot|venore|2:,1
+9,venore|ammo~ammo:,1
+9,venore|east.gate~ammo:,1
+9,venore|trainers~ammo:,1
+9,venore|food~ammo:,1
+9,venore|temple~ammo:,1
+9,venore|north.gate~ammo:,1
+9,venore|west.gate~ammo:,1
+9,venore|south.gate~ammo:,1
+9,venore|soft.boots~ammo:,1
+9,venore|potions~ammo:,1
+9,venore|runes~ammo:,1
+9,venore|depot~ammo:,1
+9,venore|bank~ammo:,1
+9,venore|loot.yanni~ammo:,1
+9,venore|loot.romella~ammo:,1
+9,venore|west.gate~west.gate:,1
+9,venore|east.gate~west.gate:,1
+9,venore|south.gate~west.gate:,1
+9,venore|ammo~west.gate:,1
+9,venore|loot.yanni~west.gate:,1
+9,venore|loot.romella~west.gate:,1
+9,venore|soft.boots~west.gate:,1
+9,venore|north.gate~west.gate:,1
+9,venore|temple~west.gate:,1
+9,venore|potions~west.gate:,1
+9,venore|runes~west.gate:,1
+9,venore|depot~west.gate:,1
+9,venore|bank~west.gate:,1
+9,venore|food~west.gate:,1
+9,venore|boat~west.gate:,1
+9,venore|trainers~west.gate:,1
+9,venore|south.gate~south.gate:,1
+9,venore|east.gate~south.gate:,1
+9,venore|west.gate~south.gate:,1
+9,venore|north.gate~south.gate:,1
+9,venore|boat~south.gate:,1
+9,venore|loot.yanni~south.gate:,1
+9,venore|loot.romella~south.gate:,1
+9,venore|ammo~south.gate:,1
+9,venore|soft.boots~south.gate:,1
+9,venore|food~south.gate:,1
+9,venore|runes~south.gate:,1
+9,venore|potions~south.gate:,1
+9,venore|depot~south.gate:,1
+9,venore|bank~south.gate:,1
+9,venore|trainers~south.gate:,1
+9,venore|temple~south.gate:,1
+9,venore|north.gate~north.gate:,1
+9,venore|east.gate~north.gate:,1
+9,venore|south.gate~north.gate:,1
+9,venore|west.gate~north.gate:,1
+9,venore|loot.yanni~north.gate:,1
+9,venore|loot.romella~north.gate:,1
+9,venore|ammo~north.gate:,1
+9,venore|boat~north.gate:,1
+9,venore|food~north.gate:,1
+9,venore|depot~north.gate:,1
+9,venore|bank~north.gate:,1
+9,venore|potions~north.gate:,1
+9,venore|runes~north.gate:,1
+9,venore|temple~north.gate:,1
+9,venore|soft.boots~north.gate:,1
+9,venore|trainers~north.gate:,1
+9,venore|food~food:,1
+9,venore|east.gate~food:,1
+9,venore|south.gate~food:,1
+9,venore|west.gate~food:,1
+9,venore|north.gate~food:,1
+9,venore|boat~food:,1
+9,venore|depot~food:,1
+9,venore|bank~food:,1
+9,venore|potions~food:,1
+9,venore|runes~food:,1
+9,venore|loot.yanni~food:,1
+9,venore|loot.romella~food:,1
+9,venore|ammo~food:,1
+9,venore|soft.boots~food:,1
+9,venore|temple~food:,1
+9,venore|trainers~food:,1
+9,venore|trainers~trainers:,1
+9,venore|east.gate~trainers:,1
+9,venore|south.gate~trainers:,1
+9,venore|west.gate~trainers:,1
+9,venore|north.gate~trainers:,1
+9,venore|boat~trainers:,1
+9,venore|temple~trainers:,1
+9,venore|soft.boots~trainers:,1
+9,venore|Ammo~trainers:,1
+9,venore|loot.yanni~trainers:,1
+9,venore|loot.romella~trainers:,1
+9,venore|runes~trainers:,1
+9,venore|potions~trainers:,1
+9,venore|food~trainers:,1
+9,venore|depot~trainers:,1
+9,venore|bank~trainers:,1
+9,venore|south.gate~east.gate:,1
+9,venore|west.gate~east.gate:,1
+9,venore|north.gate~east.gate:,1
+9,venore|loot.yanni~east.gate:,1
+9,venore|loot.romella~east.gate:,1
+9,venore|ammo~east.gate:,1
+9,venore|soft.boots~east.gate:,1
+9,venore|temple~east.gate:,1
+9,venore|potions~east.gate:,1
+9,venore|runes~east.gate:,1
+9,venore|depot~east.gate:,1
+9,venore|bank~east.gate:,1
+9,venore|food~east.gate:,1
+9,venore|boat~east.gate:,1
+9,venore|trainers~east.gate:,1
+9,venore|loot.yanni~loot.yanni:,1
+9,venore|east.gate~loot.yanni:,1
+9,venore|trainers~loot.yanni:,1
+9,venore|food~loot.yanni:,1
+9,venore|temple~loot.yanni:,1
+9,venore|north.gate~loot.yanni:,1
+9,venore|west.gate~loot.yanni:,1
+9,venore|south.gate~loot.yanni:,1
+9,venore|soft.boots~loot.yanni:,1
+9,venore|potions~loot.yanni:,1
+9,venore|runes~loot.yanni:,1
+9,venore|depot~loot.yanni:,1
+9,venore|bank~loot.yanni:,1
+9,venore|ammo~loot.yanni:,1
+9,venore|loot.romella~loot.yanni:,1
+9,venore|loot.romella~loot.romella:,1
+9,venore|east.gate~loot.romella:,1
+9,venore|trainers~loot.romella:,1
+9,venore|food~loot.romella:,1
+9,venore|temple~loot.romella:,1
+9,venore|north.gate~loot.romella:,1
+9,venore|west.gate~loot.romella:,1
+9,venore|south.gate~loot.romella:,1
+9,venore|soft.boots~loot.romella:,1
+9,venore|potions~loot.romella:,1
+9,venore|runes~loot.romella:,1
+9,venore|depot~loot.romella:,1
+9,venore|bank~loot.romella:,1
+9,venore|ammo~loot.romella:,1
+9,venore|loot.yanni~loot.romella:,1
+17,yalahar|bank~tools:,1
+17,yalahar|tools~depot:,1
+17,yalahar|bank~boat:,1
+17,yalahar|depot~boat:,1
+17,yalahar|ammo~boat:,1
+17,yalahar|runes~boat:,1
+17,yalahar|potions~boat:,1
+17,yalahar|food~boat:,1
+17,yalahar|loot.morpel~boat:,1
+17,yalahar|loot.oiriz~boat:,1
+17,yalahar|temple~boat:,1
+17,yalahar|trainers~boat:,1
+17,yalahar|boat~bank:,1
+17,yalahar|bank~bank:,1
+17,yalahar|depot~bank:,1
+17,yalahar|ammo~bank:,1
+17,yalahar|runes~bank:,1
+17,yalahar|potions~bank:,1
+17,yalahar|food~bank:,1
+17,yalahar|loot.morpel~bank:,1
+17,yalahar|loot.oiriz~bank:,1
+17,yalahar|temple~bank:,1
+17,yalahar|trainers~bank:,1
+17,yalahar|boat~depot:,1
+17,yalahar|boat~ammo:,1
+17,yalahar|boat~runes:,1
+17,yalahar|boat~potions:,1
+17,yalahar|boat~food:,1
+17,yalahar|boat~loot.morpel:,1
+17,yalahar|boat~loot.oiriz:,1
+17,yalahar|boat~temple:,1
+17,yalahar|boat~trainers:,1
+17,depot|yalahar|1:,1
+17,depot|yalahar|2:,1
+17,yalahar|bank~depot:,1
+17,yalahar|bank~ammo:,1
+17,yalahar|bank~runes:,1
+17,yalahar|bank~potions:,1
+17,yalahar|bank~food:,1
+17,yalahar|bank~loot.morpel:,1
+17,yalahar|bank~loot.oiriz:,1
+17,yalahar|bank~temple:,1
+17,yalahar|bank~trainers:,1
+17,yalahar|depot~depot:,1
+17,yalahar|depot~ammo:,1
+17,yalahar|depot~runes:,1
+17,yalahar|depot~potions:,1
+17,yalahar|depot~food:,1
+17,yalahar|depot~loot.morpel:,1
+17,yalahar|depot~loot.oiriz:,1
+17,yalahar|depot~temple:,1
+17,yalahar|depot~trainer:,1
+17,yalahar|ammo~depot:,1
+17,yalahar|runes~depot:,1
+17,yalahar|potions~depot:,1
+17,yalahar|food~depot:,1
+17,yalahar|loot.morpel~depot:,1
+17,yalahar|loot.oiriz~depot:,1
+17,yalahar|temple~depot:,1
+17,yalahar|trainers~depot:,1
+17,yalahar|ammo~runes:,1
+17,yalahar|ammo~potions:,1
+17,yalahar|ammo~food:,1
+17,yalahar|ammo~loot.morpel:,1
+17,yalahar|ammo~loot.oiriz:,1
+17,yalahar|ammo~temple:,1
+17,yalahar|ammo~trainers:,1
+17,yalahar|runes~runes:,1
+17,yalahar|potions~potions:,1
+17,yalahar|potions~runes:,1
+17,yalahar|runes~potions:,1
+17,yalahar|trainers~trainers:,1
+17,yalahar|food~food:,1
+17,yalahar|loot.morpel~loot.morpel:,1
+17,yalahar|loot.oiriz~loot.oiriz:,1
+17,yalahar|temple~temple:,1
+17,yalahar|runes~ammo:,1
+17,yalahar|runes~food:,1
+17,yalahar|runes~loot.morpel:,1
+17,yalahar|runes~loot.oiriz:,1
+17,yalahar|runes~temple:,1
+17,yalahar|runes~trainers:,1
+17,yalahar|potions~ammo:,1
+17,yalahar|potions~food:,1
+17,yalahar|potions~loot.morpel:,1
+17,yalahar|potions~loot.oiriz:,1
+17,yalahar|potions~temple:,1
+17,yalahar|potions~trainers:,1
+17,yalahar|food~ammo:,1
+17,yalahar|food~potions:,1
+17,yalahar|food~runes:,1
+17,yalahar|food~loot.morpel:,1
+17,yalahar|food~loot.oiriz:,1
+17,yalahar|food~temple:,1
+17,yalahar|food~trainers:,1
+17,yalahar|loot.morpel~ammo:,1
+17,yalahar|loot.morpel~runes:,1
+17,yalahar|loot.morpel~potions:,1
+17,yalahar|loot.morpel~food:,1
+17,yalahar|loot.morpel~loot.oiriz:,1
+17,yalahar|loot.morpel~temple:,1
+17,yalahar|loot.morpel~trainers:,1
+17,yalahar|loot.oiriz~ammo:,1
+17,yalahar|loot.oiriz~potions:,1
+17,yalahar|loot.oiriz~runes:,1
+17,yalahar|loot.oiriz~food:,1
+17,yalahar|loot.oiriz~loot.morpel:,1
+17,yalahar|loot.oiriz~temple:,1
+17,yalahar|loot.oiriz~trainers:,1
+17,yalahar|temple~ammo:,1
+17,yalahar|temple~runes:,1
+17,yalahar|temple~potions:,1
+17,yalahar|temple~food:,1
+17,yalahar|temple~loot.morpel:,1
+17,yalahar|temple~loot.oiriz:,1
+17,yalahar|temple~trainers:,1
+17,yalahar|trainers~ammo:,1
+17,yalahar|trainers~runes:,1
+17,yalahar|trainers~potions:,1
+17,yalahar|trainers~food:,1
+17,yalahar|trainers~loot.morpel:,1
+17,yalahar|trainers~loot.oiriz:,1
+17,yalahar|trainers~temple:,1
+17,yalahar|foreign.quarter~boat:,1
+17,yalahar|foreign.quarter~bank:,1
+17,yalahar|foreign.quarter~depot:,1
+17,yalahar|foreign.quarter~ammo:,1
+17,yalahar|foreign.quarter~runes:,1
+17,yalahar|foreign.quarter~potions:,1
+17,yalahar|foreign.quarter~food:,1
+17,yalahar|foreign.quarter~loot.morpel:,1
+17,yalahar|foreign.quarter~loot.oiriz:,1
+17,yalahar|foreign.quarter~temple:,1
+17,yalahar|foreign.quarter~trainers:,1
+17,yalahar|foreign.quarter~magician.quarter:,1
+17,yalahar|foreign.quarter~cemetery.quarter:,1
+17,yalahar|foreign.quarter~alchemist.quarter:,1
+17,yalahar|foreign.quarter~arena.quarter:,1
+17,yalahar|foreign.quarter~sunken.quarter:,1
+17,yalahar|foreign.quarter~factory.quarter:,1
+17,yalahar|foreign.quarter~trade.quarter:,1
+17,yalahar|boat~foreign.quarter:,1
+17,yalahar|bank~foreign.quarter:,1
+17,yalahar|depot~foreign.quarter:,1
+17,yalahar|ammo~foreign.quarter:,1
+17,yalahar|runes~foreign.quarter:,1
+17,yalahar|potions~foreign.quarter:,1
+17,yalahar|food~foreign.quarter:,1
+17,yalahar|loot.morpel~foreign.quarter:,1
+17,yalahar|loot.oiriz~foreign.quarter:,1
+17,yalahar|temple~foreign.quarter:,1
+17,yalahar|trainers~foreign.quarter:,1
+17,yalahar|magician.quarter~foreign.quarter:,1
+17,yalahar|cemetery.quarter~foreign.quarter:,1
+17,yalahar|alchemist.quarter~foreign.quarter:,1
+17,yalahar|arena.quarter~foreign.quarter:,1
+17,yalahar|sunken.quarter~foreign.quarter:,1
+17,yalahar|factory.quarter~foreign.quarter:,1
+17,yalahar|trade.quarter~foreign.quarter:,1
+17,yalahar|arena.quarter~boat:,1
+17,yalahar|arena.quarter~bank:,1
+17,yalahar|arena.quarter~depot:,1
+17,yalahar|arena.quarter~ammo:,1
+17,yalahar|arena.quarter~runes:,1
+17,yalahar|arena.quarter~potions:,1
+17,yalahar|arena.quarter~food:,1
+17,yalahar|arena.quarter~loot.morpel:,1
+17,yalahar|arena.quarter~loot.oiriz:,1
+17,yalahar|arena.quarter~temple:,1
+17,yalahar|arena.quarter~trainers:,1
+17,yalahar|arena.quarter~magician.quarter:,1
+17,yalahar|arena.quarter~cemetery.quarter:,1
+17,yalahar|arena.quarter~alchemist.quarter:,1
+17,yalahar|arena.quarter~sunken.quarter:,1
+17,yalahar|arena.quarter~factory.quarter:,1
+17,yalahar|arena.quarter~trade.quarter:,1
+17,yalahar|boat~arena.quarter:,1
+17,yalahar|bank~arena.quarter:,1
+17,yalahar|depot~arena.quarter:,1
+17,yalahar|ammo~arena.quarter:,1
+17,yalahar|runes~arena.quarter:,1
+17,yalahar|potions~arena.quarter:,1
+17,yalahar|food~arena.quarter:,1
+17,yalahar|loot.morpel~arena.quarter:,1
+17,yalahar|loot.oiriz~arena.quarter:,1
+17,yalahar|temple~arena.quarter:,1
+17,yalahar|trainers~arena.quarter:,1
+17,yalahar|magician.quarter~arena.quarter:,1
+17,yalahar|cemetery.quarter~arena.quarter:,1
+17,yalahar|alchemist.quarter~arena.quarter:,1
+17,yalahar|sunken.quarter~arena.quarter:,1
+17,yalahar|factory.quarter~arena.quarter:,1
+17,yalahar|trade.quarter~arena.quarter:,1
+17,yalahar|boat~alchemist.quarter:,1
+17,yalahar|bank~alchemist.quarter:,1
+17,yalahar|depot~alchemist.quarter:,1
+17,yalahar|ammo~alchemist.quarter:,1
+17,yalahar|runes~alchemist.quarter:,1
+17,yalahar|potions~alchemist.quarter:,1
+17,yalahar|food~alchemist.quarter:,1
+17,yalahar|loot.morpel~alchemist.quarter:,1
+17,yalahar|loot.oiriz~alchemist.quarter:,1
+17,yalahar|temple~alchemist.quarter:,1
+17,yalahar|trainers~alchemist.quarter:,1
+17,yalahar|magician.quarter~alchemist.quarter:,1
+17,yalahar|cemetery.quarter~alchemist.quarter:,1
+17,yalahar|sunken.quarter~alchemist.quarter:,1
+17,yalahar|factory.quarter~alchemist.quarter:,1
+17,yalahar|trade.quarter~alchemist.quarter:,1
+17,yalahar|alchemist.quarter~boat:,1
+17,yalahar|alchemist.quarter~bank:,1
+17,yalahar|alchemist.quarter~depot:,1
+17,yalahar|alchemist.quarter~ammo:,1
+17,yalahar|ammo~ammo:,1
+17,yalahar|alchemist.quarter~runes:,1
+17,yalahar|alchemist.quarter~potions:,1
+17,yalahar|alchemist.quarter~food:,1
+17,yalahar|alchemist.quarter~loot.morpel:,1
+17,yalahar|alchemist.quarter~loot.oiriz:,1
+17,yalahar|alchemist.quarter~temple:,1
+17,yalahar|alchemist.quarter~trainers:,1
+17,yalahar|alchemist.quarter~magician.quarter:,1
+17,yalahar|alchemist.quarter~cemetery.quarter:,1
+17,yalahar|alchemist.quarter~sunken.quarter:,1
+17,yalahar|alchemist.quarter~factory.quarter:,1
+17,yalahar|alchemist.quarter~trade.quarter:,1
+17,yalahar|boat~cemetery.quarter:,1
+17,yalahar|bank~cemetery.quarter:,1
+17,yalahar|depot~cemetery.quarter:,1
+17,yalahar|ammo~cemetery.quarter:,1
+17,yalahar|runes~cemetery.quarter:,1
+17,yalahar|potions~cemetery.quarter:,1
+17,yalahar|food~cemetery.quarter:,1
+17,yalahar|loot.morpel~cemetery.quarter:,1
+17,yalahar|loot.oiriz~cemetery.quarter:,1
+17,yalahar|temple~cemetery.quarter:,1
+17,yalahar|trainers~cemetery.quarter:,1
+17,yalahar|magician.quarter~cemetery.quarter:,1
+17,yalahar|sunken.quarter~cemetery.quarter:,1
+17,yalahar|factory.quarter~cemetery.quarter:,1
+17,yalahar|trade.quarter~cemetery.quarter:,1
+17,yalahar|cemetery.quarter~boat:,1
+17,yalahar|cemetery.quarter~bank:,1
+17,yalahar|cemetery.quarter~depot:,1
+17,yalahar|cemetery.quarter~ammo:,1
+17,yalahar|cemetery.quarter~runes:,1
+17,yalahar|cemetery.quarter~potions:,1
+17,yalahar|cemetery.quarter~food:,1
+17,yalahar|cemetery.quarter~loot.morpel:,1
+17,yalahar|cemetery.quarter~loot.oiriz:,1
+17,yalahar|cemetery.quarter~temple:,1
+17,yalahar|cemetery.quarter~trainers:,1
+17,yalahar|cemetery.quarter~magician.quarter:,1
+17,yalahar|cemetery.quarter~sunken.quarter:,1
+17,yalahar|cemetery.quarter~factory.quarter:,1
+17,yalahar|cemetery.quarter~trade.quarter:,1
+17,yalahar|boat~magician.quarter:,1
+17,yalahar|bank~magician.quarter:,1
+17,yalahar|depot~magician.quarter:,1
+17,yalahar|ammo~magician.quarter:,1
+17,yalahar|runes~magician.quarter:,1
+17,yalahar|potions~magician.quarter:,1
+17,yalahar|food~magician.quarter:,1
+17,yalahar|loot.morpel~magician.quarter:,1
+17,yalahar|loot.oiriz~magician.quarter:,1
+17,yalahar|temple~magician.quarter:,1
+17,yalahar|trainers~magician.quarter:,1
+17,yalahar|sunken.quarter~magician.quarter:,1
+17,yalahar|factory.quarter~magician.quarter:,1
+17,yalahar|trade.quarter~magician.quarter:,1
+17,yalahar|magician.quarter~boat:,1
+17,yalahar|magician.quarter~bank:,1
+17,yalahar|magician.quarter~depot:,1
+17,yalahar|magician.quarter~ammo:,1
+17,yalahar|magician.quarter~runes:,1
+17,yalahar|magician.quarter~potions:,1
+17,yalahar|magician.quarter~food:,1
+17,yalahar|magician.quarter~loot.morpel:,1
+17,yalahar|magician.quarter~loot.oiriz:,1
+17,yalahar|magician.quarter~temple:,1
+17,yalahar|magician.quarter~trainers:,1
+17,yalahar|magician.quarter~sunken.quarter:,1
+17,yalahar|magician.quarter~factory.quarter:,1
+17,yalahar|magician.quarter~trade.quarter:,1
+17,yalahar|boat~sunken.quarter:,1
+17,yalahar|bank~sunken.quarter:,1
+17,yalahar|depot~sunken.quarter:,1
+17,yalahar|ammo~sunken.quarter:,1
+17,yalahar|runes~sunken.quarter:,1
+17,yalahar|potions~sunken.quarter:,1
+17,yalahar|food~sunken.quarter:,1
+17,yalahar|loot.morpel~sunken.quarter:,1
+17,yalahar|loot.oiriz~sunken.quarter:,1
+17,yalahar|temple~sunken.quarter:,1
+17,yalahar|trainers~sunken.quarter:,1
+17,yalahar|factory.quarter~sunken.quarter:,1
+17,yalahar|trade.quarter~sunken.quarter:,1
+17,yalahar|sunken.quarter~boat:,1
+17,yalahar|sunken.quarter~bank:,1
+17,yalahar|sunken.quarter~depot:,1
+17,yalahar|sunken.quarter~ammo:,1
+17,yalahar|sunken.quarter~runes:,1
+17,yalahar|sunken.quarter~potions:,1
+17,yalahar|sunken.quarter~food:,1
+17,yalahar|sunken.quarter~loot.morpel:,1
+17,yalahar|sunken.quarter~loot.oiriz:,1
+17,yalahar|sunken.quarter~temple:,1
+17,yalahar|sunken.quarter~trainers:,1
+17,yalahar|sunken.quarter~factory.quarter:,1
+17,yalahar|sunken.quarter~trade.quarter:,1
+17,yalahar|boat~factory.quarter:,1
+17,yalahar|bank~factory.quarter:,1
+17,yalahar|depot~factory.quarter:,1
+17,yalahar|ammo~factory.quarter:,1
+17,yalahar|runes~factory.quarter:,1
+17,yalahar|potions~factory.quarter:,1
+17,yalahar|food~factory.quarter:,1
+17,yalahar|loot.morpel~factory.quarter:,1
+17,yalahar|loot.oiriz~factory.quarter:,1
+17,yalahar|temple~factory.quarter:,1
+17,yalahar|trainers~factory.quarter:,1
+17,yalahar|trade.quarter~factory.quarter:,1
+17,yalahar|factory.quarter~boat:,1
+17,yalahar|factory.quarter~bank:,1
+17,yalahar|factory.quarter~depot:,1
+17,yalahar|factory.quarter~ammo:,1
+17,yalahar|factory.quarter~runes:,1
+17,yalahar|factory.quarter~potions:,1
+17,yalahar|factory.quarter~food:,1
+17,yalahar|factory.quarter~loot.morpel:,1
+17,yalahar|factory.quarter~loot.oiriz:,1
+17,yalahar|factory.quarter~temple:,1
+17,yalahar|factory.quarter~trainers:,1
+17,yalahar|factory.quarter~trade.quarter:,1
+17,yalahar|boat~trade.quarter:,1
+17,yalahar|bank~trade.quarter:,1
+17,yalahar|depot~trade.quarter:,1
+17,yalahar|ammo~trade.quarter:,1
+17,yalahar|runes~trade.quarter:,1
+17,yalahar|potions~trade.quarter:,1
+17,yalahar|food~trade.quarter:,1
+17,yalahar|loot.morpel~trade.quarter:,1
+17,yalahar|loot.oiriz~trade.quarter:,1
+17,yalahar|temple~trade.quarter:,1
+17,yalahar|trainers~trade.quarter:,1
+17,yalahar|trade.quarter~boat:,1
+17,yalahar|trade.quarter~bank:,1
+17,yalahar|trade.quarter~depot:,1
+17,yalahar|trade.quarter~ammo:,1
+17,yalahar|trade.quarter~runes:,1
+17,yalahar|trade.quarter~potions:,1
+17,yalahar|trade.quarter~food:,1
+17,yalahar|trade.quarter~loot.morpel:,1
+17,yalahar|trade.quarter~loot.oiriz:,1
+17,yalahar|trade.quarter~temple:,1
+17,yalahar|trade.quarter~trainers:,1
+6,carlin|boat~depot:,1
+6,carlin|depot~boat:,1
+5,ab'dendriel|temple~depot:,1
+5,ab'dendriel|depot~temple:,1
+5,ab'dendriel|depot~boat:,1
+5,ab'dendriel|boat~depot:,1
+12,farmine|carpet~temple:,1
+12,farmine|temple~depot:,1
+12,farmine|boat~temple:,1
+12,farmine|temple~boat:,1
+12,farmine|depot~temple:,1
+12,farmine|temple~carpet:,1
+22,issavi|temple~depot:,1
+22,issavi|depot~boat:,1
+22,issavi|boat~temple:,1
+22,issavi|depot~temple:,1
+7,kazordoon|temple~depot:,1
+7,kazordoon|depot~temple:,1
+7,kazordoon|boat~depot:,1
+7,kazordoon|depot~boat:,1
+7,kazordoon|carpet~depot:,1
+7,kazordoon|depot~carpet:,1
+19,krailos|temple~depot:,1
+19,krailos|depot~temple:,1
+19,krailos|temple~boat:,1
+19,krailos|boat~temple:,1
+20,rathleton|temple~depot:,1
+20,rathleton|depot~temple:,1
+20,rathleton|depot~boat:,1
+20,rathleton|boat~depot:,1
+21,roshamuul|temple~depot:,1
+21,roshamuul|depot~temple:,1
+21,roshamuul|temple~boat:,1
+21,roshamuul|boat~temple:,1
+12,farmine|boat~depot:,1
+12,farmine|carpet~depot:,1
+26,feyrist|temple~boat:,1
+26,feyrist|boat~temple:,1
+26,feyrist|temple~depot:,1
+26,feyrist|depot~temple:,1
+21,roshamuul|boat~depot:,1
+21,roshamuul|depot~boat:,1
+12,farmine|depot~boat:,1
+12,farmine|depot~carpet:,1
+19,krailos|boat~depot:,1
+19,krailos|depot~boat:,1
+22,issavi|boat~depot:,1
+26,feyrist|boat~depot:,1
+26,feyrist|depot~boat:,1
+11,edron|potions~exit-potions:,1
+0,global|adventurer_stone:,1
+9,venore|depot.2~boat:,1
+9,venore|boat~depot.2:,1

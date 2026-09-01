@@ -851,6 +851,10 @@ int GameFunctions::luaGameLoadBotPlayer(lua_State* L) {
 
 	// Create player with no client connection
 	auto player = std::make_shared<Player>(nullptr);
+	// Flag BEFORE the load, not after: loadPlayerInitializeSystem runs inside loadPlayerByName
+	// and skips client-only subsystems for bots. Setting it afterwards (as this used to) left
+	// isBotPlayer() false for the whole load and the skip never fired.
+	player->setBotPlayer(true);
 	if (!IOLoginData::loadPlayerByName(player, name, false)) {
 		g_logger().warn("[Game.loadBotPlayer] Failed to load bot '{}' from database", name);
 		lua_pushnil(L);

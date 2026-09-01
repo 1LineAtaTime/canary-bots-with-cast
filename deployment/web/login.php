@@ -180,7 +180,16 @@ switch ($action) {
 				$first = false;
 			}
 			$castSession = [
-				"sessionkey" => "@cast\n",
+				// The part after the newline is the cast-operator password. The game server
+				// splits this session key on "\n" (protocolgame.cpp onRecvFirstMessage) and
+				// compares the tail against castOperatorPassword to decide whether this viewer
+				// may drive the bot with /cavebot from Cast Chat. The legacy 7171 login path
+				// already forwards it this way (protocollogin.cpp:43); this endpoint used to
+				// hardcode an empty tail, which silently disabled operator mode for every
+				// viewer that logged in through the web service.
+				// Watching stays unauthenticated: a wrong or absent password just yields an
+				// ordinary read-only viewer, exactly as before.
+				"sessionkey" => "@cast\n" . ($request->password ?? ""),
 				"lastlogintime" => 0,
 				"ispremium" => true,
 				"premiumuntil" => time() + 30 * 86400,

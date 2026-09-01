@@ -1,0 +1,18 @@
+{
+	"name": "World Map",
+	"description": "Live world map of where every online character is. Overview layer (tibia.com artwork, floor-agnostic) and Floors layer (per-floor minimap with a floor stepper). Reads the position columns the server already persists — no schema, no telemetry. See plugins/worldmap/README.md.",
+	"version": "1.0",
+	"type": "page",
+	"license": "GPLv3",
+	"author": "Canary Bots with Cast",
+	"contact": "https://github.com/1LineAtaTime/canary-bots-with-cast",
+	"require": {
+		"myaac": "1.0",
+		"php": "8.1"
+	},
+	"install": "plugins/worldmap/install.php",
+	"uninstall": [
+		"plugins/worldmap.json",
+		"plugins/worldmap"
+	]
+}

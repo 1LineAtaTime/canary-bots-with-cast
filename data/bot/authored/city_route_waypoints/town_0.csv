@@ -1,0 +1,19 @@
+source_name,waypoint_type,pos_x,pos_y,pos_z,action_label
+
+# --- global|adventurer_stone: (16 waypoints) ---
+global|adventurer_stone:,node,32210,32300,6,
+global|adventurer_stone:,node,32204,32297,6,
+global|adventurer_stone:,node,32203,32298,6,
+global|adventurer_stone:,stairs_down,32203,32299,6,
+global|adventurer_stone:,node,32203,32300,7,
+global|adventurer_stone:,node,32192,32295,7,
+global|adventurer_stone:,node,32202,32295,7,
+global|adventurer_stone:,node,32209,32295,7,
+global|adventurer_stone:,node,32211,32275,7,
+global|adventurer_stone:,node,32198,32300,7,
+global|adventurer_stone:,stairs_up,32198,32299,7,
+global|adventurer_stone:,node,32198,32298,6,
+global|adventurer_stone:,node,32201,32305,6,
+global|adventurer_stone:,node,32210,32294,6,
+global|adventurer_stone:,node,32210,32293,6,
+global|adventurer_stone:,stand,32210,32292,6,
