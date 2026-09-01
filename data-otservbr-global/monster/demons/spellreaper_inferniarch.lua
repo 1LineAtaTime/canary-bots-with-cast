@@ -2,7 +2,7 @@ local mType = Game.createMonsterType("Spellreaper Inferniarch")
 local monster = {}
 
 monster.description = "a spellreaper inferniarch"
-monster.experience = 8350
+monster.experience = 9750
 monster.outfit = {
 	lookType = 1792,
 	lookHead = 0,
@@ -18,24 +18,24 @@ monster.Bestiary = {
 	class = "Demon",
 	race = BESTY_RACE_DEMON,
 	toKill = 2500,
-	FirstUnlock = 50,
-	SecondUnlock = 500,
+	FirstUnlock = 200,
+	SecondUnlock = 2000,
 	CharmsPoints = 50,
 	Stars = 4,
-	Occurrence = 1,
-	Locations = "Azzilon Castle Catacombs.",
+	Occurrence = 0,
+	Locations = "Azzilon Castle.",
 }
 
 monster.health = 11800
 monster.maxHealth = 11800
-monster.race = "fire"
+monster.race = "undead"
 monster.corpse = 49990
 monster.speed = 180
 monster.manaCost = 0
 
 monster.changeTarget = {
 	interval = 4000,
-	chance = 10,
+	chance = 0,
 }
 
 monster.strategiesTarget = {
@@ -54,8 +54,8 @@ monster.flags = {
 	rewardBoss = false,
 	illusionable = false,
 	canPushItems = true,
-	canPushCreatures = true,
-	staticAttackChance = 80,
+	canPushCreatures = false,
+	staticAttackChance = 70,
 	targetDistance = 1,
 	runHealth = 0,
 	healthHidden = false,
@@ -63,6 +63,7 @@ monster.flags = {
 	canWalkOnEnergy = true,
 	canWalkOnFire = true,
 	canWalkOnPoison = true,
+	isPreyable = true,
 	isPreyExclusive = true,
 }
 
@@ -79,45 +80,49 @@ monster.voices = {
 }
 
 monster.loot = {
-	{ name = "platinum coin", chance = 5000, maxCount = 34 },
-	{ name = "wand of inferno", chance = 1500 },
-	{ name = "spellbook of mind control", chance = 300 },
-	{ name = "spellreaper staff totem", chance = 1500 },
-	{ name = "small ruby", chance = 1500, maxCount = 4 },
-	{ name = "prismatic quartz", chance = 1000 },
-	{ name = "demonic matter", chance = 4761 },
-	{ name = "fire mushroom", chance = 2000 },
-	{ name = "black pearl", chance = 1000 },
-	{ name = "demonic core essence", chance = 100 },
-	{ name = "mummified demon finger", chance = 155 },
+	{ name = "Platinum Coin", chance = 26500, maxCount = 40 },
+	{ name = "Onyx Arrow", chance = 24500, maxCount = 25 },
+	{ name = "Sniper Arrow", chance = 24500, maxCount = 15 },
+	{ name = "Assassin Star", chance = 24500, maxCount = 25 },
+	{ name = "Small Amethyst", chance = 24500, maxCount = 5 },
+	{ name = "Dark Helmet", chance = 12500, maxCount = 1 },
+	{ id = 6299, chance = 3500, maxCount = 1 },
+	{ name = "Demonic Core Essence", chance = 3000, maxCount = 1 },
+	{ name = "Cyan Crystal Fragment", chance = 14500, maxCount = 5 },
+	{ name = "Mummified Demon Finger", chance = 3000, maxCount = 1 },
+	{ name = "Demonic Matter", chance = 3000, maxCount = 1 },
+	{ id = 50054, chance = 2500, maxCount = 1 },
 }
 
 monster.attacks = {
-	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -150, maxDamage = -450, range = 4, shootEffect = CONST_ANI_ENERGY, effect = CONST_ME_ENERGYHIT, target = true },
+	{ name = "melee", interval = 2000, chance = 0, minDamage = 250, maxDamage = -400 },
+	{ name = "extended white chain", interval = 2000, chance = 15, minDamage = -275, maxDamage = -438, range = 4 },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_DEATHDAMAGE, minDamage = -250, maxDamage = -350, range = 7, radius = 4, shootEffect = CONST_ANI_DEATH, effect = CONST_ME_DRAWBLOOD, target = true },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_EARTHDAMAGE, minDamage = -250, maxDamage = -350, range = 7, radius = 4, shootEffect = CONST_ANI_POISON, effect = CONST_ME_HITBYPOISON, target = true },
 }
 
 monster.defenses = {
-	defense = 15,
+	defense = 74,
 	armor = 74,
 	mitigation = 2.13,
 }
 
 monster.elements = {
-	{ type = COMBAT_DEATHDAMAGE, percent = -15 },
-	{ type = COMBAT_EARTHDAMAGE, percent = -15 },
-	{ type = COMBAT_HOLYDAMAGE, percent = 0 },
-	{ type = COMBAT_FIREDAMAGE, percent = 0 },
-	{ type = COMBAT_DROWNDAMAGE, percent = 0 },
 	{ type = COMBAT_PHYSICALDAMAGE, percent = 10 },
-	{ type = COMBAT_ICEDAMAGE, percent = 10 },
 	{ type = COMBAT_ENERGYDAMAGE, percent = 100 },
-	{ type = COMBAT_LIFEDRAIN, percent = 100 },
-	{ type = COMBAT_MANADRAIN, percent = 100 },
+	{ type = COMBAT_EARTHDAMAGE, percent = -15 },
+	{ type = COMBAT_FIREDAMAGE, percent = 0 },
+	{ type = COMBAT_LIFEDRAIN, percent = 0 },
+	{ type = COMBAT_MANADRAIN, percent = 0 },
+	{ type = COMBAT_DROWNDAMAGE, percent = 0 },
+	{ type = COMBAT_ICEDAMAGE, percent = 10 },
+	{ type = COMBAT_HOLYDAMAGE, percent = 0 },
+	{ type = COMBAT_DEATHDAMAGE, percent = -15 },
 }
 
 monster.immunities = {
 	{ type = "paralyze", condition = true },
-	{ type = "outfit", condition = false },
+	{ type = "outfit", condition = true },
 	{ type = "invisible", condition = true },
 	{ type = "bleed", condition = false },
 }

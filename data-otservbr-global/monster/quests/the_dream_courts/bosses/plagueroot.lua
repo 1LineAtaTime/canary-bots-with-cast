@@ -13,17 +13,17 @@ monster.outfit = {
 	lookMount = 0,
 }
 
+monster.events = {
+	"dreamCourtsDeath",
+	"facelessHealth",
+}
+
 monster.health = 320000
 monster.maxHealth = 320000
 monster.race = "venom"
 monster.corpse = 30022
 monster.speed = 85
 monster.manaCost = 0
-
-monster.events = {
-	"dreamCourtsDeath",
-	"facelessHealth",
-}
 
 monster.changeTarget = {
 	interval = 4000,
@@ -33,6 +33,7 @@ monster.changeTarget = {
 monster.bosstiary = {
 	bossRaceId = 1695,
 	bossRace = RARITY_NEMESIS,
+	storage = Storage.Quest.U12_00.TheDreamCourts.DreamScar.PlagueRootTimer,
 }
 
 monster.strategiesTarget = {
@@ -97,11 +98,11 @@ monster.loot = {
 	{ name = "plagueroot offshoot", chance = 20000 },
 	{ name = "skull staff", chance = 20000 },
 	{ name = "platinum coin", chance = 100000 },
-	{ name = "silver token", chance = 95920, maxCount = 5 },
+	{ name = "silver token", chance = 100000, maxCount = 3 },
 	{ name = "piggy bank", chance = 93880 },
 	{ name = "mysterious remains", chance = 91840 },
 	{ name = "energy bar", chance = 87760 },
-	{ name = "gold token", chance = 61220 },
+	{ name = "gold token", chance = 80000 },
 	{ name = "ultimate spirit potion", chance = 59180, maxCount = 20 },
 	{ name = "ultimate mana potion", chance = 57140, maxCount = 20 },
 	{ name = "royal star", chance = 48980 },

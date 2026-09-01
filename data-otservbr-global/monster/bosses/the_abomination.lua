@@ -65,9 +65,11 @@ monster.light = {
 monster.voices = {
 	interval = 5000,
 	chance = 10,
+	{ text = "ANIHILATION!", yell = true },
+	{ text = "DEATH IS INEVITABLE!", yell = true },
+	{ text = "DESTRUCTION!", yell = true },
 	{ text = "I AM THE ESSENCE OF DEATH!", yell = true },
 	{ text = "YOU CAN NOT ESCAPE ME!", yell = true },
-	{ text = "DESTRUCTION!", yell = true },
 	{ text = "DRUIDS! ... LIKE ... DRUID FLAVOUR!", yell = true },
 	{ text = "WILL EAT DRUIDS!", yell = true },
 	{ text = "KNIGHTS! ... DELICIOUS KNIGHTS!", yell = true },
@@ -77,6 +79,7 @@ monster.voices = {
 	{ text = "SORCERERS! ... MUST EAT SORCERERS!", yell = true },
 	{ text = "WILL EAT SORCERERS!", yell = true },
 	{ text = "HUNGER ... SO ... GREAT! YOU ALL .. WILL .... DIE!!!", yell = true },
+	{ text = "PAIN!", yell = true },
 	{ text = "DIIIIEEEEE!", yell = true },
 }
 

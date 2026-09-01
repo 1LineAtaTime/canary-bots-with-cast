@@ -20,9 +20,9 @@ monster.bosstiary = {
 
 monster.health = 6000
 monster.maxHealth = 6000
-monster.race = "blood"
-monster.corpse = 48414
-monster.speed = 250
+monster.race = "candy"
+monster.corpse = 48415
+monster.speed = 150
 monster.manaCost = 0
 
 monster.changeTarget = {
@@ -31,10 +31,10 @@ monster.changeTarget = {
 }
 
 monster.strategiesTarget = {
-	nearest = 70,
-	health = 10,
+	nearest = 90,
+	health = 0,
 	damage = 10,
-	random = 10,
+	random = 0,
 }
 
 monster.flags = {
@@ -48,7 +48,7 @@ monster.flags = {
 	canPushItems = true,
 	canPushCreatures = true,
 	staticAttackChance = 98,
-	targetDistance = 3,
+	targetDistance = 1,
 	runHealth = 0,
 	healthHidden = false,
 	isBlockable = false,
@@ -62,35 +62,35 @@ monster.light = {
 	color = 0,
 }
 
-monster.voices = {
-	interval = 5000,
-	chance = 10,
-	{ text = "SUGAR!!!", yell = false },
-}
+monster.voices = {}
 
 monster.loot = {
-	{ name = "platinum coin", chance = 100000, maxCount = 11 },
-	{ name = "cherry", chance = 100000, maxCount = 2 },
-	{ id = 3039, chance = 11465, maxCount = 1 }, -- red gem
-	{ id = 3037, chance = 9500 }, -- yellow gem
-	{ id = 3038, chance = 4760 }, -- green gem
-	{ id = 48250, chance = 28555, maxCount = 11 }, -- dark chocolate coin
-	{ id = 48249, chance = 26465, maxCount = 12 }, -- milk chocolate coin
-	{ id = 48273, chance = 16465, maxCount = 1 }, -- taiyaki ice cream
+	{ id = 3035, chance = 100000, maxCount = 13 }, -- platinum coin
+	{ id = 3590, chance = 100000, maxCount = 2 }, -- cherry
+	{ id = 48249, chance = 54465, maxCount = 7 }, -- milk chocolate coin
+	{ id = 48250, chance = 46555, maxCount = 5 }, -- dark chocolate coin
+	{ id = 48273, chance = 16800, maxCount = 1 }, -- taiyaki ice cream
+	{ id = 3039, chance = 6100, maxCount = 1 }, -- red gem
+	{ id = 25737, chance = 3800, maxCount = 2 }, -- rainbow quartz
+	{ id = 3038, chance = 3500, maxCount = 1 }, -- green gem
+	{ id = 3037, chance = 3500, maxCount = 1 }, -- yellow gem
+	{ id = 25700, chance = 1700, maxCount = 1 }, -- dream blossom staff
+	{ id = 6393, chance = 3500, maxCount = 1 }, -- cream cake
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 20, minDamage = 0, maxDamage = -350 },
-	{ name = "combat", interval = 2000, chance = 50, type = COMBAT_ENERGYDAMAGE, minDamage = -70, maxDamage = -180, range = 6, shootEffect = CONST_ANI_CHERRYBOMB, target = true },
-	{ name = "combat", interval = 2000, chance = 25, type = COMBAT_ENERGYDAMAGE, minDamage = -170, maxDamage = -280, radius = 6, effect = CONST_ME_PURPLEENERGY, target = false },
-	{ name = "combat", interval = 2000, chance = 25, type = COMBAT_ENERGYDAMAGE, minDamage = -250, maxDamage = -310, radius = 4, effect = CONST_ME_POWERFUL_HEARTS, target = false },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -200 },
+	{ name = "combat", interval = 2000, chance = 50, type = COMBAT_ENERGYDAMAGE, minDamage = -50, maxDamage = -250, range = 6, shootEffect = CONST_ANI_CHERRYBOMB, target = true },
+	{ name = "combat", interval = 2000, chance = 25, type = COMBAT_ENERGYDAMAGE, minDamage = -90, maxDamage = -180, radius = 6, effect = CONST_ME_PURPLEENERGY, target = false },
+	{ name = "combat", interval = 2000, chance = 18, type = COMBAT_EARTHDAMAGE, minDamage = -75, maxDamage = -110, radius = 12, effect = CONST_ME_HEARTS, target = false },
+	{ name = "root area", interval = 20000, chance = 100, target = false },
 }
 
 monster.defenses = {
-	defense = 65,
-	armor = 55,
+	defense = 25,
+	armor = 15,
 	--	mitigation = ???,
-	{ name = "combat", interval = 3000, chance = 25, type = COMBAT_HEALING, minDamage = 400, maxDamage = 600, effect = CONST_ME_MAGIC_BLUE, target = false },
+	{ name = "combat", interval = 3000, chance = 25, type = COMBAT_HEALING, minDamage = 250, maxDamage = 300, effect = CONST_ME_MAGIC_BLUE, target = false },
 }
 
 monster.elements = {

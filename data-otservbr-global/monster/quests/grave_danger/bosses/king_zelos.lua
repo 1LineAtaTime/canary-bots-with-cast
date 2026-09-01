@@ -13,17 +13,16 @@ monster.outfit = {
 	lookMount = 0,
 }
 
+monster.events = {
+	"GraveDangerBossDeath",
+	"zelosDeath",
+}
+
 monster.health = 480000
 monster.maxHealth = 480000
 monster.race = "venom"
 monster.corpse = 31611
 monster.speed = 212
-
-monster.events = {
-	"zelos_damage",
-	"zelos_init",
-	"grave_danger_death",
-}
 
 monster.bosstiary = {
 	bossRaceId = 1784,
@@ -62,8 +61,8 @@ monster.loot = {
 	{ name = "ultimate spirit potion", minCount = 0, maxCount = 14, chance = 42000 },
 	{ name = "bullseye potion", minCount = 0, maxCount = 10, chance = 22000 },
 	{ name = "berserk potion", minCount = 0, maxCount = 10, chance = 22000 },
-	{ name = "gold token", minCount = 0, maxCount = 3, chance = 18000 },
-	{ name = "silver token", minCount = 0, maxCount = 3, chance = 25000 },
+	{ name = "gold token", maxCount = 3, chance = 78570 },
+	{ name = "silver token", maxCount = 4, chance = 100000 },
 	{ name = "green gem", chance = 19000 },
 	{ id = 3039, chance = 18500 }, -- red gem
 	{ name = "yellow gem", chance = 18500 },

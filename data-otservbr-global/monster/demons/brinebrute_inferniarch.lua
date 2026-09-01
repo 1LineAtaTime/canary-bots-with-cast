@@ -18,24 +18,24 @@ monster.Bestiary = {
 	class = "Demon",
 	race = BESTY_RACE_DEMON,
 	toKill = 2500,
-	FirstUnlock = 50,
-	SecondUnlock = 500,
+	FirstUnlock = 200,
+	SecondUnlock = 2000,
 	CharmsPoints = 50,
 	Stars = 4,
-	Occurrence = 1,
-	Locations = "Azzilon Castle Catacombs.",
+	Occurrence = 0,
+	Locations = "Azzilon Castle.",
 }
 
 monster.health = 32000
 monster.maxHealth = 32000
-monster.race = "fire"
+monster.race = "undead"
 monster.corpse = 49998
 monster.speed = 160
 monster.manaCost = 0
 
 monster.changeTarget = {
 	interval = 4000,
-	chance = 10,
+	chance = 0,
 }
 
 monster.strategiesTarget = {
@@ -54,8 +54,8 @@ monster.flags = {
 	rewardBoss = false,
 	illusionable = false,
 	canPushItems = true,
-	canPushCreatures = true,
-	staticAttackChance = 80,
+	canPushCreatures = false,
+	staticAttackChance = 70,
 	targetDistance = 1,
 	runHealth = 0,
 	healthHidden = false,
@@ -63,6 +63,7 @@ monster.flags = {
 	canWalkOnEnergy = true,
 	canWalkOnFire = true,
 	canWalkOnPoison = true,
+	isPreyable = true,
 	isPreyExclusive = true,
 }
 
@@ -78,59 +79,60 @@ monster.voices = {
 }
 
 monster.loot = {
-	{ name = "platinum coin", chance = 5000, maxCount = 40 },
-	{ id = 36706, chance = 1500 }, -- red gem
-	{ name = "green crystal shard", chance = 900, maxCount = 2 },
-	{ name = "blue crystal splinter", chance = 300 },
-	{ name = "ultimate health potion", chance = 1500, maxCount = 3 },
-	{ name = "bloodstained scythe", chance = 800 },
-	{ name = "crusader helmet", chance = 800 },
-	{ name = "great spirit potion", chance = 1500, maxCount = 5 },
-	{ name = "blue crystal shard", chance = 300, maxCount = 2 },
-	{ name = "green crystal splinter", chance = 300 },
-	{ name = "stone skin amulet", chance = 500 },
-	{ name = "demonic matter", chance = 4761 },
-	{ name = "gold ring", chance = 200 },
-	{ name = "demon shield", chance = 150 },
-	{ name = "brinebrute claw", chance = 2000 },
-	{ name = "small sapphire", chance = 1500, maxCount = 4 },
-	{ name = "violet crystal shard", chance = 1500, maxCount = 2 },
-	{ name = "brown crystal splinter", chance = 300 },
-	{ name = "might ring", chance = 900 },
-	{ id = 3098, chance = 900 }, -- ring of healing
-	{ name = "giant sword", chance = 300 },
-	{ name = "demonic core essence", chance = 100 },
-	{ name = "mummified demon finger", chance = 155 },
-	{ name = "demonrage sword", chance = 300 },
+	{ name = "Platinum Coin", chance = 16500, maxCount = 40 },
+	{ name = "Brinebrute Claw", chance = 18500, maxCount = 1 },
+	{ name = "great spirit potion", chance = 11500, maxCount = 15 },
+	{ name = "Blue Crystal Shard", chance = 12500, maxCount = 2 },
+	{ name = "Green Crystal Shard", chance = 13500, maxCount = 2 },
+	{ name = "Violet Crystal Shard", chance = 12500, maxCount = 2 },
+	{ name = "Small Sapphire", chance = 12500, maxCount = 2 },
+	{ name = "Blue Crystal Splinter", chance = 14500, maxCount = 2 },
+	{ name = "Green Crystal Splinter", chance = 14500, maxCount = 2 },
+	{ name = "Brown Crystal Splinter", chance = 14500, maxCount = 2 },
+	{ id = 3039, chance = 5000, maxCount = 1 }, -- Red gem
+	{ name = "Ultimate Health Potion", chance = 5500, maxCount = 10 },
+	{ name = "Demonic Core Essence", chance = 1500, maxCount = 1 },
+	{ name = "Demonic Matter", chance = 1500, maxCount = 1 },
+	{ name = "Bloodstained Scythe", chance = 2500, maxCount = 1 },
+	{ name = "Giant Sword", chance = 4000, maxCount = 1 },
+	{ name = "Green Gem", chance = 3000, maxCount = 1 },
+	{ name = "Might ring", chance = 1000, maxCount = 1 },
+	{ id = 3100, chance = 5000, maxCount = 1 }, -- Ring of Healing
+	{ name = "Mummified Demon Finger", chance = 500, maxCount = 1 },
+	{ name = "Gold Ring", chance = 500, maxCount = 1 },
+	{ name = "brinebrute inferniarch soul core", chance = 100, maxCount = 1 },
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = -520, maxDamage = -600 },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -400 },
+	{ name = "extended electrify chain", interval = 2000, chance = 15, minDamage = -3, maxDamage = -400, range = 7 },
+	{ name = "combat", interval = 2000, chance = 10, type = COMBAT_DEATHDAMAGE, minDamage = -200, maxDamage = -390, length = 8, spread = 0, effect = CONST_ME_MORTAREA, target = false },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_DEATHDAMAGE, minDamage = -1, maxDamage = -450, range = 1, effect = CONST_ME_REAPER, target = true },
+	{ name = "combat", interval = 1000, chance = 20, type = COMBAT_DEATHDAMAGE, minDamage = -1, maxDamage = -450, radius = 5, effect = CONST_ME_GROUNDSHAKER, target = false },
 }
 
 monster.defenses = {
-	defense = 15,
+	defense = 80,
 	armor = 80,
 	mitigation = 2.45,
-	{ name = "combat", interval = 2000, chance = 5, type = COMBAT_HEALING, minDamage = 100, maxDamage = 150, effect = CONST_ME_MAGIC_BLUE, target = false },
 }
 
 monster.elements = {
-	{ type = COMBAT_DEATHDAMAGE, percent = -10 },
+	{ type = COMBAT_PHYSICALDAMAGE, percent = 20 },
+	{ type = COMBAT_ENERGYDAMAGE, percent = 15 },
 	{ type = COMBAT_EARTHDAMAGE, percent = -10 },
-	{ type = COMBAT_HOLYDAMAGE, percent = 0 },
 	{ type = COMBAT_FIREDAMAGE, percent = 0 },
+	{ type = COMBAT_LIFEDRAIN, percent = 0 },
+	{ type = COMBAT_MANADRAIN, percent = 0 },
 	{ type = COMBAT_DROWNDAMAGE, percent = 0 },
 	{ type = COMBAT_ICEDAMAGE, percent = 10 },
-	{ type = COMBAT_ENERGYDAMAGE, percent = 15 },
-	{ type = COMBAT_PHYSICALDAMAGE, percent = 20 },
-	{ type = COMBAT_LIFEDRAIN, percent = 100 },
-	{ type = COMBAT_MANADRAIN, percent = 100 },
+	{ type = COMBAT_HOLYDAMAGE, percent = 0 },
+	{ type = COMBAT_DEATHDAMAGE, percent = -10 },
 }
 
 monster.immunities = {
 	{ type = "paralyze", condition = true },
-	{ type = "outfit", condition = false },
+	{ type = "outfit", condition = true },
 	{ type = "invisible", condition = true },
 	{ type = "bleed", condition = false },
 }

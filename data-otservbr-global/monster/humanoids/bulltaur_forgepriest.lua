@@ -1,10 +1,10 @@
 local mType = Game.createMonsterType("Bulltaur Forgepriest")
 local monster = {}
 
-monster.description = "a Bulltaur Forgepriest"
-monster.experience = 6400
+monster.description = "a bulltaur forgepriest"
+monster.experience = 5180
 monster.outfit = {
-	lookType = 1719,
+	lookType = 1718,
 	lookHead = 0,
 	lookBody = 0,
 	lookLegs = 0,
@@ -12,13 +12,6 @@ monster.outfit = {
 	lookAddons = 0,
 	lookMount = 0,
 }
-
-monster.health = 6840
-monster.maxHealth = 6840
-monster.race = "blood"
-monster.corpse = 44717
-monster.speed = 73
-monster.manaCost = 0
 
 monster.raceId = 2449
 monster.Bestiary = {
@@ -29,19 +22,26 @@ monster.Bestiary = {
 	SecondUnlock = 1000,
 	CharmsPoints = 50,
 	Stars = 4,
-	Occurrence = 0,
-	Locations = "Bulltaurs Lair",
+	Occurrence = 1,
+	Locations = "Demonwar Crypt.",
 }
 
+monster.health = 6840
+monster.maxHealth = 6840
+monster.race = "blood"
+monster.corpse = 44716
+monster.speed = 165
+monster.manaCost = 0
+
 monster.changeTarget = {
-	interval = 2000,
+	interval = 4000,
 	chance = 10,
 }
 
 monster.strategiesTarget = {
 	nearest = 70,
 	health = 10,
-	damage = 10,
+	damage = 60,
 	random = 10,
 }
 
@@ -55,8 +55,8 @@ monster.flags = {
 	illusionable = false,
 	canPushItems = true,
 	canPushCreatures = true,
-	staticAttackChance = 90,
-	targetDistance = 3,
+	staticAttackChance = 80,
+	targetDistance = 2,
 	runHealth = 0,
 	healthHidden = false,
 	isBlockable = false,
@@ -72,43 +72,48 @@ monster.light = {
 
 monster.voices = {
 	interval = 5000,
-	chance = 10,
-	{ text = "What a chance to try out my latest work!", yell = false },
-	{ text = "May the forge be with me!", yell = false },
-	{ text = "The forge-fire will cleanse you!", yell = false },
+	chance = 30,
+	{ text = "Your misfortune is setteled!", yell = true },
+	{ text = "Soon I will harvest you for ingredients!", yell = true },
+	{ text = "I have just the solution for this problem!", yell = true },
 }
 
 monster.loot = {
-	{ id = 3035, chance = 52410, maxCount = 45 },
-	{ id = 44736, chance = 16131 },
-	{ id = 9057, chance = 9889, maxCount = 3 },
-	{ id = 44741, chance = 8035 },
-	{ id = 44742, chance = 3832 },
-	{ id = 9058, chance = 2719 },
-	{ id = 5944, chance = 1669 },
-	{ id = 3041, chance = 1236 },
-	{ id = 16096, chance = 1236 },
-	{ id = 825, chance = 989 },
-	{ id = 3040, chance = 803 },
-	{ id = 8074, chance = 742 },
-	{ id = 32769, chance = 618 },
-	{ id = 3081, chance = 556 },
-	{ id = 3036, chance = 433 },
+	{ name = "platinum coin", chance = 5000, maxCount = 6 },
+	{ name = "platinum coin", chance = 3533, maxCount = 7 },
+	{ id = 44736, chance = 4545 }, -- stealth ring
+	{ id = 44737, chance = 4545 }, -- stealth ring
+	{ id = 44738, chance = 4545 }, -- stealth ring
+	{ name = "might ring", chance = 14285 },
+	{ name = "mino shield", chance = 840 },
+	{ name = "dragon hammer", chance = 420 },
+	{ id = 3041, chance = 4545 }, -- stealth ring
+	{ name = "ultimate health potion", chance = 5285 },
+	{ id = 238, chance = 6285 }, -- great mana potion
+	{ name = "alloy legs", chance = 1285 },
+	{ name = "encrypted notes", chance = 985 },
+	{ name = "ultimate mana potion", chance = 1285 },
+	{ name = "gold ingot", chance = 1285 },
+	{ name = "lightning robe", chance = 500, maxCount = 1 },
+	{ name = "small topaz", chance = 1200, maxCount = 3 },
+	{ name = "stone skin amulet", chance = 1200, maxCount = 1 },
+	{ name = "spellbook of mind control", chance = 1200, maxCount = 1 },
+	{ name = "wand of defiance", chance = 1200, maxCount = 1 },
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = -270, maxDamage = -300 },
-	{ name = "bulltaurewave", interval = 2000, chance = 20, minDamage = -350, maxDamage = -500 },
-	{ name = "bulltaur explosion", interval = 2000, chance = 20, minDamage = -550, maxDamage = -650 },
-	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -280, maxDamage = -380, radius = 4, shootEffect = CONST_ANI_ENERGY, effect = CONST_ME_PURPLESMOKE, target = true },
-	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -300, maxDamage = -420, shootEffect = CONST_ANI_ENERGY, target = true },
-	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -300, maxDamage = -450, range = 4, radius = 3, shootEffect = CONST_ANI_ENERGY, effect = CONST_ME_SOUND_RED, target = true },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 90, maxDamage = -390 },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ICEDAMAGE, minDamage = -150, maxDamage = -450, range = 3, radius = 4, effect = CONST_ME_ICEAREA, target = true },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -150, maxDamage = -450, range = 3, radius = 4, effect = 170, target = true },
+	{ name = "speed", interval = 2000, chance = 15, speedChange = -650, range = 7, radius = 4, effect = 168, target = false, duration = 1500 },
+	{ name = "energy wave", interval = 2000, chance = 15, minDamage = -350, maxDamage = -500, length = 1, spread = 0, effect = CONST_ME_ENERGYAREA, target = true },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -150, maxDamage = -450, range = 3, radius = 4, effect = 170, target = true },
 }
 
 monster.defenses = {
-	defense = 73,
+	defense = 30,
 	armor = 73,
-	mitigation = 2.05,
+	mitigation = 2.22,
 }
 
 monster.elements = {
@@ -128,7 +133,6 @@ monster.immunities = {
 	{ type = "paralyze", condition = true },
 	{ type = "outfit", condition = false },
 	{ type = "invisible", condition = true },
-	{ type = "drunk", condition = true },
 	{ type = "bleed", condition = false },
 }
 

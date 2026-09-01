@@ -86,7 +86,6 @@ monster.loot = {
 	{ id = 32626, chance = 12000 }, -- amber
 	{ id = 7439, chance = 12000, minCount = 6, maxCount = 15 }, -- berserk potion
 	{ id = 7440, chance = 12000, minCount = 4, maxCount = 15 }, -- mastermind potion
-	{ id = 51302, chance = 12000, minCount = 4, maxCount = 15 }, -- transcendence potion
 	{ id = 32703, chance = 8000, minCount = 1, maxCount = 3 }, -- death toll
 	{ id = 32589, chance = 4000 }, -- angel figurine
 	{ id = 32774, chance = 4000 }, -- cursed bone
@@ -97,6 +96,7 @@ monster.loot = {
 	{ id = 32619, chance = 730 }, -- pair of nightmare boots
 	{ id = 32631, chance = 730 }, -- ghost claw
 	{ id = 32630, chance = 730 }, -- spooky hood
+	{ id = 50185, chance = 730 }, -- jade legs
 }
 
 monster.attacks = {

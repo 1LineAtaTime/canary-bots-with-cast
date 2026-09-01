@@ -1,0 +1,40 @@
+name: Prepare Crystal 15.30 appearance merge
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - crystal-items-monsters-migration
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare safe appearance merge
+        run: python3 tools/migration/merge_appearances.py
+      - name: Validate outputs
+        run: |
+          test -s data/items/appearance_id_map.json
+          test -s data/items/monster_appearance_map.json
+          test -s data/items/outfit_id_map.json
+          test -s data/items/mount_id_map.json
+          test -s data/items/CRYSTAL_CANARY_ASSET_MIGRATION.md
+      - name: Commit migration maps
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin crystal-items-monsters-migration
+          git rebase origin/crystal-items-monsters-migration
+          git add data/items/appearance_id_map.json data/items/monster_appearance_map.json data/items/outfit_id_map.json data/items/mount_id_map.json data/items/CRYSTAL_CANARY_ASSET_MIGRATION.md
+          if git diff --cached --quiet; then
+            echo 'No changes'
+          else
+            git commit -m 'data: prepare safe Crystal 15.30 appearance maps'
+            git push origin HEAD:crystal-items-monsters-migration
+          fi

@@ -25,10 +25,6 @@ monster.changeTarget = {
 	chance = 10,
 }
 
-monster.events = {
-	"BossHealthCheck",
-}
-
 monster.bosstiary = {
 	bossRaceId = 1754,
 	bossRace = RARITY_ARCHFOE,

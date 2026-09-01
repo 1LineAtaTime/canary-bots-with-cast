@@ -2,7 +2,7 @@ local mType = Game.createMonsterType("Guardian of Tales")
 local monster = {}
 
 monster.description = "a guardian of tales"
-monster.experience = 10600
+monster.experience = 9204
 monster.outfit = {
 	lookType = 1063,
 	lookHead = 92,
@@ -15,8 +15,8 @@ monster.outfit = {
 
 monster.raceId = 1659
 monster.Bestiary = {
-	class = "Magical",
-	race = BESTY_RACE_MAGICAL,
+	class = "Inkborn",
+	race = BESTY_RACE_INKBORN,
 	toKill = 2500,
 	FirstUnlock = 100,
 	SecondUnlock = 1000,

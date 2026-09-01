@@ -13,17 +13,17 @@ monster.outfit = {
 	lookMount = 0,
 }
 
+monster.events = {
+	"dreamCourtsDeath",
+	"facelessHealth",
+}
+
 monster.health = 320000
 monster.maxHealth = 320000
 monster.race = "blood"
 monster.corpse = 30155
 monster.speed = 125
 monster.manaCost = 0
-
-monster.events = {
-	"dreamCourtsDeath",
-	"facelessHealth",
-}
 
 monster.changeTarget = {
 	interval = 4000,
@@ -33,6 +33,7 @@ monster.changeTarget = {
 monster.bosstiary = {
 	bossRaceId = 1698, -- or 1715 need test
 	bossRace = RARITY_NEMESIS,
+	storage = Storage.Quest.U12_00.TheDreamCourts.DreamScar.AlptramunTimer,
 }
 
 monster.strategiesTarget = {
@@ -93,7 +94,7 @@ monster.loot = {
 	{ name = "giant ruby", chance = 2500 },
 	{ id = 282, chance = 7500 }, -- giant shimmering pearl
 	{ name = "gold ingot", chance = 20000 },
-	{ name = "gold token", chance = 75000, maxCount = 2 },
+	{ name = "gold token", chance = 75000, maxCount = 3 },
 	{ name = "green gem", chance = 20000, maxCount = 2 },
 	{ name = "huge chunk of crude iron", chance = 37500 },
 	{ name = "magic sulphur", chance = 7500 },

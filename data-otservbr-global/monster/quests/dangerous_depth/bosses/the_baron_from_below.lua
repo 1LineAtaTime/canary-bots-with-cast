@@ -84,9 +84,9 @@ monster.loot = {
 	{ name = "fire sword", chance = 56250 },
 	{ name = "great spirit potion", chance = 54170, maxCount = 18 },
 	{ name = "magic sulphur", chance = 45830 },
-	{ name = "great mana potion", chance = 43750, maxCount = 18 },
+	{ id = 238, chance = 43750, maxCount = 18 }, -- great mana potion
 	{ name = "crystal mace", chance = 37500 },
-	{ name = "silver token", chance = 33330 },
+	{ name = "silver token", chance = 15220 },
 	{ name = "small emerald", chance = 20830 },
 	{ name = "huge chunk of crude iron", chance = 20830 },
 	{ name = "slightly rusted shield", chance = 18750 },
@@ -103,7 +103,7 @@ monster.loot = {
 	{ name = "blue gem", chance = 10420 },
 	{ name = "yellow gem", chance = 10420 },
 	{ name = "gold ingot", chance = 8330 },
-	{ name = "gold token", chance = 8330 },
+	{ name = "gold token", chance = 9780 },
 	{ name = "crystal coin", chance = 8330 },
 	{ name = "green gem", chance = 8330 },
 	{ name = "small amethyst", chance = 6250 },
@@ -114,6 +114,7 @@ monster.loot = {
 	{ name = "spellbook of warding", chance = 2080 },
 	{ name = "gnome sword", chance = 4170 },
 	{ name = "gnome armor", chance = 3390 },
+	{ name = "gnomish footwraps", chance = 3390 },
 }
 
 monster.attacks = {

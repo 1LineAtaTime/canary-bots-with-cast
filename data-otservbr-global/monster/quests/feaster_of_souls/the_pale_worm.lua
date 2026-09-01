@@ -83,7 +83,6 @@ monster.loot = {
 	{ name = "ultimate spirit potion", chance = 23530, maxCount = 6 },
 	{ name = "bullseye potion", chance = 19610, maxCount = 10 },
 	{ name = "mastermind potion", chance = 19610, maxCount = 10 },
-	{ name = "transcendence potion", chance = 19610, maxCount = 10 },
 	{ name = "death toll", chance = 13730, maxCount = 2 },
 	{ name = "ivory comb", chance = 13730 },
 	{ name = "angel figurine", chance = 11760 },
@@ -102,9 +101,9 @@ monster.loot = {
 	{ name = "fabulous legs", chance = 150 },
 	{ name = "phantasmal axe", chance = 150 },
 	{ name = "ghost backpack", chance = 150 },
-	{ id = 32621, chance = 400 }, -- Ring of souls
 	{ name = "soulful legs", chance = 150 },
-	{ name = "jade legs", chance = 150 },
+	{ id = 32621, chance = 400 }, -- ring of souls
+	{ id = 50185, chance = 730 }, -- jade legs
 }
 
 monster.attacks = {
