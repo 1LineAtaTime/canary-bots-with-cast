@@ -1681,13 +1681,37 @@ private:
 
 	// Cast viewer system — viewers share this Player via weak_ptr to their ProtocolGame
 	std::vector<std::weak_ptr<ProtocolGame>> castViewers;
+	// Fake viewer count for perf-harness probe bots. Never populated by a real connection, so
+	// packet construction stays on its castViewers.empty() early-outs -- see getCastViewerCount.
+	uint32_t syntheticCastViewers = 0;
 	bool castBroadcasting = false;
 	uint32_t castNextViewerNumber = 0;
 
 	void addCastViewer(const std::shared_ptr<ProtocolGame> &viewer);
 	void removeCastViewer(const std::shared_ptr<ProtocolGame> &viewer);
 	void disconnectAllCastViewers();
+
+	// PERF STRESS HARNESS: synthetic ("probe") cast viewers.
+	//
+	// A probe bot is an ordinary bot flagged as if a human were cast-watching it. That single
+	// flag drives EVERY observer gate in the engine and in Lua, because they all funnel through
+	// getCastViewerCount(): the hibernation guard (bot_engine.cpp), the anchor list
+	// (bot_engine.cpp + bot_hibernation.lua), botWalkObserved (bot_liveness.cpp), the roam
+	// "watched" test and the chat observer gate. Returning real+synthetic from the existing
+	// accessor is what makes all of them work with no further edits and no risk of missing one.
+	//
+	// getRealCastViewerCount() is the pre-existing behaviour, kept for the handful of sites that
+	// mean "an actual human is watching" rather than "this bot is observed" -- most importantly
+	// the verboseLog auto-toggle (bot_tick.cpp), which would otherwise turn the debug firehose on
+	// for every probe and let journal I/O corrupt the very measurement the probe exists to take.
+	uint32_t getRealCastViewerCount() const;
 	uint32_t getCastViewerCount() const;
+	[[nodiscard]] bool hasSyntheticCastViewers() const {
+		return syntheticCastViewers > 0;
+	}
+	void setSyntheticCastViewers(uint32_t n) {
+		syntheticCastViewers = n;
+	}
 	uint32_t getNextCastViewerNumber() { return ++castNextViewerNumber; }
 	void castDiagnosticCheck();
 

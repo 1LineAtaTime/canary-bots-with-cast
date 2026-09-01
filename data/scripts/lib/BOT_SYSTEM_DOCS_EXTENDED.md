@@ -479,25 +479,67 @@ as PvE, with these PvP-specific behaviors:
 
 ### 10. Party System (PARTY state)
 
-Any player (not just gods) can summon bot players into a party using `/party ek,ed,ms` or
-`/cavebot party ek,ed,ms`. Bots follow the player, mirror their attack target, and perform
-vocation-specific roles. Entirely implemented in C++ (`bot_engine.cpp`), no Lua party AI.
+Any player (not just gods) can get bot players into a party three ways: `/party ek,ed,ms`,
+`/cavebot party ek,ed,ms`, or simply **inviting a bot from the game client** (right-click ->
+invite to party). Bots follow the player, mirror their attack target, and perform
+vocation-specific roles. Entirely implemented in C++, no Lua party AI.
 
-**Commands** (two entry points, same C++ backend):
-- `/party ek,ed,ms` — Player-facing command (delegates to C++ via `Game.botCommand`)
-- `/party leave` — Dismiss all party bots, restore them to previous state
-- `/cavebot party ek,ed,ms` — Admin command variant (same behavior)
-- `/cavebot party leave` — Admin dismiss variant
+**Commands** (both talkactions share one C++ backend, `party create` in `bot_command.cpp`):
+
+```
+/party <vocList> [<min>,<max>] [teleport]
+  vocList  ek,ed,ms,rp  — comma-separated, case-insensitive, REPEATS ALLOWED, NO SIZE CAP
+  [min,max] optional literal brackets, e.g. [100,1500]. Replaces the default level window
+            (leader*2/3 .. leader*3/2). Omitted = default.
+  teleport  optional keyword. Forces the old instant assembly beside you instead of the
+            default walk-in.
+```
+
+- `/party ek,ed,ms,ms,ms,ms [100,1500]` — six bots, explicit level range
+- `/party leave` — dismiss all party bots
+- `/cavebot party ...` / `/cavebot party leave` — identical variants
+
+**Size is uncapped** (`PARTY_MAX_BOTS` was deleted): some quests need a full team. The only
+bound is how many eligible bots exist in the level range; the reply reports a shortfall.
+Human-led members are exempt from `botPartyMaxPct` by construction — that cap's numerator is
+`s_botToPartyHunt`, which human-led parties never populate.
+
+**Shared experience and wide ranges**: Canary's shared-exp window is
+`ceil(highest/1.5) .. floor(lowest*1.5)`. A wide requested range (e.g. `[100,1500]`) cannot
+satisfy it, so the party forms and fights but shared exp stays inactive. The command says so.
+
+**Accepting a client invite** (`botPartyInviteEnable`): a leader-side poll (public
+`Party::getInvitees()`, no `player.hpp` change) spots the invite, then the bot accepts after a
+1.5-4.5s human-like pause. It **declines** if it is in an autonomous bot party hunt, and
+**holds** through a fight (COMBAT/FLEEING/PK/death) up to `botPartyInviteHoldMaxMs`, accepting
+when the fight resolves. Accepting tears down whatever it was doing (hunt reservation, fishing,
+house visit, AdvStone, gang membership).
+
+**Assembly — members walk in** (`botPartyRvEnable`): instead of popping in beside you, a
+recruited/accepting member converges on your live position via `handleAssemblyStaging`, which
+preempts inside `doIdle`/`doDwelling` exactly like `handleGangStaging`. Cross-town members
+travel first. Teleport survives only as a counted fallback (no route, budget expiry, or the
+`teleport` keyword). Observe with `/cavebot assemblies` and `/cavebot invites`.
+
+**Leaving a party**: an ex-member does NOT rewind. It keeps its position and rolls its next
+activity from where it stands (no state-snapshot restore, no teleport back). Members that were
+never logged in before being conscripted are routed to `deactivateBot` when hibernation next
+comes for them, so a party cannot inflate the logged-in population.
 
 **Bot Selection (5-Tier Priority)**:
 
 | Tier | Criteria |
 |------|----------|
-| 1 | Inactive bots (`!bot.active`) |
+| 1 | Inactive bots (`!bot.active`) — but see the note below: human-led recruitment DEMOTES these to last |
 | 2 | Active bots in IDLE state |
 | 3 | Active bots in DWELLING state |
 | 4 | Active bots in TRAVELING, COMBAT, or FLEEING state |
 | 5 | Active bots in any state (HUNTING, PK_ATTACK — last resort) |
+
+**Human-led recruitment passes `preferActive=true`**, which moves tier 1 (never-logged-in
+bots) to LAST instead of first. Spending an already-logged-in bot avoids promoting a fresh
+one to `active=true`; tier 1 stays available as the overflow pool a large quest party needs.
+Autonomous party-hunt recruitment is unchanged and still prefers tier 1.
 
 - Level range: `[playerLevel * 2/3, playerLevel * 3/2]`
 - Shuffle within each tier for randomness
@@ -635,7 +677,11 @@ Populates the in-game market with realistic bidirectional supply/demand. The act
 - **Price reference table** (`bot_market_item_prices`, schema migration 57): populated by one-off importer (`tools/bot_price_importer/`) from three sources in priority order — Cipsoft `appearances.dat` protobuf NPC sale/buy prices, NPC Lua shopBlock scrape (supplemental), TibiaWiki API (player-market `value` field), heuristic fallback (`max(npc_sell × 1.5, weight × class_mult, 100)`). Total 39,969 items, 5,322 with market_max prices.
 - **C++ wrappers** (`src/game/game_bot_market.cpp`): `Game::botCreateMarketOffer / botAcceptMarketOffer / botCancelMarketOffer` mirror the inner work of `playerCreateMarketOffer / playerAcceptMarketOffer / playerCancelMarketOffer` minus the UI gates (`isInMarket`, `isUIExhausted`, depot prerequisites). Standard 2% server fee still applies. Real players on the other side receive money via `setBankBalance + savePlayer` and items via `processItemInsertion(playerInbox, ...)` — same primitives as the user-facing flow. Plus `IOMarket::getOfferById` helper for direct lookup by id.
 - **Lua bindings** (`game_functions.cpp`): `Game.botCreateMarketOffer / botAcceptMarketOffer / botCancelMarketOffer`.
-- **Price cache + helpers** (`data/scripts/lib/bot_market_data.lua`): lazy-loaded `BotMarket.prices[itemId]` from MySQL; helpers `computeFloor`, `computeListingPrice`, `rollTier`, `rollStackSize`, `pickActiveBot`. Constants: tier distribution T0=80% T1=15% T2=4% T3=1%, stack sizes for stackables 250-2000, bins equally weighted (equipment/reagents/potions/runes/creature_products at 19% each, "other" 5%).
+- **Price cache + helpers** (`data/scripts/lib/bot_market_data.lua`): lazy-loaded `BotMarket.prices[itemId]` from MySQL; helpers `computeFloor`, `computeListingPrice`, `rollTier`, `rollStackSize`, `pickActiveBot`, `pickOffer`, `isSaturated`, `refreshDepth`. Constants: tier distribution T0=80% T1=15% T2=4% T3=1%, stack sizes for stackables 250-2000 (clamped to remaining quantity headroom). Items with a NULL/empty `category` are excluded at load — no market classification means `wareId=0`, so every offer for them is rejected by `game_bot_market.cpp`; 351 such items existed and none had ever received an offer.
+- **Per-(item, side) depth caps**: the per-bot cap (`maxMarketOffersAtATimePerPlayer`) never binds, so nothing used to limit how many offers piled onto a single item — runes and potions reached 88-100 offers each while thousands of priced items (food, ammunition, tools) had zero. Now capped at `MAX_OFFERS_PER_ITEM_SIDE`=6 and `MAX_QTY_PER_ITEM_SIDE`=10000 per (itemtype, sale), counting bot **and** real-player offers so bots back off books real players are already making.
+- **Bin pick weights are derived from bin size** (`ceil(sqrt(#bin) * 10)`, normalised at load), not hardcoded. The old fixed 19/19/19/19/19/5 table had drifted badly: `runes` (34 items) and `potions` (41) took 19% of picks each while `other` (~1680 items: food, decoration, valuables, containers, tools, ammunition) took 5% — making each rune ~190x likelier to be picked than each food item. sqrt rather than linear, so large bins don't starve the small ones in the other direction.
+- **Coverage-first picking**: `COVERAGE_FIRST_PCT`=60% of seller picks target an (item, side) with *zero* offers, with the side chosen in proportion to how many holes each side has; the other 40% keeps the bin-weighted roll (rerolling past saturated items up to `PICK_MAX_REROLLS`) so staples retain depth. A cap alone only rejects — this is what actually spreads orders across the catalogue.
+- **Depth ledger** (`depthN`/`depthQ`, flat integer tables): refreshed every 600s by one `GROUP BY sale, itemtype` aggregate over the existing `(sale, itemtype)` index, and updated optimistically as offers are created. Tables are *reassigned* each refresh, never patched — `GROUP BY` emits no row for an empty group, so patching would leave a purged/trimmed item stuck at its old count forever. Updates made while the query is in flight are replayed onto the fresh ledger (observed query latency has reached 4.5s). A falsy result means error *or* empty (indistinguishable) and keeps the previous ledger rather than wiping it.
 - **Bot scoping** (`BotMarket._loadBots`): the seller/buyer/fulfiller passes operate on the loaded set only via `JOIN bot_active_players` (migration 60) — same source the @cast list uses, so market participants match the cast viewer exactly and seller-pass volume scales with `botPlayersOnline`. With 997 in the DB pool and config=200, only the 200 loaded bots create new offers. **Race fix** in `ensureLoaded`: `bot_active_players` is populated via async `g_databaseTasks().execute()` from `bot_engine.cpp::registerBot`, so the table may be empty when `BotMarket.loadAll()` lazy-fires at the first pass (~30s, while BotStartup is still staggered-loading and DatabaseTasks is draining). If `botGuids` comes back empty, retry `_loadBots()` on each subsequent pass until the queue drains — prevents permanent market disable from a startup race that previously would set `loaded=true` with `botGuids={}`.
 - **Funding** (`bot_market_funding.lua`): 30s post-startup, top up all 997 bots in the DB pool to 100kkk via in-memory `setBankBalance` + raw SQL backstop. Intentionally NOT filtered to the loaded set — funding runs only once at startup, so seeding the entire pool means bots that get loaded later (e.g. if `botPlayersOnline` is raised in a future restart) already have balance ready without a re-funding pass.
 - **Four-pass scheduler** (`bot_market.lua`):
@@ -645,7 +691,9 @@ Populates the in-game market with realistic bidirectional supply/demand. The act
   | **Seller** | 30s | 30–120s | `SELLER_BOTS_PCT`% of LOADED set (5% of `botPlayersOnline`=200 → 10 bots, jittered ±30% → ~7–13, ramp-scaled) × 1–3 offers each | 60% SELL / 40% BUY, 25% anonymous, per-bot cap = config.lua `maxMarketOffersAtATimePerPlayer` (currently 200, synced into `BotMarket.MAX_OFFERS_PER_BOT` at startup; C++ wrapper `Game::botCreateMarketOffer` enforces the same cap canonically), vendor-arbitrage floor `max(npc_sell × 1.05, npc_buy × 0.6)`. Insert via `Game.botCreateMarketOffer`. |
   | **Buyer** | 60s | 600–1800s | 1–3 acceptances | Scan real-player SELL offers (`sale=1`), accept if listed price < market_max × 0.9 AND 50% coin flip. Bot pays bank, items vanish into bot inbox, real seller's bank credited. |
   | **Fulfiller** | 60s | 600–1800s | 1–3 fulfillments | Scan real-player BUY offers (`sale=0`), fulfill at listed price if ≥ market_max × 0.95 AND 50% coin flip. Items conjured by bot, delivered to real buyer's inbox via `processItemInsertion`. Escrow money flows from buyer's pre-debited balance to bot. |
-  | **Monitor** | 5 min | every tick | — | Logs active offer counts by side (`bot=X (S=… B=…), real=Y (S=… B=…)`) and ramp%. |
+  | **Monitor** | 5 min | every tick | — | Logs active offer counts by side (`bot=X (S=… B=…), real=Y (S=… B=…)`), ramp%, plus `distinctS/distinctB/maxDepth/uncoveredS/uncoveredB` from the in-memory depth ledger. |
+  | **Depth** | 60s | 600s (offset t+75s) | — | Reconciles the depth ledger with the DB; the only path by which an item that drained back to zero offers returns to the coverage-first pool. |
+  | **Trim** | 60s | 300s (offset t+225s) | 300 rows | Deletes bot offers beyond `MAX_OFFERS_PER_ITEM_SIDE` per (itemtype, sale), oldest excess first (`ROW_NUMBER() … ORDER BY created DESC`, `rn > cap`). Caps only gate *new* offers, so without this the pre-existing backlog would take the full 7-day purge window to age out. Only bot rows are deletable — the `account_id` join sits inside the ranked subquery, since raw-deleting a real player's BUY offer would destroy escrowed gold. Self-idling: skipped entirely when the ledger shows nothing over cap. |
 
 - **Ramp-up scaler**: first 4 hours after server start, multiply per-pass batch size by `min(1, hoursElapsed/4)` so the market doesn't dump 1200 listings at the start.
 - **One-off prepopulation** (`tools/bot_price_importer/prepopulate_market.py`): seeded 20,053 bot offers across all 4,998 marketable items with tight per-item variance (~±0.2% of market_max). Run once with canary stopped.
@@ -1845,13 +1893,45 @@ Bot navigation issues are tracked in the `bot_nav_events` MySQL table for diagno
 ```sql
 -- Top offenders
 SELECT event_type, hunt_script_name, town_name, event_count FROM bot_nav_events ORDER BY event_count DESC LIMIT 20;
--- Hunt scripts that never work
-SELECT id, name, town_name, successful_hunts FROM bot_hunt_scripts WHERE successful_hunts = 0 AND enabled = 1;
+-- Hunt scripts that never work (see "Hunt Success Tracking" below — this needs two sources now)
+SELECT script_id, successful_hunts, total_kills FROM bot_hunt_script_stats WHERE successful_hunts = 0;
 ```
 
 ### Hunt Success Tracking
 
-The `bot_hunt_scripts` table has `successful_hunts` and `total_kills` columns that are incremented when a hunt ends normally (timer or kill limit reached) with at least 1 kill. This allows filtering out scripts that are enabled but never produce successful hunts.
+`successful_hunts` and `total_kills` are incremented when a hunt ends normally (timer or
+kill limit reached) with at least 1 kill. They live in **`bot_hunt_script_stats`**, keyed by
+`script_id` — written fire-and-forget through the bot-DB worker in `bot_hunt.cpp`
+(`INSERT … ON DUPLICATE KEY UPDATE`, so a newly imported script's first completion creates its
+row rather than updating zero rows).
+
+> **They are NOT on `bot_hunt_scripts`.** BOT_CSV split generated telemetry away from authored
+> data: the hunt scripts themselves moved to `data/bot/authored/hunt_scripts.csv`, and the
+> counters stayed in MySQL under `bot_hunt_script_stats` (DDL in
+> `database/bots/00_bot_schema.sql`). There is no `bot_hunt_scripts` table — **a query against
+> it fails outright with `ERROR 1146 … doesn't exist`**, which is expected.
+
+Finding **enabled** scripts that never produce a hunt now needs both sources, because `enabled`
+is authored (CSV) and the counter is generated (MySQL). Every script has a stats row, so a
+never-productive script is simply one at zero:
+
+```bash
+mysql … -N -B -e "SELECT script_id FROM bot_hunt_script_stats WHERE successful_hunts = 0" > zero.txt
+python - <<'EOF'
+import csv, io
+zero = {int(l) for l in io.open('zero.txt') if l.strip()}
+for r in csv.DictReader(io.open('data/bot/authored/hunt_scripts.csv', encoding='utf-8')):
+    if int(r['id']) in zero and r['enabled'] == '1' and r['script_category'] == 'hunt':
+        print(r['id'], r['name'], 'town', r['town_id'], 'lvl', r['min_level'], '-', r['max_level'])
+EOF
+```
+
+Alternatively load the CSVs into a scratch database with `tools/bot_csv/import_to_mysql.py
+--db canary_scratch --create` and the original single-query join works again.
+
+As of 2026-08-30 that yields 6 enabled hunt-category scripts at zero: 1247 Edron - Soils Elder
+Druid, 1248 Farmine - Brimstone Bugs Keeper Cave, 1250 Farmine - Hidden Lizards for RP, 1254
+Gray Island - Hive Surface West, 1268 Folda Frost Trolls, 1511 Kha'Zeel Scarab Lair.
 
 ### community scripts Script Import + Extended Waypoint Types
 
@@ -2032,8 +2112,13 @@ Supports multi-word bot names via quotes or auto-detection.
 | `simulate hunt` | `"<name>" [phase]` | **Global**: teleport admin through hunt waypoints at 1/sec. Phase: patrol/travel_to/travel_from |
 | `simulate poi` | `<town>` | **Global**: teleport admin through town POIs at 1/sec |
 | `simulate pause\|continue\|stop` | — | **Global**: control active waypoint simulation |
-| `party` | `<voc1,voc2,...>` | **Any player**: summon bot players into party (ek/ed/ms/rp, case-insensitive). Max 4 bots. |
-| `party leave` | — | **Any player**: dismiss all party bots, restore their previous state |
+| `party` | `<voc1,voc2,...> [min,max] [teleport]` | **Any player**: summon bot players into party (ek/ed/ms/rp, case-insensitive, repeats allowed, **no size cap**). `[100,1500]` overrides the level window; `teleport` forces instant assembly instead of walk-in. |
+| `party leave` | — | **Any player**: dismiss all party bots; each rolls its next activity from where it stands (no teleport back) |
+| `invitebot` | `<botName>` | Send a REAL `Party::invitePlayer` from this bot to another bot — the same call the client makes, so the acceptance path can be tested without a client. Both ends get a 15-min sweep keep-alive. |
+| `disbandparty` | — | Disband this bot's party, releasing bot members through `exitPartyMode` (exit-in-place semantics) |
+| `invites` | — | **Global**: dump the acceptance machine + every online leader's pending bot invitees + `[PINVITE]` counters |
+| `assemblies` | — | **Global**: dump the walk-in supervisor (kind, leader, per-member phase/age/distance) |
+| `reloadconfig` | — | **Global**: re-read `config.lua` at runtime (stock `/reload config` needs a god character) and refresh the engine's cached tunables — avoids a restart to retune a switch |
 | `claim` | `[name]` | **Any player**: claim the hunt spawn you're standing in. Kicks the bot reserving it to temple and blocks all bot assignment of that script (+ its spawnGroup) for 1h. `name` picks/disambiguates by hunt-script name. In-memory only (lost on `/cavebot reload` + restart). See "Player Spawn-Claim" below. |
 | `release` | — | **Any player** (alias `unclaim`): release your own active spawn claim early |
 | `claims` | — | **Global**: list active player spawn-claims (owner + minutes left) |
@@ -2157,7 +2242,15 @@ Implementation: three target-scan call-sites (`findThreatCentroid`, `chooseTarge
 
 ### Manual Hunt Scripts (`source='manual'`)
 
-Hand-authored hunt scripts converted from OTC cavebot 1.3 `.cfg` exports. As of 2026-05-19 there are 12 in the DB (IDs 2068-2079):
+Hand-authored hunt scripts converted from OTC cavebot 1.3 `.cfg` exports. **22 of them today**
+(ids 2068-2089), living in `data/bot/authored/hunt_scripts.csv` — not the DB. See
+BOT_SYSTEM_DOCS.md §6c for how to add one.
+
+> **The authoritative per-script list is `tools/cfg_importer/cfg_manifest.csv`**, which the
+> importer reads and writes. The table below is a 2026-05-19 snapshot kept for its *special
+> features* column; its Town and Min Lvl values have since been hand-retuned and several are now
+> wrong (Chosen is 150 not 200; Corruption Hole Chosen is Thais not Farmine; Nightmare Isles is
+> Venore not Roshamuul). Trust the manifest.
 
 | Name | Town | Min Lvl | Special features |
 |---|---|---|---|
@@ -2172,19 +2265,22 @@ Hand-authored hunt scripts converted from OTC cavebot 1.3 `.cfg` exports. As of 
 | Draken Walls Farmine | Farmine | 300 | 2 levitate waypoints |
 | Farmine Lizard City | Farmine | 300 | 2 levitate waypoints |
 
-Only Chosen + Corruption Hole Chosen carry explicit `bot_hunt_targets` (Lizard Chosen, Ghastly Dragon — taken from the cfg's `label:monsters:` line). The other 10 rely on the §"Empty `bot_hunt_targets`" attack-all-in-patrol path above.
+Only Chosen + Corruption Hole Chosen carry explicit targets (Lizard Chosen, Ghastly Dragon — taken from the cfg's `label:monsters:` line). The rest rely on the §"Empty targets" attack-all-in-patrol path above.
 
-**Source format → DB translation** (local-only `tools/cfg_importer/convert_cfg.py`):
+**Source format → authored-CSV translation** (`tools/cfg_importer/convert_cfg.py`, tracked in the
+repo along with the `.cfg` files themselves under `tools/cfg_importer/cfg/`). The parser below is
+unchanged; only its destination moved — it wrote `out.sql` until 2026-08-29, and the tables that
+SQL targeted have not been read since the BOT_CSV migration.
 
-| Cfg line | DB waypoint type | Notes |
+| Cfg line | Waypoint type | Notes |
 |---|---|---|
 | `goto:X,Y,Z` | `node` (default) or `stand` | Promoted to `stand` if next wp differs in z OR next wp is a `teleport` (must arrive on exact trigger tile) |
-| `use:X,Y,Z` | `use_with` with `extra_data=NULL` | Engine's "use whatever's on this tile" path — prefers items with `actionId` (levers, doors, quest items) |
+| `use:X,Y,Z` | `use_with` with empty `extra_data` | Engine's "use whatever's on this tile" path — prefers items with `actionId` (levers, doors, quest items) |
 | `usewith:ITEM,X,Y,Z` | `use_with` with `extra_data=ITEM_ID` | Item-on-tile, e.g. `3457` (small pick) or `3003` (rope) |
 | `label:TELEPORT` then next coord-step | `teleport` | Bot warps to the next coord via `internalTeleport` — no walking |
 | `function:action levitate_<dir>_<up\|down>` | `levitate_up` / `levitate_down` at prev wp pos | `extra_data=face_<dir>` (face_north/south/east/west) — bot turns then casts `exani hur up/down` |
-| `label:level: N+` | `min_level=N` | — |
-| `label:monsters: a, b, c` | inserts into `bot_hunt_targets` | Optional |
+| `label:level: N+` | `min_level=N` | Default for a NEW import only — never overrides a value already in `cfg_manifest.csv` |
+| `label:monsters: a, b, c` | rows in `hunt_targets.csv` | Optional |
 | `label:<any text> ... (X, Y, Z) ... STAND` | force STAND on that exact wp | User-authored "this coord MUST be stand" override for portal tiles |
 | Consecutive duplicate `(type, x, y, z)` | deduped | Cavebot exports often double-record the current tile |
 | `label:travel_to` AFTER `hunt_patrol` block | remapped to `travel_from` | Cfg typo correction |

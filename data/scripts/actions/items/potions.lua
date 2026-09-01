@@ -147,6 +147,14 @@ function flaskPotion.onUse(player, item, fromPosition, target, toPosition, isHot
 		return true
 	end
 
+	-- Bot players drink from an infinite supply, mirroring the rune-charge bypass in
+	-- spells.cpp (RuneSpell::executeUse). Everything above this point already ran, so the
+	-- heal/mana, the "Aaaah...", the sound and the empty flask are all produced for real --
+	-- only the charge is not consumed. Restocking 500 bots at NPCs would be the alternative.
+	if player:isBotPlayer() then
+		return true
+	end
+
 	player:updateSupplyTracker(item)
 	item:remove(1)
 	return true

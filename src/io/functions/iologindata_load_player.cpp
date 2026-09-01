@@ -1008,9 +1008,28 @@ void IOLoginDataLoad::loadPlayerInitializeSystem(const std::shared_ptr<Player> &
 	player->wheel().initializePlayerData();
 
 	player->achiev().loadUnlockedAchievements();
-	player->badge().checkAndUpdateNewBadges();
-	player->title().checkAndUpdateNewTitles();
-	player->cyclopedia().loadSummaryData();
+
+	// Bot players are clientless and can never display a badge, title or cyclopedia summary, so
+	// all three are pure waste for them -- and on this fork they are expensive waste.
+	//
+	// PlayerBadge::checkAndUpdateNewBadges and PlayerTitle::checkAndUpdateNewTitles both call
+	// getPlayersInfoByAccount, a SYNCHRONOUS storeQuery that fetches every character on the
+	// account. Upstream that is a handful of rows. Here every bot shares account_id 65000, which
+	// holds 997 characters, so it builds a 997-name IN clause and blocks the dispatcher thread
+	// for 10-15ms -- once per qualifying badge, per load.
+	//
+	// Bots reach this path on startup, on activateBot, and on every wakeBot that misses the
+	// hibernation pool, so a teleport-triggered burst of nine wakes cost roughly 200ms of pure
+	// blocking. Measured at 661 such queries in 30 minutes (tools/botperf baseline 2026-08-21),
+	// and visible as the wall>>cpu class of slow ticks that the dual-clock instrumentation
+	// separates from genuine computation.
+	//
+	// Scoped to bots deliberately: real players keep the stock behaviour untouched.
+	if (!player->isBotPlayer()) {
+		player->badge().checkAndUpdateNewBadges();
+		player->title().checkAndUpdateNewTitles();
+		player->cyclopedia().loadSummaryData();
+	}
 
 	player->initializePrey();
 	player->initializeTaskHunting();

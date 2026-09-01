@@ -43,6 +43,7 @@
 #include "items/items_classification.hpp"
 #include "items/weapons/weapons.hpp"
 #include "lua/creature/creatureevent.hpp"
+#include "lua/creature/talkaction.hpp"
 #include "lua/modules/modules.hpp"
 #include "server/network/message/outputmessage.hpp"
 #include "utils/tools.hpp"
@@ -65,6 +66,121 @@
 // Very useful to send the total amount in certain bytes in the ProtocolGame class
 namespace {
 	constexpr uint64_t PARTY_ANALYZER_THROTTLE_MS = 1000;
+
+	// ---- Cast operator (Cast Chat -> /cavebot) ----------------------------------------------
+	// The only talkaction a cast operator may dispatch. Deliberately a hard constant and not a
+	// config list: `bypassPermission`-style dispatch of arbitrary god commands from an
+	// unauthenticated-by-default channel is a far larger grant than this feature needs.
+	constexpr std::string_view CAST_OPERATOR_TALKACTION = "/cavebot";
+	// Group the bot is briefly promoted to so bot_cavebot.lua's `getGroup():getAccess()` gate
+	// passes. Restored by CastOperatorElevation before the command returns.
+	constexpr uint16_t CAST_OPERATOR_GROUP_ID = 6;
+
+	constexpr uint32_t CAST_OP_MAX_FAILURES = 5;
+	constexpr int64_t CAST_OP_FAILURE_WINDOW_MS = 300 * 1000;  // 5 min to accumulate failures
+	constexpr int64_t CAST_OP_LOCKOUT_MS = 900 * 1000;         // 15 min refusal after tripping
+
+	struct CastOperatorFailures {
+		uint32_t count = 0;
+		int64_t windowStart = 0;
+		int64_t lockedUntil = 0;
+	};
+
+	// Dispatcher-thread only (parseLoginPacket is reached via Protocol::sendRecvMessageCallback,
+	// which hops to the dispatcher), so no lock is needed.
+	std::map<uint32_t, CastOperatorFailures> g_castOperatorFailures;
+
+	// Length-independent compare. std::string::operator== short-circuits on size, which would
+	// leak the password length; accumulate over the longer of the two instead.
+	bool constantTimeEquals(const std::string &a, const std::string &b) {
+		const size_t len = std::max(a.size(), b.size());
+		unsigned char diff = static_cast<unsigned char>(a.size() ^ b.size());
+		for (size_t i = 0; i < len; ++i) {
+			const unsigned char ca = i < a.size() ? static_cast<unsigned char>(a[i]) : 0;
+			const unsigned char cb = i < b.size() ? static_cast<unsigned char>(b[i]) : 0;
+			diff |= static_cast<unsigned char>(ca ^ cb);
+		}
+		return diff == 0;
+	}
+
+	// Returns true only for a correct, non-empty password from a non-locked-out IP. A wrong
+	// password never disconnects — that would reveal whether the feature is configured at all.
+	bool checkCastOperatorPassword(const std::string &password, uint32_t ip) {
+		const std::string &expected = g_configManager().getString(CAST_OPERATOR_PASSWORD);
+		if (expected.empty()) {
+			return false;  // feature off — the default; staying silent is correct
+		}
+		if (password.empty()) {
+			// The feature IS configured but the viewer arrived with no password at all. That is
+			// almost never a typo — it means the login layer dropped it. The session key must be
+			// "@cast\n<password>": protocollogin.cpp:43 does this for the legacy 7171 path, but
+			// an HTTP login webservice has to be taught to do the same. Returning silently here
+			// made that indistinguishable from the interception code never running, which cost
+			// several diagnostic rounds — so say it out loud.
+			g_logger().warn("[Cast][OP] viewer from {} supplied NO password while cast operator is enabled "
+			                "— the login layer is not forwarding it in the session key (\"@cast\\n<password>\")",
+				convertIPToString(ip));
+			return false;
+		}
+
+		const int64_t now = OTSYS_TIME();
+		auto &entry = g_castOperatorFailures[ip];
+		if (entry.lockedUntil > now) {
+			g_logger().warn("[Cast][OP] elevation refused for {} — locked out for another {}s",
+				convertIPToString(ip), (entry.lockedUntil - now) / 1000);
+			return false;
+		}
+
+		if (constantTimeEquals(password, expected)) {
+			g_castOperatorFailures.erase(ip);
+			return true;
+		}
+
+		if (entry.windowStart == 0 || now - entry.windowStart > CAST_OP_FAILURE_WINDOW_MS) {
+			entry.windowStart = now;
+			entry.count = 0;
+		}
+		if (++entry.count >= CAST_OP_MAX_FAILURES) {
+			entry.lockedUntil = now + CAST_OP_LOCKOUT_MS;
+			entry.count = 0;
+			entry.windowStart = 0;
+			g_logger().warn("[Cast][OP] {} failed elevation {} times — locked out for {}s",
+				convertIPToString(ip), CAST_OP_MAX_FAILURES, CAST_OP_LOCKOUT_MS / 1000);
+		} else {
+			g_logger().warn("[Cast][OP] wrong operator password from {} ({}/{})",
+				convertIPToString(ip), entry.count, CAST_OP_MAX_FAILURES);
+		}
+		return false;
+	}
+
+	// Restores the bot's Group no matter how the command exits. setGroup is a bare shared_ptr
+	// swap and hasFlag/isAccessPlayer dereference `group->` live, so the restore is complete —
+	// nothing caches group-derived state that could outlive this object.
+	class CastOperatorElevation {
+	public:
+		CastOperatorElevation(std::shared_ptr<Player> player, const std::shared_ptr<Group> &elevated) :
+			m_player(std::move(player)) {
+			if (m_player && elevated) {
+				m_saved = m_player->getGroup();
+				m_player->setGroup(elevated);
+			}
+		}
+		~CastOperatorElevation() {
+			if (m_player && m_saved) {
+				m_player->setGroup(m_saved);
+			}
+		}
+		CastOperatorElevation(const CastOperatorElevation &) = delete;
+		CastOperatorElevation &operator=(const CastOperatorElevation &) = delete;
+
+		bool active() const {
+			return m_saved != nullptr;
+		}
+
+	private:
+		std::shared_ptr<Player> m_player;
+		std::shared_ptr<Group> m_saved;
+	};
 
 	template <typename T>
 	uint16_t getVectorIterationIncreaseCount(T &vector) {
@@ -520,7 +636,7 @@ void ProtocolGame::release() {
 			v->sendChannelMessage("", leaveMsg, TALKTYPE_CHANNEL_O, CHANNEL_CAST);
 		});
 		g_logger().info("[Cast] {} disconnected from {} ({} remaining)",
-			getCastViewerName(), player->getName(), player->getCastViewerCount());
+			getCastViewerName(), player->getName(), player->getRealCastViewerCount());
 		player = nullptr;
 	} else if (player && player->client == shared_from_this()) {
 		if (player->isCastBroadcasting()) {
@@ -705,6 +821,12 @@ void ProtocolGame::connect(const std::string &playerName, OperatingSystem_t oper
 	}
 
 	if (isConnectionExpired()) {
+		// The replacement connection died inside the 1s reconnect window. isConnecting is
+		// only cleared further down, so without this the flag stays true forever and the
+		// player becomes permanently immune to both canLogout() and the connection-loss
+		// kick — stranded in the world until the idle kick, or indefinitely on a NOLOGOUT
+		// tile. Clear it here so the next tick can reclaim the player.
+		foundPlayer->isConnecting = false;
 		// ProtocolGame::release() has been called at this point and the Connection object
 		// no longer exists, so we return to prevent leakage of the Player.
 		return;
@@ -773,7 +895,7 @@ void ProtocolGame::castViewerLogin(const std::string &characterName) {
 	}
 
 	uint32_t maxViewers = g_configManager().getNumber(CAST_MAX_VIEWERS);
-	if (foundPlayer->getCastViewerCount() >= maxViewers) {
+	if (foundPlayer->getRealCastViewerCount() >= maxViewers) {
 		disconnectClient("This broadcast is full.");
 		return;
 	}
@@ -803,7 +925,19 @@ void ProtocolGame::castViewerLogin(const std::string &characterName) {
 	});
 
 	g_logger().info("[Cast] {} connected to {} ({} viewers)",
-		getCastViewerName(), characterName, foundPlayer->getCastViewerCount());
+		getCastViewerName(), characterName, foundPlayer->getRealCastViewerCount());
+
+	// Cast operator session. Only meaningful while watching a bot — a human caster's Player must
+	// never be elevated, so say so up front rather than failing silently on the first command.
+	if (m_castOperator) {
+		const bool isBot = foundPlayer->isBotPlayer();
+		g_logger().info("[Cast][OP] operator session opened: {} ip={} watching={} bot={}",
+			getCastViewerName(), convertIPToString(getIP()), characterName, isBot);
+		sendChannelMessage("", isBot
+				? "Operator session: type /cavebot <command> here to drive the bot AI."
+				: "Operator session authenticated, but this character is not a bot — /cavebot is disabled.",
+			TALKTYPE_CHANNEL_O, CHANNEL_CAST);
+	}
 
 	// Send bot status immediately to new viewer
 	if (foundPlayer->isBotPlayer()) {
@@ -1021,6 +1155,11 @@ void ProtocolGame::onRecvFirstMessage(NetworkMessage &msg) {
 
 	// Cast viewer login — bypass normal authentication
 	if (accountDescriptor == "@cast" || accountDescriptor == "@livestream") {
+		// Cast operator elevation. @cast itself stays unauthenticated (anyone may watch), so the
+		// password field — parsed above and otherwise discarded — carries the operator secret.
+		// This MUST be evaluated here: castViewerLogin runs from a separate dispatcher event
+		// whose lambda captures only characterName, so `password` is out of scope there.
+		m_castOperator = checkCastOperatorPassword(password, getIP());
 		// Consume remaining message fields (same order as normal login)
 		if (!oldProtocol && operatingSystem == CLIENTOS_NEW_LINUX) {
 			msg.getString();
@@ -1195,6 +1334,79 @@ void ProtocolGame::writeToOutputBuffer(NetworkMessage &msg) {
 	}
 }
 
+// Run /cavebot on behalf of a cast operator, as the watched bot.
+//
+// The bot IS the executing Player — it is the only Player a viewer session has (protocolgame.cpp
+// sets `player = foundPlayer` in castViewerLogin). Two consequences worth knowing:
+//   * `player:getPosition()` inside the talkaction is the BOT's tile, which is exactly what you
+//     want for /cavebot routeadd|poiadd — you record where the bot you are watching stands.
+//   * replies go through Player::sendTextMessage, which already fans out to every cast viewer
+//     of that bot, so no output plumbing is needed here (and other viewers see the output too).
+//
+// TalkActions::checkWord is deliberately NOT used: its gate is on account type (talkaction.cpp:67)
+// and bot account 65000 is type 1. We look the talkaction up directly and call the public
+// executeSay, so no permission-bypass parameter has to be threaded through the talkaction API.
+void ProtocolGame::executeCastOperatorCommand(const std::string &text) {
+	if (!m_castOperator || !player || player->isRemoved() || !player->isBotPlayer()) {
+		return;
+	}
+
+	const auto &talkActionsMap = g_talkActions().getTalkActionsMap();
+	const auto it = talkActionsMap.find(std::string(CAST_OPERATOR_TALKACTION));
+	if (it == talkActionsMap.end()) {
+		sendChannelMessage("", "Cast operator: /cavebot is not registered on this server.",
+			TALKTYPE_CHANNEL_O, CHANNEL_CAST);
+		return;
+	}
+
+	// Same param split TalkActions::checkWord performs: everything after the word, left-trimmed.
+	// /cavebot registers separator(" "), so checkWord's separator branch is a no-op for it.
+	std::string param;
+	if (text.size() > CAST_OPERATOR_TALKACTION.size()) {
+		param = text.substr(CAST_OPERATOR_TALKACTION.size());
+		trim_left(param, ' ');
+	}
+
+	// Echo the command back — the client does not echo a line we intercept.
+	sendChannelMessage("", "> " + text, TALKTYPE_CHANNEL_O, CHANNEL_CAST);
+
+	const auto elevatedGroup = g_game().groups.getGroup(CAST_OPERATOR_GROUP_ID);
+	if (!elevatedGroup) {
+		g_logger().error("[Cast][OP] group {} is not defined — cannot elevate", CAST_OPERATOR_GROUP_ID);
+		sendChannelMessage("", "Cast operator: server misconfiguration (missing group).",
+			TALKTYPE_CHANNEL_O, CHANNEL_CAST);
+		return;
+	}
+
+	// Keep the bot alive for the whole call even if the command removes it from the game
+	// (e.g. `/cavebot <this bot> hibernate`), and audit before running so the record survives a
+	// command that tears down this very connection.
+	auto executor = player;
+	const uint16_t priorGroupId = executor->getGroup() ? executor->getGroup()->id : 0;
+	g_logger().info("[Cast][OP] {} ip={} as={} group={}->{} cmd='{}'",
+		getCastViewerName(), convertIPToString(getIP()), executor->getName(),
+		priorGroupId, CAST_OPERATOR_GROUP_ID, text);
+
+	bool handled = false;
+	{
+		CastOperatorElevation elevation(executor, elevatedGroup);
+		handled = it->second->executeSay(executor, std::string(CAST_OPERATOR_TALKACTION), param, TALKTYPE_CHANNEL_Y);
+	}
+
+	g_logger().info("[Cast][OP] {} finished cmd='{}' handled={} groupRestored={}",
+		getCastViewerName(), text, handled,
+		executor->getGroup() ? executor->getGroup()->id : 0);
+
+	// The command may have hibernated the bot or reloaded the engine, either of which calls
+	// disconnectAllCastViewers() on this very protocol (bot_engine.cpp -> player.cpp
+	// disconnectAllCastViewers -> disconnectClient). Connection::send already no-ops on a closed
+	// connection, but check explicitly so we do not pretend to have replied.
+	if (!handled && player && !player->isRemoved() && !isConnectionExpired()) {
+		sendChannelMessage("", "Cast operator: /cavebot did not handle that command.",
+			TALKTYPE_CHANNEL_O, CHANNEL_CAST);
+	}
+}
+
 void ProtocolGame::parsePacket(NetworkMessage &msg) {
 	if (!acceptPackets || g_game().getGameState() == GAME_STATE_SHUTDOWN || msg.getLength() <= 0) {
 		return;
@@ -1234,6 +1446,18 @@ void ProtocolGame::parsePacket(NetworkMessage &msg) {
 						sendChannelMessage("", "lagmark @ " + std::to_string(ms),
 							TALKTYPE_CHANNEL_O, CHANNEL_CAST);
 					}
+					return;
+				}
+
+				// Cast operator: dispatch /cavebot into the watched bot instead of forwarding it
+				// as chat. Gated on isBotPlayer so a human caster is never driven or elevated.
+				// text is non-empty (checked above), so front() is safe. Already on the dispatcher
+				// thread — Protocol::sendRecvMessageCallback hops there before parsePacket.
+				if (m_castOperator && player->isBotPlayer()
+					&& text.starts_with(CAST_OPERATOR_TALKACTION)
+					&& (text.size() == CAST_OPERATOR_TALKACTION.size()
+						|| text[CAST_OPERATOR_TALKACTION.size()] == ' ')) {
+					executeCastOperatorCommand(text);
 					return;
 				}
 

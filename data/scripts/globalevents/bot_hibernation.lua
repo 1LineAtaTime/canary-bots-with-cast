@@ -159,6 +159,36 @@ function Hibernation.onThink(interval)
         local b = botStates[i]
         seenGuids[b.guid] = true
 
+        -- Debug-pinned bots are exempt from hibernation entirely. A bot under observation
+        -- must stay awake for as long as the operator needs; previously it hibernated after
+        -- HYSTERESIS_MS (30s) with no player nearby, which is shorter than a cross-floor walk
+        -- takes and made long-route debugging impossible. Wake it if it somehow hibernated
+        -- (e.g. pinned while already asleep), then skip all hibernate/wake bookkeeping.
+        if BotDebugPinned ~= nil and BotDebugPinned[b.guid] then
+            if b.hibernated then
+                Game.botWake(b.guid)
+            end
+            -- Maintain BotActive/BotPlayers for pinned bots too. Skipping this was a real bug:
+            -- BotSystem.thinkEvent clears setCastBroadcasting when BotActive[guid] is false
+            -- (bot_system.lua ~3009), so a pinned debug bot silently dropped out of the @cast
+            -- list — exactly when an operator most wants to watch it. Only the hibernate/wake
+            -- DECISION is skipped below, never this bookkeeping.
+            if BotPlayers ~= nil then
+                local p = BotPlayers[b.guid]
+                if p == nil or p:isRemoved() then
+                    p = Player(b.name)
+                    if p then BotPlayers[b.guid] = p end
+                end
+                -- Re-arm broadcasting if the watchdog already turned it off.
+                if p and not p:isRemoved() and not p:isCastBroadcasting() then
+                    p:setCastBroadcasting(true)
+                end
+            end
+            if BotActive ~= nil then BotActive[b.guid] = true end
+            noPlayerSince[b.guid] = nil
+            goto continue_bot
+        end
+
         -- Defensive sync: keep BotPlayers + BotActive in sync with whether the bot
         -- has a live Player object. Critical for cast list correctness:
         -- BotSystem.thinkEvent (bot_system.lua:2563-2568) periodically checks
@@ -240,6 +270,8 @@ function Hibernation.onThink(interval)
                 end
             end
         end
+
+        ::continue_bot::
     end
 
     -- Garbage-collect timers for bots that no longer exist (e.g., unregistered)

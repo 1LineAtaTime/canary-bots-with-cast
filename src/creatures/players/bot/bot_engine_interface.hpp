@@ -36,6 +36,10 @@ enum class POIType : uint8_t {
 	SHOP,
 	NPC,
 	ADVENTURER_STONE,  // arrives at temple → uses item 16277 → tours shared dungeon → returns to same temple
+	WATER,             // shoreline stand tile → fish for a while → walk back to a town anchor
+	HOUSE,             // interior tile of a bot-owned house → idle/greet/train → reroll out
+	REWARD_SHRINE,     // cardinal tile beside a daily reward shrine → face it and idle
+	IMBUING_SHRINE,    // cardinal tile beside an imbuing shrine → face it and idle
 };
 
 // Hunt phase
@@ -172,6 +176,11 @@ struct HuntScript {
 	bool isQuest = false;
 	std::string scriptCategory;  // "hunt", "quest", "traveling"
 	std::string spawnGroup;
+	// BOT_LURE_KITE: pack size the bot gathers before it engages, while walking its
+	// patrol holding fire. 0 = lure disabled for this script (every row ships 0; a
+	// party hunt falls back to botLurePartyDefaultMin instead). Optional CSV column,
+	// so a hunt_scripts.csv without it still loads.
+	uint8_t minMonsters = 0;
 	uint8_t keepDistanceEK = 0; // min sqm from monsters per vocation (0 = disabled)
 	uint8_t keepDistanceMS = 0;
 	uint8_t keepDistanceED = 0;
@@ -189,7 +198,7 @@ struct BotState {
 	std::string name;              // cached player name for re-loading after true-offline removal
 	std::weak_ptr<Player> playerRef;
 	uint32_t townId = 0;
-	std::string townName;  // source_name from travel_positions (e.g. "Edron", "Thais")
+	std::string townName;  // source_name from travel_positions.csv (e.g. "Edron", "Thais")
 	uint8_t vocationId = 0;
 
 	// AI state

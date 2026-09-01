@@ -1,0 +1,23 @@
+cfg_file,name,town_id,town_name,vocation_mask,min_level,max_level,script_category,is_quest,keep_distance_ek,keep_distance_ms,keep_distance_ed,keep_distance_rp,min_monsters,enabled,skip_reimport
+Chosen.cfg,Chosen,12,Farmine,15,150,600,hunt,0,0,3,3,3,0,1,1
+Chosen_Corruption_Hole.cfg,Corruption Hole Chosen,8,Thais,15,200,600,hunt,0,0,3,3,3,0,1,1
+Nightmare_Isles.cfg,Nightmare Isles,9,Venore,15,400,9999,hunt,0,0,3,3,3,0,1,1
+RoshamuulUp.cfg,Roshamuul Upper,21,Roshamuul,15,300,9999,hunt,0,0,3,3,3,0,1,1
+RoshamuulLow.cfg,Roshamuul Lower,8,Thais,15,170,700,hunt,0,0,3,3,3,3,1,1
+RoshamuulPrison-1.cfg,Roshamuul Prison -1,21,Roshamuul,15,350,9999,hunt,0,0,3,3,3,4,1,1
+RoshamuulPrison-2.cfg,Roshamuul Prison -2,21,Roshamuul,15,350,9999,hunt,0,0,3,3,3,0,1,1
+RoshamuulPrison-3.cfg,Roshamuul Prison -3,21,Roshamuul,15,350,9999,hunt,0,0,3,3,3,0,1,1
+Asura_Palace_Top.cfg,Asura Palace Top,15,Port Hope,15,350,600,hunt,0,0,3,3,3,0,1,1
+Asura_Palace_Cave.cfg,Asura Palace Cave,15,Port Hope,15,550,9999,hunt,0,0,3,3,3,4,1,1
+Draken_Walls_Farmine.cfg,Draken Walls Farmine,12,Farmine,15,300,800,hunt,0,0,3,3,3,3,1,1
+Farmine_Lizard_City.cfg,Farmine Lizard City,12,Farmine,15,300,800,hunt,0,0,3,3,3,3,1,1
+Asura_Palace_Cave-1.cfg,Asura Palace Cave -1,15,Port Hope,15,650,9999,hunt,0,0,3,3,3,0,1,1
+Asura_Palace_Cave-2.cfg,Asura Palace Cave -2,15,Port Hope,15,700,9999,hunt,0,0,3,3,3,0,1,1
+Issavi_Surface.cfg,Issavi Surface,22,Issavi,15,500,9999,hunt,0,0,3,3,3,0,1,0
+Issavi_sphynx_caves.cfg,Issavi Sphynx Caves,22,Issavi,15,500,750,hunt,0,0,3,3,3,4,1,0
+Cobra_Bastion.cfg,Cobra Bastion,10,Ankrahmun,15,450,9999,hunt,0,0,3,3,3,0,1,0
+Falcons.cfg,Falcons,12,Farmine,15,550,9999,hunt,0,0,3,3,3,4,1,0
+Gold_Tokens.cfg,Gold Tokens,10,Ankrahmun,15,650,9999,hunt,0,0,3,3,3,0,1,0
+Library.cfg,Library,6,Carlin,15,1800,9999,hunt,0,0,3,3,3,0,1,0
+Ferumbras_Seals.cfg,Ferumbras Seals,13,Darashia,15,1300,9999,hunt,0,0,3,3,3,0,1,0
+Ferumbras_Seals_2.cfg,Ferumbras Seals 2,13,Darashia,15,1500,9999,hunt,0,0,3,3,3,0,1,0

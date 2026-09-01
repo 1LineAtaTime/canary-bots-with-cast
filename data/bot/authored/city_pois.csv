@@ -1,0 +1,64 @@
+town_id,name,pos_x,pos_y,pos_z,poi_type,weight,enabled
+5,Ab'Dendriel Depot,32734,31634,7,depot,,1
+5,Ab'Dendriel Temple,32732,31634,7,temple,,1
+5,Ab'Dendriel Adventurer's Stone,32732,31634,7,adventurer_stone,10,1
+6,Carlin Depot,32360,31785,7,depot,,1
+6,Carlin Temple,32360,31782,7,temple,,1
+6,Carlin Boat,32310,32210,6,boat,,1
+6,Carlin Adventurer's Stone,32360,31782,7,adventurer_stone,10,1
+7,Kazordoon Depot,32649,31911,11,depot,,1
+7,Kazordoon Temple,32649,31925,11,temple,,1
+7,Kazordoon Adventurer's Stone,32649,31925,11,adventurer_stone,10,1
+8,Thais Depot,32365,32212,7,depot,,1
+8,Thais Temple,32369,32241,7,temple,,1
+8,Thais Boat,32387,31822,6,boat,,1
+8,Sam's General Store,32362,32196,7,shop,,1
+8,Frodo's Tavern,32360,32211,7,shop,,1
+8,Thais Adventurer's Stone,32369,32241,7,adventurer_stone,10,1
+9,Venore Depot,33019,32058,6,depot,,1
+9,Venore Temple,32958,32077,7,temple,,1
+9,Venore Boat,32955,32022,6,boat,,1
+9,Venore Adventurer's Stone,32958,32077,7,adventurer_stone,10,1
+10,Ankrahmun Depot,33195,32855,7,depot,,1
+10,Ankrahmun Temple,33197,32851,7,temple,,1
+10,Ankrahmun Boat,33091,32884,6,boat,,1
+11,Edron Depot,33167,31808,10,depot,,1
+11,Edron Temple,33217,31814,8,temple,,1
+11,Edron Boat,33176,31764,6,boat,,1
+11,Edron Adventurer's Stone,33217,31814,8,adventurer_stone,10,1
+12,Farmine Depot,33023,31542,10,depot,,1
+12,Farmine Temple,33023,31521,11,temple,,1
+12,Farmine Adventurer's Stone,33023,31521,11,adventurer_stone,10,1
+13,Darashia Depot,33214,32454,7,depot,,1
+13,Darashia Temple,33213,32453,7,temple,,1
+13,Darashia Boat,33293,32473,7,boat,,1
+14,Liberty Bay Depot,32335,32837,7,depot,,1
+14,Liberty Bay Temple,32317,32827,7,temple,,1
+14,Liberty Bay Boat,32284,32893,6,boat,,1
+14,Liberty Bay Adventurer's Stone,32317,32827,7,adventurer_stone,10,1
+15,Port Hope Depot,32595,32745,7,depot,,1
+15,Port Hope Temple,32594,32745,7,temple,,1
+15,Port Hope Boat,32529,32784,6,boat,,1
+15,Port Hope Adventurer's Stone,32594,32745,7,adventurer_stone,10,1
+16,Svargrond Depot,32275,31142,7,depot,,1
+16,Svargrond Temple,32212,31132,7,temple,,1
+16,Svargrond Boat,32343,31109,6,boat,,1
+16,Svargrond Adventurer's Stone,32212,31132,7,adventurer_stone,10,1
+17,Yalahar Depot,32787,31277,7,depot,,1
+17,Yalahar Temple,32787,31276,7,temple,,1
+17,Yalahar Adventurer's Stone,32787,31276,7,adventurer_stone,10,1
+19,Krailos Depot,33657,31665,8,depot,,1
+19,Krailos Temple,33657,31665,8,temple,,1
+20,Rathleton Depot,33593,31899,6,depot,,1
+20,Rathleton Temple,33594,31899,6,temple,,1
+20,Rathleton Adventurer's Stone,33594,31899,6,adventurer_stone,10,1
+21,Roshamuul Depot,33513,32363,6,depot,,1
+21,Roshamuul Temple,33513,32363,6,temple,,1
+21,Roshamuul Adventurer's Stone,33513,32363,6,adventurer_stone,10,1
+22,Issavi Depot,33924,31476,5,depot,,1
+22,Issavi Temple,33921,31477,5,temple,,1
+22,Issavi Adventurer's Stone,33921,31477,5,adventurer_stone,10,1
+25,Bounac Depot,32424,32445,7,depot,,1
+25,Bounac Temple,32424,32445,7,temple,,1
+26,Feyrist Depot,33490,32221,7,depot,,1
+26,Feyrist Temple,33490,32221,7,temple,,1

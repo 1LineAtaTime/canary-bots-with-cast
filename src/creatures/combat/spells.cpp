@@ -530,7 +530,12 @@ bool Spell::playerSpellCheck(const std::shared_ptr<Player> &player) const {
 		return false;
 	}
 
-	if (player->getSoul() < soul && !player->hasFlag(PlayerFlags_t::HasInfiniteSoul)) {
+	// Bot players have infinite soul, same bypass shape as the rune-charge one below
+	// (RuneSpell::executeUse). Conjuring costs 1-3 soul a cast and soul only regenerates while
+	// resting, so without this a rune-crafting bot goes quiet within a couple of minutes and
+	// stays quiet — the behaviour would look broken rather than paced.
+	if (player->getSoul() < soul && !player->hasFlag(PlayerFlags_t::HasInfiniteSoul)
+	    && !player->isBotPlayer()) {
 		player->sendCancelMessage(RETURNVALUE_NOTENOUGHSOUL);
 		g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
 		return false;
@@ -883,7 +888,9 @@ void Spell::postCastSpell(const std::shared_ptr<Player> &player, uint32_t manaCo
 		player->changeMana(-static_cast<int32_t>(manaCost));
 	}
 
-	if (!player->hasFlag(PlayerFlags_t::HasInfiniteSoul)) {
+	// Pairs with the infinite-soul bot bypass in playerSpellCheck: skipping only the check would
+	// let soul drain to 0 and stay there, which is invisible but wrong.
+	if (!player->hasFlag(PlayerFlags_t::HasInfiniteSoul) && !player->isBotPlayer()) {
 		if (soulCost > 0) {
 			player->changeSoul(-static_cast<int32_t>(soulCost));
 		}

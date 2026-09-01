@@ -449,6 +449,13 @@ end
 botStartup:register()
 
 -- Population manager: DISABLED — only polls bot_commands table for admin control
+-- Max bytes of a command result persisted to bot_commands.result.
+-- The column is TEXT (65535 BYTES), and db.escapeString can at worst double the length, so
+-- 32000 is the largest provably safe cap. The previous value was 4096, which silently truncated
+-- longer replies with no error -- the perf harness reads structured output back through this
+-- channel, and a half-JSON reply parses as garbage rather than failing loudly.
+local BOT_CMD_RESULT_MAX = 32000
+
 local botManager = GlobalEvent("BotManager")
 
 function botManager.onThink(interval)
@@ -474,11 +481,11 @@ function botManager.onThink(interval)
 			local low = cmd:lower()
 			if botName == "_global" and (low == "reload" or low:match("^reload%s")) then
 				local opts = { source = "queue" }
-				local debugMatch = low:match("^reload%s+debug%s*,%s*(%d+)")
-				if debugMatch then
-					opts.debugCount = tonumber(debugMatch)
-				elseif low:match("^reload%s+debug%s+off") or low:match("^reload%s+debug%-off") then
-					opts.debugCount = "off"
+				-- Parse from `cmd` (original case), NOT `low` — bot names must survive.
+				local dbgSpec, dbgNames = BotSystem.parseDebugSpec(cmd)
+				if dbgSpec then
+					opts.debugCount = dbgSpec
+					opts.debugBotNames = dbgNames
 				end
 				local rv = BotSystem.executeReload(opts)
 				resultText = (rv and rv.message) or "reload returned nil"
@@ -490,7 +497,7 @@ function botManager.onThink(interval)
 			-- Persist result + timestamp (mark processed in same statement)
 			db.botAsyncQuery(string.format(
 				"UPDATE `bot_commands` SET `processed` = 1, `result` = %s, `executed_at` = %d WHERE `id` = %d",
-				db.escapeString(resultText:sub(1, 4096)), os.time(), cmdId))
+				db.escapeString(resultText:sub(1, BOT_CMD_RESULT_MAX)), os.time(), cmdId))
 		until not Result.next(cmdResult)
 		Result.free(cmdResult)
 	end

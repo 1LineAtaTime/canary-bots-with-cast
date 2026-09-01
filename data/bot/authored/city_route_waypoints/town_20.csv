@@ -1,0 +1,37 @@
+source_name,waypoint_type,pos_x,pos_y,pos_z,action_label
+
+# --- rathleton|temple~depot: (7 waypoints) ---
+rathleton|temple~depot:,stand,33594,31899,6,
+rathleton|temple~depot:,node,33600,31899,6,
+rathleton|temple~depot:,node,33606,31899,6,
+rathleton|temple~depot:,node,33609,31893,6,
+rathleton|temple~depot:,node,33615,31892,6,
+rathleton|temple~depot:,node,33621,31897,6,
+rathleton|temple~depot:,stand,33623,31895,6,
+
+# --- rathleton|depot~temple: (8 waypoints) ---
+rathleton|depot~temple:,stand,33623,31896,7,
+rathleton|depot~temple:,stand,33623,31895,7,
+rathleton|depot~temple:,node,33620,31901,6,
+rathleton|depot~temple:,node,33614,31904,6,
+rathleton|depot~temple:,node,33608,31904,6,
+rathleton|depot~temple:,node,33602,31904,6,
+rathleton|depot~temple:,node,33596,31900,6,
+rathleton|depot~temple:,stand,33594,31899,6,
+
+# --- rathleton|depot~boat: (7 waypoints) ---
+rathleton|depot~boat:,stand,33623,31896,7,
+rathleton|depot~boat:,stand,33623,31895,7,
+rathleton|depot~boat:,node,33629,31898,6,
+rathleton|depot~boat:,node,33633,31892,6,
+rathleton|depot~boat:,stand,33637,31891,6,
+rathleton|depot~boat:,node,33485,31982,7,
+rathleton|depot~boat:,stand,33480,31986,7,
+
+# --- rathleton|boat~depot: (6 waypoints) ---
+rathleton|boat~depot:,stand,33480,31986,7,
+rathleton|boat~depot:,stand,33487,31982,7,
+rathleton|boat~depot:,node,33635,31891,6,
+rathleton|boat~depot:,node,33633,31897,6,
+rathleton|boat~depot:,node,33627,31897,6,
+rathleton|boat~depot:,stand,33623,31895,6,

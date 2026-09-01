@@ -86,6 +86,14 @@ LEVEL_TIERS = [
 
 # Existing 200-bot first/last names — match the prior SQL stored procedure so
 # the Markov corpus carries the same "fantasy" register.
+#
+# WARNING (2026-08-05): these lists no longer describe the live population. The 997 bots
+# were renamed by `database/bots/19_bot_rename.sql`; the authoritative name list is now
+# `bot_roster_updated.tsv` (new_name column), mirrored into `database/bots/02_players.sql`.
+# A `--out bot_population_setup.sql` reseed regenerates names from THESE lists and will
+# therefore produce the old `Aldric Steelarm`-style names again. That is only correct if
+# you genuinely intend a brand-new population — never as a way to refresh the current one.
+# For an in-place edit of the live population, use --emit-update or a targeted migration.
 LEGACY_FIRST_NAMES = [
     "Aldric", "Lyra", "Theron", "Isolde", "Magnus",
     "Freya", "Ragnar", "Astrid", "Cedric", "Elara",

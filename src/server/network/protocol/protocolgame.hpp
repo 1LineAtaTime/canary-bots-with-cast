@@ -610,6 +610,12 @@ private:
 	// Last /lagmark from this viewer — used to debounce a viewer spamming the cmd
 	int64_t m_lastLagmarkMs = 0;
 
+	// Cast operator: this viewer authenticated with castOperatorPassword at login and may
+	// dispatch /cavebot into the watched BOT from Cast Chat. Decided at parseLoginPacket time
+	// (that is the only place the password field is in scope) and read in castViewerLogin.
+	bool m_castOperator = false;
+	void executeCastOperatorCommand(const std::string &text);
+
 	uint8_t m_playerDeathTime = 0;
 
 	void resetPlayerDeathTime() {

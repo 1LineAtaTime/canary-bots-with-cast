@@ -1,0 +1,264 @@
+id,name,town_id,min_level,max_level,vocation_mask,keep_distance_ek,keep_distance_ms,keep_distance_ed,keep_distance_rp,enabled,is_quest,script_category,source,source_file,town_name,script_type,min_monsters
+1,Bonelord Liberty Bay,14,25,100,4,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+2,Braindeath Port Hope,15,110,330,4,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+3,Buy Blessing,8,8,9999,3,0,3,3,3,0,1,quest,import,,Thais,,0
+4,Amazon Tower Carlin,6,15,60,3,0,3,3,3,1,0,hunt,import,,Carlin,,0
+5,Cormaya Werecave,11,200,350,4,0,3,3,3,1,0,hunt,import,,Cormaya,,0
+6,Ankrahmun Cults -2,10,100,350,3,0,3,3,3,1,0,hunt,import,,Ankrahmun,,0
+7,Dark Cathedral -2,9,60,180,8,0,3,3,3,1,0,hunt,import,,Venore,,0
+8,Dawnport 0-8,2,0,200,15,0,3,3,3,1,0,hunt,import,,Dawnport,,0
+9,Demon Hero Cave,11,100,700,15,0,3,3,3,1,0,hunt,import,,Edron,,0
+10,Drefia Wyrms Advanced Lure,13,250,500,4,0,3,3,3,1,0,hunt,import,,Darashia,,0
+11,Cults Edron Full,11,200,700,4,0,3,3,3,1,0,hunt,import,,Edron,,3
+12,Edron Werecave,11,50,350,15,0,3,3,3,1,0,hunt,import,,Edron,,0
+13,Elvenbane Ab'Dendriel,5,20,100,8,0,3,3,3,1,0,hunt,import,,Ab'Dendriel,,0
+14,Shadowthorn Venore,9,20,100,3,0,3,3,3,1,0,hunt,import,,Venore,,0
+15,Feyrist Dark Faun Cave,15,160,480,8,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+16,Feyrist Mountain,15,180,350,4,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+17,Feyrist Nightmare cave,15,150,500,4,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+18,Feyrist Nightmare cave -2,15,150,550,4,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+19,Forest Fury Stealth Ring,6,30,90,3,0,3,3,3,1,0,hunt,import,,Carlin,,0
+20,Giant Spider Port Hope,15,100,300,8,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+21,Glooth Bandit East,20,200,600,4,0,3,3,3,1,0,hunt,import,,Rathleton,,0
+22,Glooth Bandit South,20,200,600,4,0,3,3,3,1,0,hunt,import,,Rathleton,,0
+23,Glooth Bandit West,20,200,600,4,0,3,3,3,1,0,hunt,import,,Rathleton,,0
+24,Goblin Distance Train,5,8,300,15,0,3,3,3,1,0,hunt,import,,Ab'Dendriel,,0
+25,Hero Fortress -1,11,180,350,4,0,3,3,3,1,0,hunt,import,,Edron,,0
+26,Hero Fortress Box,11,100,500,15,0,3,3,3,1,0,hunt,import,,Edron,,0
+27,Hero Old Fortress -2,11,250,600,4,0,3,3,3,1,0,hunt,import,,Edron,,3
+28,Ice Fishing Svargrond,16,8,9999,3,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+29,Ice Witch Svargrond,16,150,450,3,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+30,Kazordoon Mountain Dragons,7,65,195,8,0,3,3,3,1,0,hunt,import,,Kazordoon,,0
+31,Killer Caimans,11,15,100,15,0,3,3,3,1,0,hunt,import,,Edron,,0
+32,Krailos Nightmare,11,180,540,4,0,3,3,3,0,0,hunt,import,,Edron,,0
+33,Krailos Nightmare Advanced Lure,11,160,480,8,0,3,3,3,1,0,hunt,import,,Edron,,0
+34,Krailos Giant Spider Cave,11,100,300,4,0,3,3,3,1,0,hunt,import,,Edron,,0
+35,Laguna Island Tortoises,14,20,150,3,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+36,Liberty Bay Cults Before Piano,14,35,150,8,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+37,Magician Quarter Dark Magician,17,30,150,4,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+38,Market Thais Example,8,8,9999,3,0,3,3,3,1,1,quest,import,,Thais,,0
+40,Meriana Gargoyle Cave Lure,14,50,150,3,0,3,3,3,1,0,hunt,import,,Meriana,,0
+41,Minotaur Cults,11,200,600,4,0,3,3,3,1,0,hunt,import,,Edron,,0
+42,Minotaur Darashia,13,20,50,3,0,3,3,3,1,0,hunt,import,,Darashia,,0
+43,Mother Of Scarab Lair,10,130,390,3,0,3,3,3,1,0,hunt,import,,Ankrahmun,,0
+44,Mount Sternum Thais,8,40,120,8,0,3,3,3,1,0,hunt,import,,Thais,,3
+45,Mutated Humans,17,40,120,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+46,Mutated Temple Complex,11,120,360,4,0,3,3,3,1,0,hunt,import,,Edron,,0
+47,Oramond Demon Sewers,20,100,700,15,0,3,3,3,1,0,hunt,import,,Oramond,,3
+48,Oramond Hydra Task Points,20,200,500,8,0,3,3,3,1,0,hunt,import,,Oramond,,0
+49,Oramond Sewers Advanced Lure,20,200,600,4,0,3,3,3,1,0,hunt,import,,Oramond,,0
+50,Oramond Glooth Tower,20,200,500,4,0,3,3,3,1,0,hunt,import,,Oramond,,0
+52,Oramond West Tasker,20,150,500,4,0,3,3,3,1,0,hunt,import,,Oramond,,0
+53,Outside Orc Fortress,7,70,150,8,0,3,3,3,1,0,hunt,import,,Kazordoon,,0
+54,Peninsula Tomb Ankrahmun,10,20,250,15,0,3,3,3,1,0,hunt,import,,Ankrahmun,,0
+55,Pirates Yalahar,17,50,150,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+56,Putrid Mummy Advanced Lure,13,180,540,8,0,3,3,3,1,0,hunt,import,,Darashia,,0
+57,Putrid Mummy,13,200,600,3,0,3,3,3,1,0,hunt,import,,Darashia,,0
+58,Quaras Liberty Bay,14,50,400,15,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+59,Feyrist Access Quest,15,60,9999,3,0,3,3,3,1,1,quest,import,,Port Hope,,0
+60,Rotworm Venore Southeast,9,8,50,8,0,3,3,3,1,0,hunt,import,,Venore,,0
+61,Salamander Cave,9,8,100,3,0,3,3,3,1,0,hunt,import,,Venore,,0
+62,Sea Serpent South -1,16,180,540,15,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+63,Sell Items NPC,11,8,9999,3,0,3,3,3,1,1,quest,import,,Edron,,0
+64,Stonerefiner Venore,9,40,120,3,0,3,3,3,1,0,hunt,import,,Venore,,0
+65,Swamp Trolls,9,8,100,15,0,3,3,3,1,0,hunt,import,,Venore,,0
+66,Tarantulas Port Hope,15,8,60,8,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+67,Thais Cyclops South,8,35,105,8,0,3,3,3,1,0,hunt,import,,Thais,,0
+68,Train Slime Venore,9,8,100,3,0,3,3,3,1,0,hunt,import,,Venore,,0
+69,Train Rotworm Venore North,9,8,100,3,0,3,3,3,1,0,hunt,import,,Venore,,0
+70,Vampire Crypt Edron,11,140,300,11,0,3,3,3,1,0,hunt,import,,Edron,,0
+71,Vampire Crypt Edron Advanced Lure,11,190,450,8,0,3,3,3,1,0,hunt,import,,Edron,,0
+73,Vampire Crypt Edron Upper Lure,11,100,300,4,0,3,3,3,1,0,hunt,import,,Edron,,0
+74,Amazon Camp Venore,9,15,90,3,0,3,3,3,1,0,hunt,import,,Venore,,0
+75,Wasp Cave Ab'dendriel,5,8,100,3,0,3,3,3,1,0,hunt,import,,Ab'Dendriel,,0
+76,Wasp Darashia,13,8,100,3,0,3,3,3,1,0,hunt,import,,Darashia,,0
+77,Wasp Cave Thais Spear,8,8,100,4,0,3,3,3,1,0,hunt,import,,Thais,,0
+78,Wyrm Liberty Bay,14,120,360,3,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+79,Yalahar Cults,17,60,180,3,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+80,Yalahar Dragons,17,50,450,15,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+81,Yalahar Elves,17,20,100,3,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+82,Yalahar Necromancer,17,50,150,4,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+247,Ankrahmun Terramites,10,20,90,8,0,3,3,3,1,0,hunt,import,,Ankrahmun,moneymaker,0
+249,Cormaya Leaf Golems,11,25,100,8,0,3,3,3,1,0,hunt,import,,Edron,,0
+256,Darashia Dragon Lords,13,100,300,15,0,3,3,3,1,0,hunt,import,,Darashia,powergamer,0
+265,Darashia Far West Rotworms,13,8,50,15,0,3,3,3,1,0,hunt,import,,Darashia,,0
+273,Darashia North Rotworms,13,8,50,15,0,3,3,3,1,0,hunt,import,,Darashia,,0
+277,Darashia Northeast Rotworms,13,8,50,15,0,3,3,3,1,0,hunt,import,,Darashia,,0
+281,Darashia West Rotworms,13,8,50,15,0,3,3,3,1,0,hunt,import,,Darashia,,0
+294,Edron Demon War,11,175,450,15,0,3,3,3,1,0,hunt,import,,Edron,powergamer,0
+301,Edron Dragons,11,60,180,15,0,3,3,3,1,0,hunt,import,,Edron,,3
+305,Edron Earth Elementals,11,35,105,3,0,3,3,3,1,0,hunt,import,,Edron,powergamer,0
+307,Edron Hero Fortress  1,11,65,200,15,0,3,3,3,1,0,hunt,import,,Edron,casual,0
+311,"Edron Vampire Crypt  3,  4",11,130,350,15,0,3,3,3,1,0,hunt,import,,Edron,powergamer,0
+315,Elemental Spheres - ED,11,150,450,2,0,3,3,3,1,0,hunt,import,,Edron,moneymaker,0
+316,Elemental Spheres - EK,11,175,525,8,0,3,3,3,1,0,hunt,import,,Edron,moneymaker,0
+319,Fenrock Dragon Lords,17,130,390,15,0,3,3,3,1,0,hunt,import,,Yalahar,powergamer,0
+323,Fenrock Turtles,17,25,150,15,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+341,Liberty Bay Bonelords,14,60,180,15,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+345,Lion'S Rock,13,100,300,15,0,3,3,3,1,0,hunt,import,,Darashia,powergamer,0
+349,Mammoth Shearing Factory,16,30,90,15,0,3,3,3,1,0,hunt,import,,Svagrond,,0
+353,Medusa Tower,15,300,700,12,0,3,3,3,1,0,hunt,import,,Port Hope,hardcore,0
+354,Meriana Gargoyle Cave,14,50,150,15,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+358,"Mother Of Scarabs Lair  4,  5",13,100,300,15,0,3,3,3,1,0,hunt,import,,Darashia,powergamer,0
+374,Port Hope Carniphilas,15,33,150,15,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+378,Port Hope Giant Spider Caverns,15,80,240,15,0,3,3,3,1,0,hunt,import,,Port Hope,powergamer,0
+384,Port Hope Swamp Trolls,15,8,100,15,0,3,3,3,1,0,hunt,import,,Port Hope,moneymaker,0
+388,Port Hope Water Elementals,15,50,150,3,0,3,3,3,1,0,hunt,import,,Port Hope,hardcore,0
+390,Quara Grotto,14,80,240,15,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+394,Stonehome Rotworms,11,8,50,15,0,3,3,3,1,0,hunt,import,,Edron,,0
+398,Terramite Breeding Tunnels,13,25,100,8,0,3,3,3,1,0,hunt,import,,Darashia,moneymaker,0
+399,Thais Paw Collector,8,8,100,8,0,3,3,3,1,0,hunt,import,,Thais,moneymaker,0
+400,Venore Amazon Camp,9,30,90,8,0,3,3,3,1,0,hunt,import,,Venore,,0
+401,Venore East Coryms,9,60,240,8,0,3,3,3,1,0,hunt,import,,Venore,moneymaker,0
+402,Venore Elves,9,30,90,8,0,3,3,3,1,0,hunt,import,,Venore,moneymaker,0
+403,Venore North Coryms,9,60,240,8,0,3,3,3,1,0,hunt,import,,Venore,moneymaker,0
+404,Venore South Coryms,9,60,240,8,0,3,3,3,1,0,hunt,import,,Venore,moneymaker,0
+405,Venore Swamplings,9,8,100,8,0,3,3,3,1,0,hunt,import,,Venore,,0
+1207,Venore Rotworms West Close,9,9,50,8,0,3,3,3,1,0,hunt,import,,Venore,,0
+1209,Carlin Coryms,6,50,150,8,0,3,3,3,1,0,hunt,import,,Carlin,,0
+1210,Cormaya Dwarves 35+,11,35,105,8,0,3,3,3,1,0,hunt,import,,Cormaya,,0
+1211,Darashia Necromancers,13,50,350,8,0,3,3,3,1,0,hunt,import,,Darashia,,0
+1212,Edron - Vampire Crypt,11,200,500,8,0,3,3,3,1,0,hunt,import,,Edron,,0
+1213,Edron Cyclopolis,11,50,200,8,0,3,3,3,1,0,hunt,import,,Edron,,0
+1214,Kazordoon Diggers Depths Mine,7,35,350,8,0,3,3,3,1,0,hunt,import,,Kazordoon,,0
+1215,Kazordoon mines,7,0,150,8,0,3,3,3,1,0,hunt,import,,Kazordoon,,0
+1216,Krailos bugs Cave Version,9,117,351,8,0,3,3,3,1,0,hunt,import,,Venore,,0
+1217,Krailos Nightmares Cave,9,117,351,8,0,3,3,3,0,0,hunt,import,,Venore,,0
+1218,Lich Hell,14,95,285,8,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+1219,Meriana Tortoise,14,50,200,8,0,3,3,3,1,0,hunt,import,,Meriana,,0
+1220,[EK] Mutated Humans,17,50,200,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1221,Nargor Pirates remade,14,20,150,8,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+1222,Port Hope Tarantulas,15,44,132,8,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+1223,Stone Golem Farmine,12,50,200,8,0,3,3,3,1,0,hunt,import,,Farmine,,0
+1224,Svargrond Stone Golems-Gargoyles Fixed,16,94,282,8,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1225,Werewolf Vengoth,17,50,400,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1226,Yalahar Mutated Rats (70+),17,55,150,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1227,Port Hope-Banuta (30+),15,30,90,8,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+1228,Yalahar-Mutated Humans (45+),17,45,150,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1229,Port Hope-Laboratory,15,50,150,8,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+1230,Svargrond-TyrsungGiants,16,40,120,8,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1231,Yalahar-Graveyard(West&East),17,20,250,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1232,Ab'Dendriel Troll Caves 8+,5,0,50,8,0,3,3,3,1,0,hunt,import,,Ab'Dendriel,,0
+1233,Ankrahmun-Larvas,10,8,50,8,0,3,3,3,1,0,hunt,import,,Ankrahmun,,0
+1234,Crystal Spider hurup,16,100,350,2,0,3,3,3,1,0,hunt,import,,Svargrond,,3
+1235,Old Water Elemental,15,50,250,3,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+1236,Edron - Bonebeasts Old Fortress,11,100,250,4,0,3,3,3,1,0,hunt,import,,Edron,,0
+1237,Fibula Dragons,8,75,250,4,0,3,3,3,1,0,hunt,import,,Thais,,0
+1238,Kazordoon Drillworms,13,42,200,4,0,3,3,3,1,0,hunt,import,,Darashia,,0
+1239,Liberty Bay Rotworms,14,10,50,8,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+1240,Yalahar-Cemetery-1 (90+),17,80,240,4,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1241,Yalahar-Mistrock High-Cyclops (50+),17,50,150,4,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1242,Yalahar-Mistrock Low-Cyclops (35+),17,35,105,4,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1243,Farmine-Mines,12,50,150,4,0,3,3,3,1,0,hunt,import,,Farmine,,0
+1244,Ankrahmun - Hydras for Paladins,10,158,350,4,0,3,3,3,1,0,hunt,import,,Ankrahmun,,0
+1245,Deepling Scout,7,100,450,8,0,3,3,3,1,0,hunt,import,,Kazordoon,,0
+1246,Edron - Bog Raiders Stonehome for EKs,11,90,270,8,0,3,3,3,1,0,hunt,import,,Edron,,0
+1247,Edron - Soils Elder Druid,11,130,390,2,0,3,3,3,1,0,hunt,import,,Edron,,0
+1248,Farmine - Brimstone Bugs Keeper Cave,12,180,540,8,0,3,3,3,1,0,hunt,import,,Farmine,,0
+1249,Farmine - Dragon Lords West in MP for Mages,12,120,360,2,0,3,3,3,1,0,hunt,import,,Farmine,,0
+1250,Farmine - Hidden Lizards for RP,12,140,300,4,0,3,3,3,1,0,hunt,import,,Farmine,,0
+1251,Farmine - Killer Caimans for EKs,12,50,130,8,0,3,3,3,1,0,hunt,import,,Farmine,,0
+1252,Farmine - Lizards Muggy Plains for RP,12,140,300,4,0,3,3,3,1,0,hunt,import,,Farmine,,0
+1253,Glacierside Mammoth Camp,16,41,123,8,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1254,Gray Island - Hive Surface West,11,135,405,8,0,3,3,3,1,0,hunt,import,,Edron,,0
+1255,Insectoid Scout Greenshore v.,9,41,200,8,0,3,3,3,1,0,hunt,import,,Venore,,0
+1256,Liberty Bay - Medusae and Serpent Spawn Talahu,14,200,600,1,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+1257,Liberty Bay - Nightstalkers,14,70,210,1,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+1258,Necro House v.,8,41,200,8,0,3,3,3,1,0,hunt,import,,Unknown,,0
+1259,New Frost Dragons,8,148,444,8,0,3,3,3,1,0,hunt,import,,Thais,,0
+1260,Orclops Hunt,8,148,300,8,0,3,3,3,1,0,hunt,import,,Thais,,0
+1261,Port Hope - Hydras Forbidden Lands for RPs,15,158,350,4,0,3,3,3,1,0,hunt,import,,Port Hope,,0
+1262,Robsons Isle,7,41,200,8,0,3,3,3,1,0,hunt,import,,Kazordoon,,0
+1263,Svargrond - Hidden Crystal Spiders for Knights,16,80,350,2,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1264,Svargrond - Ice Witch Temple for Mages,16,115,345,2,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1265,Svargrond - Quaras West Hrodmir for Knights,16,70,210,2,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1266,Svargrond - Sea Serpent New for Knights,16,150,450,8,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1267,Svargrond Mammoth Shearing Factory,16,41,123,8,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1268,Folda Frost Trolls,6,15,60,8,0,3,3,3,1,0,hunt,import,,Carlin,,0
+1269,White deer hunt,5,25,120,8,0,3,3,3,1,0,hunt,import,,Ab'Dendriel,,0
+1270,Witch Hunt,8,41,123,8,0,3,3,3,1,0,hunt,import,,Unknown,,0
+1271,Yalahar - Blue Djinns for Mages,17,90,270,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1272,Yalahar - Dark Magician for Mages,17,50,150,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1273,Yalahar - Dragon Lords Fenrock,17,130,390,2,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1274,Yalahar - Giant Spiders for Knights,17,100,300,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1275,Yalahar - Minotaurs for Knight,17,30,90,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1276,Yalahar - Zombies for Knight,17,80,240,8,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1277,Children of the Revolution Quest by DvScripts,12,100,9999,15,0,3,3,3,1,1,quest,import,,Farmine,,0
+1278,The Ape City Quest by DvScripts,8,100,9999,15,0,3,3,3,1,1,quest,import,,Unknown,,0
+1279,The Inquisition Quest by DvScripts,8,100,9999,15,0,3,3,3,1,1,quest,import,,Thais,,0
+1280,The New Frontier Quest by DvScripts,8,100,9999,15,0,3,3,3,1,1,quest,import,,Thais,,0
+1281,[Darashia] - Lions Rock Quest v.,13,20,9999,15,0,3,3,3,1,1,quest,import,,Darashia,,0
+1282,[Yalahar] - In Service of Yalahar Quest v.,6,50,9999,4,0,3,3,3,1,1,quest,import,,Carlin,,0
+1283,[LibertyBay] Acess to Goroma by saDak,14,50,9999,15,0,3,3,3,1,1,quest,import,,Goroma,,0
+1284,Black Knight Quest + Boss Check,9,67,9999,8,0,3,3,3,1,1,quest,import,,Venore,,0
+1285,Secret Service Quest,8,68,9999,8,0,3,3,3,1,1,quest,import,,Thais,,0
+1286,Eleonore Quest,14,8,9999,15,0,3,3,3,1,1,quest,import,,Liberty Bay,,0
+1287,Misc - Midnight Panther Checker for Knights,15,50,9999,15,0,3,3,3,1,1,quest,import,,Port Hope,,0
+1288,Nimo Scripts - ALL Sea Serpent Quest,8,20,9999,15,0,3,3,3,1,1,quest,import,,Unknown,,0
+1289,Postman Quest,7,133,9999,8,0,3,3,3,1,1,quest,import,,Kazordoon,,0
+1290,City Walk: Ab'Dendriel to Carlin,5,1,9999,15,0,3,3,3,1,0,traveling,import,,Ab'Dendriel,,0
+1291,City Walk: Ab'Dendriel to Thais,5,1,9999,15,0,3,3,3,1,0,traveling,import,,Ab'Dendriel,,0
+1292,City Walk: Ab'Dendriel to Venore,5,1,9999,15,0,3,3,3,1,0,traveling,import,,Ab'Dendriel,,0
+1293,City Walk: Ab'Dendriel to Kazordoon,5,1,9999,15,0,3,3,3,1,0,traveling,import,,Ab'Dendriel,,0
+1294,City Walk: Carlin to Ab'Dendriel,6,1,9999,15,0,3,3,3,1,0,traveling,import,,Carlin,,0
+1295,City Walk: Carlin to Thais,6,1,9999,15,0,3,3,3,1,0,traveling,import,,Carlin,,0
+1296,City Walk: Carlin to Venore,6,1,9999,15,0,3,3,3,1,0,traveling,import,,Carlin,,0
+1297,City Walk: Carlin to Kazordoon,6,1,9999,15,0,3,3,3,1,0,traveling,import,,Carlin,,0
+1298,City Walk: Kazordoon to Ab'Dendriel,7,1,9999,15,0,3,3,3,1,0,traveling,import,,Kazordoon,,0
+1299,City Walk: Kazordoon to Carlin,7,1,9999,15,0,3,3,3,1,0,traveling,import,,Kazordoon,,0
+1300,City Walk: Kazordoon to Thais,7,1,9999,15,0,3,3,3,1,0,traveling,import,,Kazordoon,,0
+1301,City Walk: Kazordoon to Venore,7,1,9999,15,0,3,3,3,1,0,traveling,import,,Kazordoon,,0
+1302,City Walk: Thais to Ab'Dendriel,8,1,9999,15,0,3,3,3,1,0,traveling,import,,Thais,,0
+1303,City Walk: Thais to Carlin,8,1,9999,15,0,3,3,3,1,0,traveling,import,,Thais,,0
+1304,City Walk: Thais to Venore,8,1,9999,15,0,3,3,3,1,0,traveling,import,,Thais,,0
+1305,City Walk: Thais to Kazordoon,8,1,9999,15,0,3,3,3,1,0,traveling,import,,Thais,,0
+1306,City Walk: Venore to Ab'Dendriel,9,1,9999,15,0,3,3,3,1,0,traveling,import,,Venore,,0
+1307,City Walk: Venore to Carlin,9,1,9999,15,0,3,3,3,1,0,traveling,import,,Venore,,0
+1308,City Walk: Venore to Thais,9,1,9999,15,0,3,3,3,1,0,traveling,import,,Venore,,0
+1309,City Walk: Venore to Kazordoon,9,1,9999,15,0,3,3,3,1,0,traveling,import,,Venore,,0
+1380,Carlin - Dragons Lords,6,120,360,2,0,3,3,3,1,0,hunt,import,,Carlin,,0
+1381,Darashia - Rotworms North,13,8,60,15,0,3,3,3,1,0,hunt,import,,Darashia,,0
+1382,Edron - Rotworms,11,8,50,15,0,3,3,3,1,0,hunt,import,,Edron,,0
+1383,Edron - Trolls,11,8,50,15,0,3,3,3,1,0,hunt,import,,Edron,,0
+1384,Liberty Bay - Rotworms,14,8,60,15,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+1385,Liberty Bay - Wyrms,14,140,300,2,0,3,3,3,1,0,hunt,import,,Liberty Bay,,0
+1386,Rookgard - Bear Paw and Wolf Paw hunter,8,31,250,15,0,3,3,3,1,0,hunt,import,,Rookgard,,0
+1387,Svargrond - Frost Dragons,16,150,450,1,0,3,3,3,1,0,hunt,import,,Svargrond,,0
+1388,Yalahar - Necromancers and Heroes,17,50,200,2,0,3,3,3,1,0,hunt,import,,Yalahar,,0
+1389,Yalahar - Nightmares,17,160,480,8,0,3,3,3,1,0,hunt,import,,Yalahar,,3
+1403,Misc - Bless Maker,11,0,9999,15,0,3,3,3,1,1,quest,import,,Edron,,0
+1434,Darashia Dragons,13,65,195,15,0,3,3,3,1,0,hunt,import,,Darashia,,3
+1441,Darashia Minotaurs,13,20,75,8,0,3,3,3,1,0,hunt,import,,Darashia,,3
+1459,Darashia Wyrms,13,175,350,12,0,3,3,3,1,0,hunt,import,,Darashia,moneymaker,0
+1464,Edron Bog Raiders,11,80,240,12,0,3,3,3,1,0,hunt,import,,Edron,,0
+1500,Forbidden Lands Behemoths,15,180,540,7,0,3,3,3,1,0,hunt,import,,Port Hope,powergamer,0
+1502,Formorgar Crystal Spiders,16,80,350,8,0,3,3,3,1,0,hunt,import,,Svargrond,moneymaker,0
+1511,Kha'Zeel Scarab Lair,13,80,240,15,0,3,3,3,1,0,hunt,import,,Darashia,,0
+1535,North Port Hope,15,25,100,8,0,3,3,3,1,0,hunt,import,,Port Hope,,3
+1540,Peninsula Tomb  1,10,15,70,15,0,3,3,3,1,0,hunt,import,,Ankrahmun,,0
+1544,Peninsula Tomb  2,10,30,90,15,0,3,3,3,1,0,hunt,import,,Ankrahmun,,0
+1554,Port Hope South Water Elementals,15,80,240,3,0,3,3,3,1,0,hunt,import,,Port Hope,powergamer,0
+1578,Yalahar Grim Reapers,17,200,600,8,0,3,3,3,1,0,hunt,import,,Yalahar,powergamer,3
+1616,Library Tomb,10,50,150,3,0,3,3,3,1,0,hunt,import,,Ankrahmun,,0
+2068,Chosen,12,150,600,15,0,3,3,3,1,0,hunt,manual,cfg/Chosen.cfg,Farmine,,0
+2069,Corruption Hole Chosen,8,200,600,15,0,3,3,3,1,0,hunt,manual,cfg/Chosen_Corruption_Hole.cfg,Thais,,0
+2070,Nightmare Isles,9,400,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Nightmare_Isles.cfg,Venore,,0
+2071,Roshamuul Upper,21,300,9999,15,0,3,3,3,1,0,hunt,manual,cfg/RoshamuulUp.cfg,Roshamuul,,0
+2072,Roshamuul Lower,8,170,700,15,0,3,3,3,1,0,hunt,manual,cfg/RoshamuulLow.cfg,Thais,,3
+2073,Roshamuul Prison -1,21,350,9999,15,0,3,3,3,1,0,hunt,manual,cfg/RoshamuulPrison-1.cfg,Roshamuul,,4
+2074,Roshamuul Prison -2,21,350,9999,15,0,3,3,3,1,0,hunt,manual,cfg/RoshamuulPrison-2.cfg,Roshamuul,,0
+2075,Roshamuul Prison -3,21,350,9999,15,0,3,3,3,1,0,hunt,manual,cfg/RoshamuulPrison-3.cfg,Roshamuul,,0
+2076,Asura Palace Top,15,350,600,15,0,3,3,3,1,0,hunt,manual,cfg/Asura_Palace_Top.cfg,Port Hope,,0
+2077,Asura Palace Cave,15,550,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Asura_Palace_Cave.cfg,Port Hope,,4
+2078,Draken Walls Farmine,12,300,800,15,0,3,3,3,1,0,hunt,manual,cfg/Draken_Walls_Farmine.cfg,Farmine,,3
+2079,Farmine Lizard City,12,300,800,15,0,3,3,3,1,0,hunt,manual,cfg/Farmine_Lizard_City.cfg,Farmine,,3
+2080,Asura Palace Cave -1,15,650,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Asura_Palace_Cave-1.cfg,Port Hope,,0
+2081,Asura Palace Cave -2,15,700,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Asura_Palace_Cave-2.cfg,Port Hope,,0
+2082,Issavi Surface,22,500,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Issavi_Surface.cfg,Issavi,,0
+2083,Issavi Sphynx Caves,22,500,750,15,0,3,3,3,1,0,hunt,manual,cfg/Issavi_sphynx_caves.cfg,Issavi,,4
+2084,Cobra Bastion,10,450,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Cobra_Bastion.cfg,Ankrahmun,,0
+2085,Falcons,12,550,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Falcons.cfg,Farmine,,4
+2086,Gold Tokens,10,650,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Gold_Tokens.cfg,Ankrahmun,,0
+2087,Library,6,1800,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Library.cfg,Carlin,,0
+2088,Ferumbras Seals,13,1300,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Ferumbras_Seals.cfg,Darashia,,0
+2089,Ferumbras Seals 2,13,1500,9999,15,0,3,3,3,1,0,hunt,manual,cfg/Ferumbras_Seals_2.cfg,Darashia,,0

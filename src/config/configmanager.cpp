@@ -67,18 +67,10 @@ bool ConfigManager::load() {
 		// ---- Bot Liveness Pack (see BOT_SYSTEM_DOCS.md) ----
 		// POI weights — relative weight when bots roll which POI to walk to.
 		// NPC + SHOP rebalanced UP (3->8, 5->10) to make hubs visibly populated.
-		loadIntConfig(L, BOT_POI_WEIGHT_DEPOT,            "botPoiWeightDepot",           40);
-		loadIntConfig(L, BOT_POI_WEIGHT_DEPOT_OUTSIDE,    "botPoiWeightDepotOutside",    20);
-		loadIntConfig(L, BOT_POI_WEIGHT_TEMPLE,           "botPoiWeightTemple",          10);
-		loadIntConfig(L, BOT_POI_WEIGHT_BOAT,             "botPoiWeightBoat",            20);
-		loadIntConfig(L, BOT_POI_WEIGHT_SHOP,             "botPoiWeightShop",            10);
-		loadIntConfig(L, BOT_POI_WEIGHT_NPC,              "botPoiWeightNpc",              8);
-		loadIntConfig(L, BOT_POI_WEIGHT_ADVENTURER_STONE, "botPoiWeightAdventurerStone", 10);
 		// Top-level activity reroll weights (must sum to 100). HUNT trimmed -10 to feed POI +10.
-		loadIntConfig(L, BOT_REROLL_WEIGHT_IDLE,   "botRerollWeightIdle",   15);
-		loadIntConfig(L, BOT_REROLL_WEIGHT_POI,    "botRerollWeightPoi",    35);
-		loadIntConfig(L, BOT_REROLL_WEIGHT_HUNT,   "botRerollWeightHunt",   25);
-		loadIntConfig(L, BOT_REROLL_WEIGHT_TRAVEL, "botRerollWeightTravel", 25);
+		// ROUND2 B: 25 -> 13. Party hunts are now open to ALL vocations (leader elected EK > RP >
+		// initiator), so the party bin is funded from this global hunt weight rather than from the
+		// travel tail: idle 15 / POI 35 / hunt 13 / party 22 (botPartyHuntWeight) / travel tail 15.
 		// Player-proximity weighting (2026-06-15): bias HIBERNATED bots' next task/location
 		// toward routes/towns near real players (or cast-watched bots) so the virtual sim
 		// funnels ambient traffic toward players. Balanced defaults; set botProxTravelCatBonus=0
@@ -94,7 +86,6 @@ bool ConfigManager::load() {
 		loadIntConfig(L, BOT_PROX_TRAVEL_CAT_BONUS, "botProxTravelCatBonus",  25);
 		// Dwell durations (seconds). POI dwell widened from [120,600] -> [180,900] so
 		// bots linger long enough to be noticed at hubs.
-		loadIntConfig(L, BOT_REROLL_COOLDOWN_SEC,   "botRerollCooldownSec",    30);
 		loadIntConfig(L, BOT_DWELL_REROLL_MIN_SEC,  "botDwellRerollMinSec",    60);
 		loadIntConfig(L, BOT_DWELL_REROLL_MAX_SEC,  "botDwellRerollMaxSec",   300);
 		loadIntConfig(L, BOT_DWELL_POI_MIN_SEC,     "botDwellPoiMinSec",      180);
@@ -204,6 +195,7 @@ bool ConfigManager::load() {
 		loadIntConfig(L, STATUS_PORT, "statusProtocolPort", 7171);
 
 		loadStringConfig(L, AUTH_TYPE, "authType", "password");
+		loadStringConfig(L, CAST_OPERATOR_PASSWORD, "castOperatorPassword", "");
 		loadStringConfig(L, HOUSE_RENT_PERIOD, "houseRentPeriod", "never");
 		loadStringConfig(L, IP, "ip", "127.0.0.1");
 		loadStringConfig(L, MAINTAIN_MODE_MESSAGE, "maintainModeMessage", "");
@@ -235,6 +227,24 @@ bool ConfigManager::load() {
 	// only to measure chat dup rates offline — never read by runtime logic). Off by
 	// default; the chat anti-repeat/throttle is fully in-memory and unaffected.
 	loadBoolConfig(L, BOT_TELEMETRY_ENABLED,            "botTelemetryEnabled",            false);
+	// BOT_NAV_REALISM keys — generated from the same table as the enumerators, so a key
+	// can never exist in one file and be missing from the other. Add tunables in
+	// src/config/bot_config_keys.hpp.
+#define BOT_CFG_LOAD_INT(enumKey, luaKey, defaultValue)  loadIntConfig(L, enumKey, luaKey, defaultValue);
+#define BOT_CFG_LOAD_BOOL(enumKey, luaKey, defaultValue) loadBoolConfig(L, enumKey, luaKey, defaultValue);
+#define BOT_CFG_LOAD_STR(enumKey, luaKey, defaultValue)  loadStringConfig(L, enumKey, luaKey, defaultValue);
+	BOT_NAV_REALISM_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_ACTIVITY_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_MARKET_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_PARTY_TRAIL_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_AMBIENT_ROAM_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_CORPSE_LOOT_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_ACTIVITY_PCT_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_LURE_KITE_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_SHRINE_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+#undef BOT_CFG_LOAD_INT
+#undef BOT_CFG_LOAD_BOOL
+#undef BOT_CFG_LOAD_STR
 	loadBoolConfig(L, BOOSTED_BOSS_SLOT, "boostedBossSlot", true);
 	loadBoolConfig(L, CAST_ENABLED, "castEnabled", false);
 	loadBoolConfig(L, CLASSIC_ATTACK_SPEED, "classicAttackSpeed", false);
@@ -246,6 +256,7 @@ bool ConfigManager::load() {
 	loadBoolConfig(L, ENABLE_PLAYER_PUT_ITEM_IN_AMMO_SLOT, "enablePlayerPutItemInAmmoSlot", false);
 	loadBoolConfig(L, ENABLE_SUPPORT_OUTFIT, "enableSupportOutfit", true);
 	loadBoolConfig(L, EXPERIENCE_FROM_PLAYERS, "experienceByKillingPlayers", false);
+	loadBoolConfig(L, FORCE_LOGOUT_ON_CONNECTION_LOSS, "forceLogoutOnConnectionLoss", false);
 	loadBoolConfig(L, FREE_PREMIUM, "freePremium", false);
 	loadBoolConfig(L, GLOBAL_SERVER_SAVE_CLEAN_MAP, "globalServerSaveCleanMap", false);
 	loadBoolConfig(L, GLOBAL_SERVER_SAVE_CLOSE, "globalServerSaveClose", false);
@@ -533,6 +544,19 @@ bool ConfigManager::load() {
 	loadStringConfig(L, LOGLEVEL, "logLevel", "info");
 
 	loadLuaOTCFeatures(L);
+
+	// Cast operator: the secret is carried in the @cast login's password field, which is only
+	// parsed when authType != "session" (protocolgame.cpp:1005-1020). Under session auth the
+	// field stays empty, so elevation could never succeed and nothing would explain why.
+	if (!getString(CAST_OPERATOR_PASSWORD).empty()) {
+		if (getString(AUTH_TYPE) == "session") {
+			g_logger().warn("[ConfigManager] castOperatorPassword is set but authType is 'session' — "
+			                "cast operator commands are DISABLED (the login password field is never parsed).");
+		} else {
+			g_logger().info("[ConfigManager] Cast operator enabled: '/cavebot' is dispatchable from Cast Chat "
+			                "by viewers who authenticate with castOperatorPassword.");
+		}
+	}
 
 	loaded = true;
 	lua_close(L);

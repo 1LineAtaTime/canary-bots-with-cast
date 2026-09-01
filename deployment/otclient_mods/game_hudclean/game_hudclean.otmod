@@ -1,0 +1,10 @@
+Module
+  name: game_hudclean
+  description: Hide unassigned action-bar slots when a bar is locked, and blank the HUD chrome in extended view
+  author: 1LineAtaTime
+  website: -
+  autoload: true
+  sandboxed: true
+  scripts: [ hudclean ]
+  @onLoad: init()
+  @onUnload: terminate()

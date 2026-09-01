@@ -1,1 +1,26 @@
-text eol=lf
+# NOTE: this file previously contained the single line "text eol=lf", which is NOT a rule —
+# git parses the first token as the PATH PATTERN, so it matched only a file literally named
+# "text". Nothing in the repo had line-ending normalization. Verify with:
+#     git check-attr -a -- <any path>
+#
+# Deliberately NOT adding a repo-wide "* text=auto" rule: that would renormalize every text
+# file in the tree on the next commit (a huge, unreviewable diff). Scope stays narrow.
+
+# BOT_CSV: authored bot data is hand-edited on Windows and read by the engine on Linux.
+# Without this, core.autocrlf=true on the Windows clone checks these out as CRLF while the
+# server checks them out as LF, so every round-trip through a Windows editor would show the
+# whole file as changed. The engine parser accepts CRLF/LF/CR anyway (guide 2.3); this rule
+# is what keeps the DIFFS to one line.
+data/bot/authored/**/*.csv text eol=lf
+
+# BOT_CFG_INGEST: same reasoning as the CSV rule above, one step upstream. OTClient writes these
+# .cfg files LF, and convert_cfg.py writes cfg_manifest.csv LF (via csv_common.write_csv, which
+# always emits LF). With core.autocrlf=true they would check out CRLF, so re-dropping an unchanged
+# .cfg or letting the importer rewrite the manifest would show the whole file as changed.
+tools/cfg_importer/cfg/*.cfg text eol=lf
+tools/cfg_importer/cfg_manifest.csv text eol=lf
+
+# PERF HARNESS: shell scripts are authored on Windows and executed by bash ON THE SERVER. A CRLF
+# checkout there fails with "bad interpreter: /usr/bin/env bash^M", which reads as a broken script
+# rather than a line-ending problem. Same narrow-scope reasoning as the CSV rule above.
+tools/botperf/*.sh text eol=lf

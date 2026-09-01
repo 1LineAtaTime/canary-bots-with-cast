@@ -152,6 +152,11 @@ function food.onUse(player, item, fromPosition, target, toPosition, isHotkey)
 	player:say(itemFood[2], TALKTYPE_MONSTER_SAY)
 	player:updateSupplyTracker(item)
 	player:getPosition():sendSingleSoundEffect(SOUND_EFFECT_TYPE_ACTION_EAT, player:isInGhostMode() and nil or player)
+	-- Bot players eat from an infinite supply (same bypass as potions/runes): the feed, the
+	-- "Munch." and the sound all still happen, only the food item survives.
+	if player:isBotPlayer() then
+		return true
+	end
 	item:remove(1)
 	return true
 end
