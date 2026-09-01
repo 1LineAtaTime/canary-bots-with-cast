@@ -144,7 +144,7 @@ https://github.com/user-attachments/assets/022c82b5-0315-4f14-a618-3c7d3e77eca1
 
 ### Live World Map
 
-A MyAAC Community page plotting every online character from the position columns
+A MyAAC Community page plotting every online bot from the position columns
 the server already persists — no extra telemetry, no load on the game server.
 
 **Overview** — floor-agnostic, every character by x/y over the world artwork:
@@ -292,22 +292,7 @@ finish setting up the bot tables. Connect with an OTClient (protocol 13+).
 | `/house "<name>" sub-owner` | Become sub-owner of a bot house |
 | `/house "<name>" release` | Release a house you claimed — the bot reclaims it, furniture restored verbatim |
 
-**Admin (`god`)** — the most-used of a much larger surface:
 
-| Command | Purpose |
-|---|---|
-| `/cavebot active` · `population` | List active bots / per-town counts by state |
-| `/cavebot reload` | Hot-reload the engine **and** all authored data — no restart |
-| `/cavebot _global reloadconfig` | Re-read `config.lua` values without a restart |
-| `/cavebot reload debug,<Bot Name>` | Isolate ONE named bot with full telemetry + ASCII heartbeat grid |
-| `/cavebot activity` | Nominal vs eligible vs **realised** activity shares, awake vs hibernated |
-| `/cavebot botcfg` | Dump every bot tunable **as actually loaded** from `config.lua` |
-| `/cavebot whohunts [search]` | Which bot holds which hunt-spawn reservation |
-| `/cavebot claims` · `clearclaim <name>` | List player spawn-claims / force-release one |
-| `/cavebot partyinfo` · `partystop <name>` | Inspect / dissolve bot party hunts |
-| `/cavebot roam` | Ambient-roam sessions, per-cluster counts, suppressed anchors |
-| `/cavebot route x,y,z x,y,z` | Full tile-by-tile route between two points (`zplan` = z-hops only) |
-| `/cavebot shrines` · `fishspots` · `houseinfo` | What each runtime scan actually found |
 
 Spectate: log in with account name **`@cast`** (no password) and pick a character.
 
