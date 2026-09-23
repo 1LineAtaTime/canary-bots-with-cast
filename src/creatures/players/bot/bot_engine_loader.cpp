@@ -8,9 +8,17 @@
 #include "creatures/players/bot/bot_engine_loader.hpp"
 #include "lib/logging/logger.hpp"
 
-#include <dlfcn.h>
 #include <filesystem>
 #include <chrono>
+
+#ifdef _WIN32
+// The engine is linked straight into canary.exe on Windows, so the factory the
+// .so exports for dlsym() is just an ordinary external symbol here.
+extern "C" IBotEngine* createBotEngine();
+extern "C" void destroyBotEngine(IBotEngine* engine);
+#else
+	#include <dlfcn.h>
+#endif
 
 BotEngineLoader& BotEngineLoader::getInstance() {
 	static BotEngineLoader instance;
@@ -28,6 +36,19 @@ bool BotEngineLoader::load(const std::string& soPath) {
 		soPath_ = soPath;
 	}
 
+#ifdef _WIN32
+	// Statically linked: no image to open, no symbols to look up. Bind the factory
+	// directly so every path below (including unload) is otherwise unchanged.
+	createFunc_ = &createBotEngine;
+	destroyFunc_ = &destroyBotEngine;
+	engine_ = createFunc_();
+	if (!engine_) {
+		g_logger().error("[BotEngineLoader] createBotEngine() returned nullptr");
+		return false;
+	}
+	g_logger().info("[BotEngineLoader] Bot engine ready (statically linked, hot-reload unavailable)");
+	return true;
+#else
 	soHandle_ = dlopen(soPath.c_str(), RTLD_NOW | RTLD_LOCAL);
 	if (!soHandle_) {
 		g_logger().error("[BotEngineLoader] Failed to load {}: {}", soPath, dlerror());
@@ -54,9 +75,17 @@ bool BotEngineLoader::load(const std::string& soPath) {
 
 	g_logger().info("[BotEngineLoader] Loaded {} successfully", soPath);
 	return true;
+#endif
 }
 
 bool BotEngineLoader::reload() {
+#ifdef _WIN32
+	// Refuse rather than fake it. See the rationale on supportsHotReload() in the
+	// header; callers use that predicate to report "restart required" instead of
+	// the misleading "bots are disabled" that a plain false would produce.
+	g_logger().warn("[BotEngineLoader] Hot-reload is not supported on Windows (engine is statically linked) — restart the server to apply changes");
+	return false;
+#else
 	g_logger().info("[BotEngineLoader] Starting hot-reload of {}...", soPath_);
 
 	// Destroy old engine instance
@@ -120,6 +149,7 @@ bool BotEngineLoader::reload() {
 		loadedCopyPath_.clear();
 	}
 	return ok;
+#endif
 }
 
 IBotEngine& BotEngineLoader::getEngine() {
@@ -135,10 +165,12 @@ void BotEngineLoader::unload() {
 		destroyFunc_(engine_);
 		engine_ = nullptr;
 	}
+#ifndef _WIN32
 	if (soHandle_) {
 		dlclose(soHandle_);
 		soHandle_ = nullptr;
 	}
+#endif
 	createFunc_ = nullptr;
 	destroyFunc_ = nullptr;
 
@@ -153,4 +185,8 @@ void BotEngineLoader::unload() {
 // Global accessor — this is what g_botEngine() resolves to
 IBotEngine& getBotEngineInstance() {
 	return BotEngineLoader::getInstance().getEngine();
+}
+
+bool isBotEngineReady() {
+	return BotEngineLoader::getInstance().isLoaded();
 }

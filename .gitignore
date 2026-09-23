@@ -476,3 +476,4 @@ implementation_plans/map_big.jpg
 data/bot/authored/**/*.bak
 data/bot/authored/**/*.tmp
 data/bot/dumps/
+CMakeUserPresets.json

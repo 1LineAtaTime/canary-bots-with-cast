@@ -1163,6 +1163,14 @@ int GameFunctions::luaGameBotReload(lua_State* L) {
 		return 1;
 	}
 
+	// Windows links the engine into the binary, so there is nothing to swap. Say so
+	// plainly -- falling through would report "bots are disabled", which is both
+	// wrong (they keep running) and alarming.
+	if constexpr (!BotEngineLoader::supportsHotReload()) {
+		Lua::pushString(L, "Bot engine is statically linked (Windows build) — restart the server to apply code or data changes.");
+		return 1;
+	}
+
 	bool success = loader.reload();
 	if (!success) {
 		Lua::pushString(L, "FAILED to reload bot engine .so! Bots are disabled.");

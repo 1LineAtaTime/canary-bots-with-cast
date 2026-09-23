@@ -28,6 +28,7 @@
  * License: https://github.com/opentibiabr/canary/blob/main/LICENSE
  */
 
+#include "creatures/players/bot/bot_platform.hpp" // OS shims (POSIX/Win32); MUST be first
 #include "creatures/players/bot/bot_engine_interface.hpp"
 #include "creatures/players/bot/bot_pathcore.hpp" // BOT_NAV_REALISM Phase 2: dependency-free A* kernel
 #include "creatures/players/bot/bot_navdump.hpp" // BOT_NAV_REALISM Phase 3: offline-sim map dump format
@@ -729,13 +730,10 @@ static inline uint64_t botMonoUs() {
 // TaskGroup::Serial) and the engine never fans work out to the thread pool. The process clock
 // would fold in the DB task pool, network threads and async workers, contaminating body_cpu with
 // unrelated work and destroying exactly the discrimination above.
+// The clock itself lives in bot_platform.hpp: Linux keeps clock_gettime verbatim,
+// Windows falls back to GetThreadTimes (~15.6ms quantised -- see the note there).
 static inline uint64_t botThreadCpuUs() {
-	timespec ts {};
-	if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
-		return 0;
-	}
-	return static_cast<uint64_t>(ts.tv_sec) * 1000000ULL
-		+ static_cast<uint64_t>(ts.tv_nsec) / 1000ULL;
+	return botPlatformThreadCpuUs();
 }
 
 // ---- Tick deadline for tier 3-5 work (operator priority order) ----

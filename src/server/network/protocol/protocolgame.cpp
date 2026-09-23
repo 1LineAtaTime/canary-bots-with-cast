@@ -870,7 +870,7 @@ void ProtocolGame::castViewerLogin(const std::string &characterName) {
 	if (!foundPlayer) {
 		// May be a hibernated bot — auto-wake on cast viewer connect (synchronous DB load).
 		// After wakeBot, the bot is back in g_game() with cast broadcasting re-enabled.
-		uint32_t hibernatedGuid = g_botEngine().getHibernatedBotGuidByName(characterName);
+		uint32_t hibernatedGuid = isBotEngineReady() ? g_botEngine().getHibernatedBotGuidByName(characterName) : 0;
 		if (hibernatedGuid != 0) {
 			wakeAttempted = true;
 			g_botEngine().wakeBot(hibernatedGuid);
@@ -940,7 +940,7 @@ void ProtocolGame::castViewerLogin(const std::string &characterName) {
 	}
 
 	// Send bot status immediately to new viewer
-	if (foundPlayer->isBotPlayer()) {
+	if (foundPlayer->isBotPlayer() && isBotEngineReady()) {
 		auto statusText = g_botEngine().getStatusText(foundPlayer->getGUID());
 		if (!statusText.empty()) {
 			auto pos = foundPlayer->getPosition();

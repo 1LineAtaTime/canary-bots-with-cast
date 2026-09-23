@@ -8513,11 +8513,14 @@ void Player::sendCreatureChangeVisible(const std::shared_ptr<Creature> &creature
 			}
 			forwardToCastViewers([creature, outfit](ProtocolGame* v) { v->sendCreatureOutfit(creature, outfit); });
 		} else {
-			static Outfit_t outfit;
+			// Static: the zeroed "invisible" outfit, never mutated. It must NOT appear in
+			// the capture list below -- a variable with static storage duration cannot be
+			// captured (MSVC C3495), and the lambda reaches it directly anyway.
+			static const Outfit_t outfit;
 			if (client) {
 				client->sendCreatureOutfit(creature, outfit);
 			}
-			forwardToCastViewers([creature, outfit](ProtocolGame* v) { v->sendCreatureOutfit(creature, outfit); });
+			forwardToCastViewers([creature](ProtocolGame* v) { v->sendCreatureOutfit(creature, outfit); });
 		}
 	} else if (canSeeInvisibility()) {
 		auto outfit = creature->getCurrentOutfit();

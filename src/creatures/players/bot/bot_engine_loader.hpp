@@ -13,10 +13,36 @@ class BotEngineLoader {
 public:
 	static BotEngineLoader& getInstance();
 
-	// Load the shared library for the first time
+	// Load the engine for the first time.
+	//
+	// Linux: dlopen()s the shared library at soPath.
+	// Windows: the engine is STATICALLY linked into canary.exe (see the long note in
+	//          src/creatures/CMakeLists.txt), so soPath is ignored and the extern "C"
+	//          factory is called directly. Never fails for a missing file.
 	bool load(const std::string& soPath = "./libbot_engine.so");
 
-	// Hot-reload: destroy engine, dlclose, dlopen new .so, create engine
+	// True only where the engine can be swapped without restarting the server, i.e.
+	// where it is a real shared library. Callers must consult this BEFORE treating a
+	// false from reload() as an error -- on Windows reload is unsupported, not broken.
+	static constexpr bool supportsHotReload() {
+#ifdef _WIN32
+		return false;
+#else
+		return true;
+#endif
+	}
+
+	// Hot-reload: destroy engine, dlclose, dlopen new .so, create engine.
+	//
+	// Windows returns false WITHOUT touching the engine. It deliberately does not
+	// destroy-and-recreate in place: the engine's ~200 file-scope `inline` globals
+	// (party sessions, gang sessions, loot runs, per-guid cooldowns) are wiped on
+	// Linux only because dlclose unloads the whole image. Statically linked they
+	// would survive, and a fresh BotEngine reading stale guid-keyed state is exactly
+	// the failure class the "fresh engine every load" design was bought to avoid
+	// (see bot_engine_impl.hpp:6362). Restarting the process reproduces the Linux
+	// guarantee exactly -- and on a local dev box a restart costs seconds, which is
+	// the whole reason hot-reload exists on the production host and not here.
 	bool reload();
 
 	// Get the active engine instance (asserts loaded)
