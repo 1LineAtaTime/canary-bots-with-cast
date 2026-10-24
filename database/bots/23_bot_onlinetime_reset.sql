@@ -1,0 +1,11 @@
+-- One-off cleanup for #44: zero the garbage `onlinetime` of the bot characters.
+--
+-- Before the isBotPlayer() guard in IOLoginDataSave::savePlayerFirst, every bot save added
+-- `now - lastLoginSaved` with lastLoginSaved = 0 (bots never pass the normal login), i.e.
+-- ~1.79e9 s per save. The seed (02_players.sql) carries those values too: 509 bot rows
+-- exceed INT_MAX, which is why `onlinetime` is BIGINT UNSIGNED now (schema.sql,
+-- 16_runtime_compatibility.sql).
+--
+-- With the guard in place bot saves no longer touch the column, so this reset sticks.
+-- Still run it with canary stopped, like every other `players` edit. Run AFTER 02_players.sql.
+UPDATE `players` SET `onlinetime` = 0 WHERE `account_id` = 65000;
