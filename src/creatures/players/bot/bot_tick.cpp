@@ -4866,7 +4866,11 @@ void BotEngine::doIdle(BotState& bot) {
 			s_reengageUntil.erase(bot.guid);
 		} else {
 			auto reTarget = g_game().getCreatureByID(reIt->second);
-			if (reTarget && !reTarget->isRemoved() && reTarget->getHealth() > 0) {
+			// No-PvP worlds: never resume a fight against a real player (see checkRandomPK).
+			const auto rePlayer = reTarget ? reTarget->getPlayer() : nullptr;
+			const bool blockedByNoPvp = rePlayer && !rePlayer->isBotPlayer()
+				&& g_game().getWorldType() == WORLD_TYPE_NO_PVP;
+			if (reTarget && !blockedByNoPvp && !reTarget->isRemoved() && reTarget->getHealth() > 0) {
 				auto tpos = reTarget->getPosition();
 				int32_t dx = std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(tpos.x));
 				int32_t dy = std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(tpos.y));

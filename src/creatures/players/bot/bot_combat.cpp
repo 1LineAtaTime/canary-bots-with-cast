@@ -2977,7 +2977,11 @@ void BotEngine::checkGangJump(BotState& bot) {
 
 	// Find a victim: an exposed player (or bot) standing just outside a PZ within this initiator's
 	// town. Real players are scanned town-wide (few of them); bots via the local spectator cache.
-	const bool targetPlayers = g_configManager().getBoolean(BOT_GANG_TARGET_PLAYERS);
+	// No-PvP worlds: Canary's combat refuses player-vs-player damage, but a raid would still wall,
+	// paralyze and chase the victim. Real players are never raid targets there, whatever
+	// botGangTargetPlayers says.
+	const bool targetPlayers = g_configManager().getBoolean(BOT_GANG_TARGET_PLAYERS)
+		&& g_game().getWorldType() != WORLD_TYPE_NO_PVP;
 	const int32_t victimBand = static_cast<int32_t>(g_configManager().getNumber(BOT_GANG_VICTIM_BAND));
 	auto victimEligible = [&](const std::shared_ptr<Creature>& c) -> bool {
 		if (!c || c->getID() == player->getID()) return false;
@@ -3904,6 +3908,8 @@ void BotEngine::checkRandomPK(BotState& bot) {
 		auto p = creature->getPlayer();
 		if (!p) continue;
 		if (p->getGroup() && p->getGroup()->access) continue;
+		// No-PvP worlds: never pick a real player (the damage is refused anyway; the walls are not).
+		if (!p->isBotPlayer() && g_game().getWorldType() == WORLD_TYPE_NO_PVP) continue;
 		if (gangIsRecentAlly(bot.guid, p->getGUID())) continue; // never PK a recent gang-mate
 		auto tpos = creature->getPosition();
 		if (tpos.z != bot.currentPos.z) continue;
