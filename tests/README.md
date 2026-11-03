@@ -7,6 +7,9 @@ From the repository root, run `lua tests/lua/bot_startup_test.lua` or
 `BotStartup` handler with a fake dispatcher and database; no C++ build, running
 server, or database is needed. They cover slow loads, batch boundaries, retries,
 online visibility, population selection, and finalization scheduling.
+Run `lua tools/bot_brain/test_startup_batches.lua` (and repeat with LuaJIT)
+to simulate hibernation during batching and verify quest access is initialized
+before the Lua player cache is cleared.
 
 ### Running tests
 

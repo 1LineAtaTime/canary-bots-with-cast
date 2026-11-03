@@ -2,6 +2,7 @@
 -- Exercise the real startup handler with a deterministic dispatcher and fake DB.
 local scriptPath = arg[1] or "data/scripts/globalevents/bot_manager.lua"
 local passed = 0
+dofile("data-otservbr-global/lib/core/storages.lua")
 
 local function check(condition, message)
 	assert(condition, message)
@@ -68,6 +69,9 @@ local function startup(options)
 			local guid = tonumber(name:match("%d+"))
 			return {
 				getGuid = function() return guid end,
+				setStorageValue = function(_, key, value)
+					check(type(key) == "number" and type(value) == "number", "quest access must use real storage constants")
+				end,
 				registerEvent = function(_, event)
 					check(event == "BotDeath", "loaded players must retain their death handler")
 				end,

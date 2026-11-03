@@ -269,8 +269,8 @@ with a one-second retry delay; a failed bot does not prevent later bots loading.
 Watch `[BOT_BATCH] completed N/total; loaded=M` in the server log for progress.
 The full 997-bot pool takes at least about 13 minutes to register, plus world
 loading and actual bot-load time. Online visibility is published per batch when
-`botPlayersShowAsOnline` is enabled; quest/access setup and persisted-state
-restoration are scheduled after the final attempt.
+`botPlayersShowAsOnline` is enabled; quest/access setup runs for each successfully loaded bot before hibernation,
+and persisted-state restoration is scheduled after the final attempt.
 
 ### 5. (Optional) Website + cast + client
 
