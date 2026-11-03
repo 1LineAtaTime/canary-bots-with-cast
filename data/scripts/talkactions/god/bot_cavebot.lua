@@ -82,9 +82,16 @@ function cavebotCmd.onSay(player, words, param)
 		-- (data/scripts/talkactions/player/bot_house.lua).
 	end
 
-	-- Require God access (group >= 3)
-	if player:getGroup():getAccess() == false then
-		player:sendTextMessage(MESSAGE_STATUS_WARNING, "You need God access to use /cavebot.")
+	-- Everything below is administrative. The talkaction is registered "normal" so that the
+	-- player subcommands above are reachable (#45), so this check now carries the whole gate
+	-- the old groupType("god") registration used to provide: a GOD account with group access.
+	-- A cast operator runs /cavebot AS the watched bot (account type 1) with its group elevated
+	-- to god by ProtocolGame::executeCastOperatorCommand, so a bot player with access counts;
+	-- a bot's own group (1) has no access, so nothing else can pass that branch.
+	local isGodAccount = player:getAccountType() >= ACCOUNT_TYPE_GOD or player:isBotPlayer()
+	if not isGodAccount or not player:getGroup():getAccess() then
+		-- MESSAGE_STATUS_WARNING is not a registered enum (it was nil here).
+		player:sendTextMessage(MESSAGE_STATUS, "You need God access to use /cavebot.")
 		return true
 	end
 
@@ -745,5 +752,7 @@ function cavebotCmd.onSay(player, words, param)
 end
 
 cavebotCmd:separator(" ")
-cavebotCmd:groupType("god")
+-- Player spawn claims/releases and party commands are handled before the
+-- access check in onSay; administrative commands still require God access.
+cavebotCmd:groupType("normal")
 cavebotCmd:register()
