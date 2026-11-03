@@ -27,14 +27,14 @@ function onUpdateDatabase()
 	db.query([[
 		ALTER TABLE `player_charms`
 		ADD `minor_charm_echoes` SMALLINT NOT NULL DEFAULT '0',
-		ADD `max_charm_points` SMALLINT NOT NULL DEFAULT '0',
+		ADD `max_charm_points` INT UNSIGNED NOT NULL DEFAULT '0',
 		ADD `max_minor_charm_echoes` SMALLINT NOT NULL DEFAULT '0',
 		ADD `charms` BLOB NULL
 	]])
 
 	db.query([[
 		ALTER TABLE `player_charms`
-		MODIFY COLUMN `charm_points` SMALLINT NOT NULL DEFAULT '0',
+		MODIFY COLUMN `charm_points` INT UNSIGNED NOT NULL DEFAULT '0',
 		MODIFY COLUMN `UsedRunesBit` INT NOT NULL DEFAULT '0',
 		MODIFY COLUMN `UnlockedRunesBit` INT NOT NULL DEFAULT '0',
 		MODIFY COLUMN `charm_expansion` BOOLEAN NOT NULL DEFAULT 0,

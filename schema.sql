@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS `players` (
     `blessings6` tinyint(4) NOT NULL DEFAULT '0',
     `blessings7` tinyint(4) NOT NULL DEFAULT '0',
     `blessings8` tinyint(4) NOT NULL DEFAULT '0',
-    `onlinetime` int(11) NOT NULL DEFAULT '0',
+    `onlinetime` BIGINT UNSIGNED NOT NULL DEFAULT '0',
     `deletion` bigint(15) NOT NULL DEFAULT '0',
     `balance` bigint(20) UNSIGNED NOT NULL DEFAULT '0',
     `offlinetraining_time` smallint(5) UNSIGNED NOT NULL DEFAULT '43200',
@@ -560,9 +560,9 @@ CREATE TABLE IF NOT EXISTS `players_online` (
 -- Table structure `player_charm`
 CREATE TABLE IF NOT EXISTS `player_charms` (
     `player_id` int(11) NOT NULL,
-    `charm_points` SMALLINT NOT NULL DEFAULT '0',
+    `charm_points` INT UNSIGNED NOT NULL DEFAULT '0',
     `minor_charm_echoes` SMALLINT NOT NULL DEFAULT '0',
-    `max_charm_points` SMALLINT NOT NULL DEFAULT '0',
+    `max_charm_points` INT UNSIGNED NOT NULL DEFAULT '0',
     `max_minor_charm_echoes` SMALLINT NOT NULL DEFAULT '0',
     `charm_expansion` BOOLEAN NOT NULL DEFAULT FALSE,
     `UsedRunesBit` INT NOT NULL DEFAULT '0',
