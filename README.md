@@ -250,6 +250,28 @@ upstream Canary release matching the base version and place it per `mapName`.
 Start `canary` (the `.so` is loaded automatically). On first boot the migrations
 finish setting up the bot tables. Connect with an OTClient (protocol 13+).
 
+**ARM64 VPS using the AMD64 release.** The prebuilt Linux server and bot engine
+tested here are AMD64 binaries. Run both from the same release in an AMD64
+userspace with QEMU user emulation and a registered `qemu-x86_64` binfmt handler.
+For an Ubuntu 24.04 host, install `qemu-user-static` and ensure the handler in
+`/proc/sys/fs/binfmt_misc/qemu-x86_64` is enabled with the `F` flag before starting
+an AMD64 container. Verify emulation with
+`docker run --rm --platform linux/amd64 ubuntu:24.04 uname -m` (expect `x86_64`).
+Set `platform: linux/amd64` on the game-server service when using those release
+binaries; MariaDB can run natively on ARM64. This path uses emulation and has
+been tested on a 2-vCPU ARM64 VPS with Ubuntu 24.04, an Ubuntu 24.04 AMD64 runtime,
+and MariaDB 11.4. It does not establish native ARM64 build compatibility.
+
+Bot startup now loads one bot at a time, waiting 100 ms **after** each completed
+load, and pauses 35 seconds after each batch of 50 attempts. Unobserved bots get
+time to hibernate before the next batch. Failed loads get up to three attempts
+with a one-second retry delay; a failed bot does not prevent later bots loading.
+Watch `[BOT_BATCH] completed N/total; loaded=M` in the server log for progress.
+The full 997-bot pool takes at least about 13 minutes to register, plus world
+loading and actual bot-load time. Online visibility is published per batch when
+`botPlayersShowAsOnline` is enabled; quest/access setup and persisted-state
+restoration are scheduled after the final attempt.
+
 ### 5. (Optional) Website + cast + client
 
 - **Website / cast login:** install [MyAAC](https://github.com/slawkens/myaac)

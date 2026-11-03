@@ -1,5 +1,13 @@
 ## Testing
 
+### Bot startup regression tests (Lua)
+
+From the repository root, run `lua tests/lua/bot_startup_test.lua` or
+`luajit tests/lua/bot_startup_test.lua`. These tests exercise the real
+`BotStartup` handler with a fake dispatcher and database; no C++ build, running
+server, or database is needed. They cover slow loads, batch boundaries, retries,
+online visibility, population selection, and finalization scheduling.
+
 ### Running tests
 
 Tests can be run directly from the repository root using CMake test presets. First, configure and build tests for your platform:
