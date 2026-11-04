@@ -427,7 +427,7 @@ function botStartup.onStartup()
 							if val == "1" then
 								logger.info("[BotManager] Restore flag set — restoring persisted bot states...")
 								Game.botRestoreStates()
-								-- restoreAllStates() already deletes bot_state_persistence rows internally.
+								-- Restored rows are consumed; tasks for unloaded bots remain persisted.
 								-- Clear the flag so a crash before next graceful shutdown doesn't re-restore stale data.
 								db.botAsyncQuery("UPDATE `bot_startup_config` SET `config_value`='0' WHERE `config_key`='should_restore_states'")
 								logger.info("[BotManager] Bot state restore complete. Restore flag cleared.")

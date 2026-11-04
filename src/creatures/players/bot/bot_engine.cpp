@@ -2577,6 +2577,7 @@ void BotEngine::restoreAllStates() {
 	}
 
 	uint32_t restoredCount = 0;
+	std::string restoredGuids;
 
 	do {
 		uint32_t guid = result->getNumber<uint32_t>("guid");
@@ -2605,11 +2606,16 @@ void BotEngine::restoreAllStates() {
 		// Bot has a restored task — no 1-min activation fallback needed
 		bot.activatedAt = 0;
 
+		if (!restoredGuids.empty()) restoredGuids += ',';
+		restoredGuids += std::to_string(guid);
 		restoredCount++;
 	} while (result->next());
 
-	// Clear persisted rows now that restore is done
-	clearPersistedStates();
+	// Smaller startup populations must retain tasks belonging to unloaded bots.
+	if (!restoredGuids.empty() && !db.executeQuery(
+		"DELETE FROM `bot_state_persistence` WHERE `guid` IN (" + restoredGuids + ")")) {
+		g_logger().error("[BotEngine] restoreAllStates: failed to clear restored rows");
+	}
 
 	g_logger().info("[BotEngine] restoreAllStates: restored {} bot states", restoredCount);
 }
