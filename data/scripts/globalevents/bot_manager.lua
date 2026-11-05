@@ -228,14 +228,15 @@ end
 local botStartup = GlobalEvent("BotStartup")
 
 function botStartup.onStartup()
+	-- Clear stale cast_broadcasters from previous run/crash. Runs even with bots disabled:
+	-- human casts lost at shutdown or in a crash rely on it (CastPublisher, issue #13).
+	db.query("DELETE FROM `cast_broadcasters`")
+
 	if BOT_CONFIG.MASTER_DISABLE then
 		logger.warn("[BotManager] MASTER_DISABLE=true — bot startup skipped (lag-investigation Test 1)")
 		return true
 	end
 	logger.info("[BotManager] Starting bot system...")
-
-	-- Clear stale cast_broadcasters from previous run/crash
-	db.query("DELETE FROM `cast_broadcasters`")
 
 	-- BOT_LIVENESS_PACK Phase C.1: visual-identity reroll. Every server restart
 	-- shuffles each bot's looktype + addons + colors + mount + mount colors.
