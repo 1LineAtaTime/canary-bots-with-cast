@@ -20,6 +20,7 @@
 #include "creatures/monsters/monster.hpp"
 #include "creatures/monsters/monsters.hpp"
 #include "creatures/npcs/npc.hpp"
+#include "creatures/players/cast/cast_publisher.hpp"
 #include "creatures/players/grouping/party.hpp"
 #include "creatures/players/imbuements/imbuements.hpp"
 #include "creatures/players/storages/storages.hpp"
@@ -12596,7 +12597,19 @@ void Player::sendSpellCooldowns() {
 // ---- Cast viewer system ----
 
 void Player::setCastBroadcasting(bool v) {
+	const bool wasBroadcasting = castBroadcasting;
 	castBroadcasting = v;
+	// Human casts are published for deployment/web/login.php here and only here, so every
+	// way a cast ends (/cast off, logout, death, abrupt disconnect via ProtocolGame::release)
+	// withdraws it. Repeated stops are no-ops; repeated starts re-assert the row. Bots keep
+	// their own cast_broadcasters path in the bot engine.
+	if (!isBotPlayer() && (v || wasBroadcasting)) {
+		if (v) {
+			g_castPublisher().publish(getGUID(), getName());
+		} else {
+			g_castPublisher().unpublish(getGUID());
+		}
+	}
 	if (v) {
 		// Open Cast Chat channel for the caster
 		if (client) {

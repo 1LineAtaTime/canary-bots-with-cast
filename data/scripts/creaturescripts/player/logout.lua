@@ -26,10 +26,9 @@ function playerLogout.onLogout(player)
 		player:setTraining(false)
 	end
 
-	-- Clean up cast broadcasting on logout
+	-- Clean up cast broadcasting on logout (setCastBroadcasting also withdraws the cast_broadcasters row)
 	if player:isCastBroadcasting() then
 		player:setCastBroadcasting(false)
-		db.query("DELETE FROM `cast_broadcasters` WHERE `player_id` = " .. player:getGuid())
 	end
 
 	return true

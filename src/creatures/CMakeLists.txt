@@ -15,6 +15,7 @@ target_sources(
             npcs/npcs.cpp
             npcs/spawns/spawn_npc.cpp
             players/animus_mastery/animus_mastery.cpp
+            players/cast/cast_publisher.cpp
             players/grouping/familiars.cpp
             players/grouping/groups.cpp
             players/grouping/guild.cpp
