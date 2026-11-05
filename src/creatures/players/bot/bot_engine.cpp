@@ -2624,7 +2624,14 @@ void BotEngine::restoreAllStates() {
 // Shared library factory functions — called by BotEngineLoader via dlsym
 // ============================================================================
 
+// Generated at configure time (src/creatures/CMakeLists.txt); the loader compares it (#58).
+#include "bot_engine_abi_tag.hpp"
+
 extern "C" {
+	const char* botEngineAbiTag() {
+		return BOT_ENGINE_ABI_TAG;
+	}
+
 	IBotEngine* createBotEngine() {
 		// A fresh engine starts with an empty s_probeBots, but the probe flag itself lives on
 		// the Player, which SURVIVES a reload. Clearing it is therefore registerBot's job, not

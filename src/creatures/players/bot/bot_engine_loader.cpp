@@ -7,7 +7,10 @@
 
 #include "creatures/players/bot/bot_engine_loader.hpp"
 #include "lib/logging/logger.hpp"
+// Generated at configure time (src/creatures/CMakeLists.txt); the .so embeds the same tag.
+#include "bot_engine_abi_tag.hpp"
 
+#include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
 #include <chrono>
@@ -34,6 +37,21 @@ bool BotEngineLoader::load(const std::string& soPath) {
 		return false;
 	}
 
+	// ABI gate (#58): refuse a library built against different shared headers, compiler or
+	// flags BEFORE anything calls into it through IBotEngine. botEngineAbiTag is a plain C
+	// function returning a literal, so calling it on a mismatched library is safe.
+	using AbiTagFunc = const char* (*)();
+	auto abiTagFunc = reinterpret_cast<AbiTagFunc>(dlsym(soHandle_, "botEngineAbiTag"));
+	const char* soTag = abiTagFunc ? abiTagFunc() : nullptr;
+	if (!soTag || std::strcmp(soTag, BOT_ENGINE_ABI_TAG) != 0) {
+		g_logger().error("[BotEngineLoader] REFUSING {}: ABI tag mismatch (library={}, server={}). "
+		                 "Rebuild canary and libbot_engine.so from the same commit and ship both.",
+		                 soPath, soTag ? soTag : "<none: built before the ABI tag>", BOT_ENGINE_ABI_TAG);
+		dlclose(soHandle_);
+		soHandle_ = nullptr;
+		return false;
+	}
+
 	createFunc_ = reinterpret_cast<CreateFunc>(dlsym(soHandle_, "createBotEngine"));
 	destroyFunc_ = reinterpret_cast<DestroyFunc>(dlsym(soHandle_, "destroyBotEngine"));
 
@@ -52,7 +70,7 @@ bool BotEngineLoader::load(const std::string& soPath) {
 		return false;
 	}
 
-	g_logger().info("[BotEngineLoader] Loaded {} successfully", soPath);
+	g_logger().info("[BotEngineLoader] Loaded {} successfully (abi={})", soPath, std::string_view(BOT_ENGINE_ABI_TAG).substr(0, 12));
 	return true;
 }
 
