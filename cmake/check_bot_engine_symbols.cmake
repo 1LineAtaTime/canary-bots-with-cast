@@ -1,0 +1,12 @@
+if(NOT EXISTS "${LIBRARY}")
+    message(FATAL_ERROR "Missing bot engine artifact: ${LIBRARY}")
+endif()
+execute_process(COMMAND "${READELF}" --dyn-syms --wide "${LIBRARY}"
+    RESULT_VARIABLE RESULT OUTPUT_VARIABLE SYMBOLS ERROR_VARIABLE ERROR)
+if(NOT RESULT EQUAL 0)
+    message(FATAL_ERROR "Cannot inspect bot engine symbols: ${ERROR}")
+endif()
+if(SYMBOLS MATCHES "[ \t]UNIQUE[ \t]")
+    message(FATAL_ERROR "bot_engine exports GNU_UNIQUE symbols; unloading can retain or share engine state")
+endif()
+message(STATUS "bot_engine: zero GNU_UNIQUE dynamic symbols")

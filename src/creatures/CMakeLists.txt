@@ -141,9 +141,16 @@ if(UNIX)
     )
     target_compile_options(bot_engine
         PRIVATE -fno-lto
+                $<$<CXX_COMPILER_ID:GNU>:-fno-gnu-unique>
                 $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O3 -march=${CANARY_TARGET_ARCH}>
     )
     target_link_options(bot_engine PRIVATE -fno-lto)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_READELF)
+        add_custom_command(TARGET bot_engine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -DREADELF=${CMAKE_READELF} -DLIBRARY=$<TARGET_FILE:bot_engine>
+                -P ${CMAKE_SOURCE_DIR}/cmake/check_bot_engine_symbols.cmake
+            VERBATIM)
+    endif()
 
     # Own precompiled header — do NOT reuse canary's.
     #
