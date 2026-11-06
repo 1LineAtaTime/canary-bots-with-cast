@@ -747,10 +747,10 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 	// pay for a 4096-node search each time. Jump straight back to tier 3.
 	auto hopIt = s_plannedHop.find(bot.guid);
 	if (hopIt != s_plannedHop.end()
-		&& (hopIt->second.forTarget != target || hopIt->second.hop.portal.pos.z != bot.currentPos.z)) {
-		// Retargeted, or the floor change already happened (the cached hop is on the floor we
-		// just left). Either way the plan is spent: drop it and re-enter at tier 1, which on the
-		// new floor naturally picks up the next leg.
+		&& (hopIt->second.forTarget != target || hopIt->second.hop.portal.pos.z != bot.currentPos.z
+		    || hopIt->second.blacklistStamp != zPortalBlacklistStamp(hopIt->second.hop.portal.pos))) {
+		// A new target, floor or quarantine state needs a fresh decision. A fallback
+		// selected under the same observed quarantine remains a valid cached decision.
 		s_plannedHop.erase(hopIt);
 		s_zLegPlan.erase(bot.guid);
 		hopIt = s_plannedHop.end();
@@ -997,6 +997,10 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 		ph.hop.portal = hops.front().portal;
 		ph.hop.plannedAt = OTSYS_TIME();
 		ph.forTarget = target;
+		// A fresh fallback may deliberately accept a quarantined portal. Reuse
+		// that decision until its observed quarantine changes, rather than
+		// re-running the graph on every chunk of the accepted approach.
+		ph.blacklistStamp = zPortalBlacklistStamp(ph.hop.portal.pos);
 		hopIt = s_plannedHop.emplace(bot.guid, ph).first;
 		castLog(bot, fmt::format("PLAN: {} hop(s) to ({},{},{}) — next: {} {} at ({},{},{}) lands ({},{},{})",
 			hops.size(), target.x, target.y, target.z,
@@ -1061,6 +1065,14 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 	// re-plan: it finds this entry already on the current floor and keeps it.
 	s_plannedFc[bot.guid] = hop;
 	startFloorChange(bot, hop.portal.goesDown, target);
+	if (bot.fcState == FloorChangeState::NONE) {
+		// The failure guard can refuse the handoff. Do not acknowledge a walk
+		// that has neither a queue nor a running floor-change executor.
+		s_plannedFc.erase(bot.guid);
+		s_plannedHop.erase(bot.guid);
+		s_zLegPlan.erase(bot.guid);
+		return false;
+	}
 	return true;
 }
 

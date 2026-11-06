@@ -2455,6 +2455,11 @@ bool BotEngine::zPortalBlacklisted(const Position& portalPos) {
 	return true;
 }
 
+int64_t BotEngine::zPortalBlacklistStamp(const Position& portalPos) {
+	if (!zPortalBlacklisted(portalPos)) return 0;
+	return s_zPortalBlacklist.at(botTileKey(portalPos));
+}
+
 void BotEngine::zBlacklistPortal(const Position& portalPos, const char* site) {
 	s_zPortalBlacklist[botTileKey(portalPos)] = OTSYS_TIME() + Z_BLACKLIST_MS;
 	// Quarantining a portal can delete the ONLY route between two areas, so every entry is worth

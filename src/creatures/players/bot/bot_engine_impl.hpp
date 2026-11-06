@@ -4533,6 +4533,7 @@ private:
 	struct PlannerHop {
 		ZPlannedHop hop;
 		Position forTarget {};
+		int64_t blacklistStamp = 0;
 	};
 	std::unordered_map<uint32_t, PlannerHop> s_plannedHop;
 	bool isPlannerWalk(const BotState& bot) const;
@@ -5174,6 +5175,7 @@ private:
 	// spurious-blacklist source can be found from the journal alone.
 	void zBlacklistPortal(const Position& portalPos, const char* site = "other");
 	bool zPortalBlacklisted(const Position& portalPos);
+	int64_t zPortalBlacklistStamp(const Position& portalPos);
 	// dumpnav v2: collect exact portals inside a region (same classifier as the graph build).
 	void collectNavPortalsInRegion(int32_t x1, int32_t y1, int32_t z1, int32_t x2, int32_t y2, int32_t z2, std::vector<botnav::NavPortal>& out);
 
@@ -5418,6 +5420,9 @@ private:
 		bool inProgress = true;
 		bool advanced = false;
 		bool aborted = false;
+		// Cursor advancement can also mean a skip. Record the exact waypoint
+		// acknowledged by arrival/action for consumers that execute a portal.
+		std::optional<size_t> lastReachedIndex;
 	};
 	WaypointFollowResult followWaypoints(BotState& bot, const std::vector<Waypoint>& waypoints,
 		size_t& waypointIdx, uint32_t& skipCount, const WaypointFollowConfig& config);

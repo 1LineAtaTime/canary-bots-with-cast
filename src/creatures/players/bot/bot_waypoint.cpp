@@ -92,6 +92,7 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 					castLog(bot, fmt::format("{}: Reached {} wp {}/{} ({},{},{})",
 						config.logPrefix, waypointTypeName(graceWp.type), waypointIdx + 1, waypoints.size(),
 						gwp.x, gwp.y, gwp.z));
+					result.lastReachedIndex = waypointIdx;
 					waypointIdx++;
 					skipCount = 0;
 					bot.pathFailCount = 0;
@@ -213,6 +214,7 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 			bot.lastPos = landing;
 			castLog(bot, fmt::format("{}: TELEPORT wp {}/{} → ({},{},{})",
 				config.logPrefix, waypointIdx + 1, waypoints.size(), landing.x, landing.y, landing.z));
+			result.lastReachedIndex = waypointIdx;
 			waypointIdx++;
 
 			// The importer emits `teleport(P)` followed by `stand(P)` — the same tile — for 196
@@ -350,6 +352,7 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 			if (waypoint.type == WaypointType::NPC_INTERACT) {
 				s_npcApproachStart.erase(bot.guid);
 			}
+			result.lastReachedIndex = waypointIdx;
 			waypointIdx++;
 			skipCount = 0;
 			bot.pathFailCount = 0;

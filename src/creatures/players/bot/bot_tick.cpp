@@ -5923,6 +5923,7 @@ void BotEngine::resetFloorChange(BotState& bot) {
 	// goTo/startFloorChange replans from the bot's current position (failure
 	// sites blacklist the portal BEFORE resetting, so replans route around it).
 	s_plannedFc.erase(bot.guid);
+	s_plannedHop.erase(bot.guid);
 }
 
 // LADDER_ITEM_IDS / isLadderItemId hoisted to bot_engine_impl.hpp
@@ -6486,6 +6487,12 @@ void BotEngine::handleFloorChange(BotState& bot) {
 					cfg.perWpStuckMs = 15000;
 					cfg.zChangeGraceMs = 500;
 					auto res = followWaypoints(bot, leg.wps, leg.idx, leg.skipCount, cfg);
+					if (leg.idx >= leg.wps.size()
+					    && (leg.wps.empty() || !res.lastReachedIndex || *res.lastReachedIndex != leg.wps.size() - 1)) {
+						// A timeout/path skip consumes the cursor too; it did not execute
+						// the terminal portal. Use the bounded approach-failure path.
+						res.aborted = true;
+					}
 					if (res.aborted) {
 						// An aborted leg is usually transient — the 60s budget is keyed on waypoint
 						// PROGRESS, so a compound obstruction (e.g. a second door the one-shot
@@ -6502,7 +6509,8 @@ void BotEngine::handleFloorChange(BotState& bot) {
 							// is a use-after-free. It crashed the server with SIGSEGV once.
 							castLog(bot, fmt::format("ZLEG: leg aborted at ({},{},{})",
 								trans.pos.x, trans.pos.y, trans.pos.z));
-							resetFloorChange(bot);
+							// The helper retains retry state or performs the final reset.
+							// Resetting here would erase its counter on the first retry.
 							return;
 						}
 						zBlacklistPortal(hop.pos, "zleg");
