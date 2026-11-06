@@ -835,16 +835,16 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 	const bool nearTarget = chebToTarget <= maxDist + 8;
 
 	// ---- Step 3: same floor — do we need hops, and what is in the way? ----
-	// ONE bounded door-permissive BFS answers both. A false return means the target cannot be
-	// reached on this floor even with every openable door treated as open, which is the signal to
-	// go to the portal graph — and it is meaningful even at same z, which is precisely the case
-	// that motivated the planner (two pockets of one floor joined only through another floor).
+	// A closed door-permissive frontier can require floor hops at the same z. Reaching the
+	// BFS node budget is unknown instead: try the existing bounded, cooldown-gated direct
+	// search before selecting a portal detour.
 	bool needHops = false;
 	if (sameFloor && !haveHop) {
 		std::vector<Position> doors;
 		// Consumed once: a re-plan after a stall must not reuse the answer that just failed.
 		const bool forceFresh = s_plannerForceFresh.erase(bot.guid) > 0;
-		if (plannerLegDoors(bot.currentPos, target, doors, forceFresh)) {
+		bool doorBudgetExhausted = false;
+		if (plannerLegDoors(bot.currentPos, target, doors, forceFresh, &doorBudgetExhausted)) {
 			if (doors.empty()) {
 				// Clear run. Near the target, hand over to goToClosest for the distance
 				// tightening that makes the final approach look human (walk up to the NPC rather
@@ -911,11 +911,17 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 				}
 			}
 		} else {
-			// Unreachable on this floor even door-permissively → this same-z target needs hops.
-			// Skip the direct search entirely (it cannot succeed) and go straight to the graph.
-			castLog(bot, fmt::format("PLAN: ({},{},{}) not reachable on z={} — planning floor hops",
-				target.x, target.y, target.z, bot.currentPos.z));
-			needHops = true; // skip the direct search below; it cannot succeed
+			if (doorBudgetExhausted) {
+				castLog(bot, fmt::format("PLAN: door search budget exhausted for ({},{},{}) — trying bounded direct path",
+					target.x, target.y, target.z));
+				if (goToWide(bot, target, maxDist)) return true;
+			} else {
+				castLog(bot, fmt::format("PLAN: ({},{},{}) not reachable within door-search bounds on z={} — planning floor hops",
+					target.x, target.y, target.z, bot.currentPos.z));
+			}
+			// Preserve the previous graph fallback on failure or cooldown. Do not run
+			// another ungated direct search in step 4 after the bounded attempt.
+			needHops = true;
 		}
 	}
 

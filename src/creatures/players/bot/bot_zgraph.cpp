@@ -838,8 +838,9 @@ int32_t botSpliceStepDist(const Position& from, const Position& to, int32_t radi
 // player), so this guard had only ever been exercised walking IN.
 bool zFindDoorsOnPathImpl(const Position& from, const Position& target, int32_t radius,
                           uint32_t budget, uint32_t allowedHouseId, uint32_t fromHouseId,
-                          std::vector<Position>& outDoors) {
+                          std::vector<Position>& outDoors, bool* outBudgetExhausted = nullptr) {
 	outDoors.clear();
+	if (outBudgetExhausted) *outBudgetExhausted = false;
 	if (from.z != target.z) {
 		return false;
 	}
@@ -890,6 +891,9 @@ bool zFindDoorsOnPathImpl(const Position& from, const Position& target, int32_t 
 		}
 	}
 	if (!reached) {
+		// The loop stops on an empty frontier (truly unreachable within `radius`) OR on the node
+		// budget with tiles still queued: the latter is "unknown", not "unreachable" (#54).
+		if (outBudgetExhausted) *outBudgetExhausted = head < queue.size();
 		return false;
 	}
 	// Walk back from the target collecting doors, then reverse into walking order.
@@ -1323,9 +1327,9 @@ bool BotEngine::zFindDoorsOnPath(const Position& from, const Position& target, s
 // Scoped route planner's same-floor leg query: is `target` reachable on this floor when every
 // openable door is treated as open, and which doors does the route cross?
 //
-// Two answers from one bounded BFS. `false` is the planner's "this needs floor hops" signal — and
-// it is meaningful even when from.z == target.z, which is the case that motivated all of this
-// (two pockets of one floor joined only via another floor). Running this is cheaper than asking
+// Two answers from one bounded BFS. False may mean either an exhausted frontier or an
+// unfinished search at the node budget. Preserve that cause alongside the cached boolean.
+// A closed frontier can require floor hops even at the same z. Running this is cheaper than asking
 // zPlanFullRoute first, because that pays for two reachability floods before it can say the same
 // thing, and this hands back the door list as a by-product.
 //
@@ -1333,8 +1337,9 @@ bool BotEngine::zFindDoorsOnPath(const Position& from, const Position& target, s
 // tiles plus the map and current door states; it carries none of the per-bot coupling that keeps
 // finished ROUTES uncacheable (portal blacklist, just-used-portal guard).
 bool BotEngine::plannerLegDoors(const Position& from, const Position& target, std::vector<Position>& outDoors,
-                                bool bypassCache) {
+                                bool bypassCache, bool* budgetExhausted) {
 	outDoors.clear();
+	if (budgetExhausted) *budgetExhausted = false;
 	if (from.z != target.z) {
 		return false;
 	}
@@ -1356,6 +1361,7 @@ bool BotEngine::plannerLegDoors(const Position& from, const Position& target, st
 		if (it->second.expiry > now && it->second.from == from && it->second.to == target) {
 			s_doorPathHits++;
 			outDoors = it->second.doors;
+			if (budgetExhausted) *budgetExhausted = it->second.budgetExhausted;
 			return it->second.reachable;
 		}
 		s_doorPathCache.erase(it); // expired, or a collision on another pair
@@ -1367,8 +1373,9 @@ bool BotEngine::plannerLegDoors(const Position& from, const Position& target, st
 	// route it was not computed for.
 	const uint32_t allowedHouse = zHouseIdAt(target.x, target.y, target.z);
 	const uint32_t fromHouse = zHouseIdAt(from.x, from.y, from.z);
+	bool exhausted = false;
 	const bool reachable = zFindDoorsOnPathImpl(from, target, PLANNER_LEG_RADIUS, PLANNER_LEG_BUDGET,
-	                                            allowedHouse, fromHouse, outDoors);
+	                                            allowedHouse, fromHouse, outDoors, &exhausted);
 
 	// Cheap bound: drop the whole table rather than tracking LRU. Entries are 60s-lived and this
 	// runs for two rare callers, so a wipe costs one extra BFS for whoever asks next.
@@ -1380,8 +1387,10 @@ bool BotEngine::plannerLegDoors(const Position& from, const Position& target, st
 	e.to = target;
 	e.doors = outDoors;
 	e.reachable = reachable;
+	e.budgetExhausted = exhausted;
 	e.expiry = now + DOOR_PATH_TTL_MS;
 	s_doorPathCache.emplace(key, std::move(e));
+	if (budgetExhausted) *budgetExhausted = exhausted;
 	return reachable;
 }
 

@@ -4597,6 +4597,7 @@ private:
 		Position from {}, to {};
 		std::vector<Position> doors;
 		bool reachable = false;
+		bool budgetExhausted = false;
 		int64_t expiry = 0;
 	};
 	std::unordered_map<uint64_t, DoorPathEntry> s_doorPathCache;
@@ -4607,14 +4608,14 @@ private:
 	// bounds sized to PATH_WIDE_DIST rather than reusing Z_DOOR_BRIDGE_*.
 	static constexpr int32_t PLANNER_LEG_RADIUS = 200;
 	static constexpr uint32_t PLANNER_LEG_BUDGET = 20000;
-	// Door-permissive reachability + the doors on the route, in walking order. Returns false when
-	// the target cannot be reached on this floor even treating openable doors as open — which is
-	// exactly the "this same-z target still needs floor hops" signal.
+	// Door-permissive reachability + the doors on the route, in walking order. False means no
+	// route was found within the bounds; budgetExhausted distinguishes an unfinished search
+	// from an exhausted frontier. Legacy callers retain the same boolean result.
 	// `bypassCache` forces a fresh BFS and overwrites the entry. Required after a stall: the walk
 	// failed against reality, so re-deriving from a cached answer computed BEFORE the failure
 	// returns the identical bad route and the bot loops against it until the 60s TTL expires.
 	bool plannerLegDoors(const Position& from, const Position& target, std::vector<Position>& outDoors,
-	                     bool bypassCache = false);
+	                     bool bypassCache = false, bool* budgetExhausted = nullptr);
 	// Bots whose next plannerLegDoors call must ignore the cache (set by plannerReplan, consumed
 	// once by planScopedWalk).
 	std::unordered_set<uint32_t> s_plannerForceFresh;
