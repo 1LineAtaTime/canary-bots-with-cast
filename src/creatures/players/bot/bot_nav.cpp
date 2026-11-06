@@ -775,6 +775,7 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 			cfg.logPrefix = "PLEG";
 			cfg.globalTimeoutMs = 120000;
 			cfg.perWpStuckMs = plannerWpStuckMs(bot.currentPos, target);
+			cfg.trackMovementProgress = true;
 			cfg.zChangeGraceMs = 500;
 			cfg.wideSearchOnFail = true; // planner leg: escalate a failed waypoint walk once
 			const size_t legSize = leg.wps.size();
@@ -892,6 +893,7 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 				cfg.logPrefix = "PLEG";
 				cfg.globalTimeoutMs = 120000;
 				cfg.perWpStuckMs = plannerWpStuckMs(bot.currentPos, target);
+				cfg.trackMovementProgress = true;
 				cfg.zChangeGraceMs = 500;
 				cfg.wideSearchOnFail = true; // planner leg: escalate a failed waypoint walk once
 				const size_t legSize = stored.wps.size();
@@ -1036,6 +1038,7 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 		cfg.logPrefix = "ZLEG";
 		cfg.globalTimeoutMs = 60000;
 		cfg.perWpStuckMs = plannerWpStuckMs(bot.currentPos, hop.portal.pos);
+		cfg.trackMovementProgress = true;
 		cfg.zChangeGraceMs = 500;
 		cfg.wideSearchOnFail = true; // planner leg: escalate a failed waypoint walk once
 		const size_t zLegSize = leg.wps.size();

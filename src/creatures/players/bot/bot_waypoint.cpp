@@ -576,16 +576,29 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 		}
 
 		// If still walking toward this waypoint, wait
+		// Planner approaches update their clock while the walk queue is active too.
+		// Comparing elapsed-from-start with a distance-based limit that shrinks on
+		// every step incorrectly skipped a moving bot's portal approach after 28s.
+		if (player->listWalkDir.empty() || config.trackMovementProgress) {
+			auto& wpTimer = s_routeWpTimer[bot.guid];
+			const int32_t distance = Position::getDiagonalDistance(bot.currentPos, wp);
+			if (wpTimer.second == 0 || wpTimer.first != waypointIdx
+			    || (config.trackMovementProgress && wpTimer.target != wp)) {
+				wpTimer = {static_cast<uint32_t>(waypointIdx), OTSYS_TIME(), wp, distance};
+				castLog(bot, fmt::format("{}: Walking to {} wp {}/{} at ({},{},{})",
+					config.logPrefix, waypointTypeName(waypoint.type), waypointIdx + 1, waypoints.size(),
+					wp.x, wp.y, wp.z));
+			} else if (config.trackMovementProgress && distance < wpTimer.bestDistance) {
+				// Keep the best distance so oscillation cannot renew this clock. A replan
+				// for the same waypoint retains this bound; a different target resets it.
+				wpTimer.bestDistance = distance;
+				wpTimer.second = OTSYS_TIME();
+			}
+		}
 		if (!player->listWalkDir.empty()) return result;
 
 		// Per-waypoint time-based stuck detection
 		auto& wpTimer = s_routeWpTimer[bot.guid];
-		if (wpTimer.second == 0 || wpTimer.first != waypointIdx) {
-			wpTimer = {waypointIdx, OTSYS_TIME()};
-			castLog(bot, fmt::format("{}: Walking to {} wp {}/{} at ({},{},{})",
-				config.logPrefix, waypointTypeName(waypoint.type), waypointIdx + 1, waypoints.size(),
-				wp.x, wp.y, wp.z));
-		}
 		int64_t wpElapsed = OTSYS_TIME() - wpTimer.second;
 
 		// PZ-lock awareness: don't count as stuck if waiting for PZ lock to expire

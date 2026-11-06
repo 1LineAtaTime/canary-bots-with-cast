@@ -4085,7 +4085,13 @@ private:
 	uint32_t s_arriveFallbackCount = 0; // rolled non-depot, but nothing resolved -> fell back
 	std::unordered_map<uint32_t, std::string> s_lastRouteSource;
 	std::unordered_map<uint32_t, std::pair<size_t, int64_t>> s_routeProgress;
-	std::unordered_map<uint32_t, std::pair<uint32_t, int64_t>> s_routeWpTimer;
+	struct RouteWaypointTimer {
+		uint32_t first = 0;
+		int64_t second = 0;
+		Position target {};
+		int32_t bestDistance = -1;
+	};
+	std::unordered_map<uint32_t, RouteWaypointTimer> s_routeWpTimer;
 	// Post-action waypoint hold: guid -> time the bot may resume walking. Written by
 	// followWaypoints (bot_waypoint.cpp) AND by handleActionWaypoint (bot_tick.cpp) — which is
 	// why it is a member and not a function-local static: NPC_INTERACT's greet-and-wait is set
@@ -5404,6 +5410,10 @@ private:
 	struct WaypointFollowConfig {
 		int32_t globalTimeoutMs = 300000;
 		int32_t perWpStuckMs = 30000;
+		// Planner approaches measure time without better waypoint distance. The global
+		// timeout still measures time without an index change; authored routes keep their
+		// existing per-waypoint elapsed-time behavior unless explicitly opted in.
+		bool trackMovementProgress = false;
 		bool enableLookaheadSkip = false;
 		bool enableTeleportStand = false;
 		int32_t zChangeGraceMs = 500;
