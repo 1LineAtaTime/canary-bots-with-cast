@@ -627,3 +627,28 @@ TEST_F(AccountTest, GetCharacterByAccountIdAndNameReturnsFalseWhenMissing) {
 
 	EXPECT_FALSE(repository().getCharacterByAccountIdAndName(1, "Invalid"));
 }
+
+TEST_F(AccountTest, AuthenticatePasswordFailureDoesNotLeakPasswordOrHashInLogs) {
+	Account acc { 1 };
+	repository().addAccount(
+		"canary@test.com",
+		AccountInfo { 1, 1, 1, AccountType::ACCOUNT_TYPE_GOD, { { "Canary", 1 } } }
+	);
+
+	EXPECT_TRUE(eqEnum(acc.load(), AccountErrors_t::Ok));
+	repository().password_ = "7c4a8d09ca3762af61e59520943dc26494f8941b"; // SHA1 for 123456
+	const std::string attemptedWrongPassword = "wrong_password_attempt";
+
+	EXPECT_FALSE(acc.authenticate(attemptedWrongPassword));
+
+	ASSERT_FALSE(testLogger().logs.empty());
+	bool foundExpectedWarning = false;
+	for (const auto &entry : testLogger().logs) {
+		EXPECT_EQ(entry.message.find(attemptedWrongPassword), std::string::npos);
+		EXPECT_EQ(entry.message.find(repository().password_), std::string::npos);
+		if (entry.level == "warn" && entry.message == "Authentication failed for account[1]") {
+			foundExpectedWarning = true;
+		}
+	}
+	EXPECT_TRUE(foundExpectedWarning);
+}
