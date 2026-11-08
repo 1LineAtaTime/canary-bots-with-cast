@@ -646,7 +646,7 @@ TEST_F(AccountTest, AuthenticatePasswordFailureDoesNotLeakPasswordOrHashInLogs) 
 	for (const auto &entry : testLogger().logs) {
 		EXPECT_EQ(entry.message.find(attemptedWrongPassword), std::string::npos);
 		EXPECT_EQ(entry.message.find(repository().password_), std::string::npos);
-		if (entry.level == "warn" && entry.message == "Authentication failed for account[1]") {
+		if (entry.level == "warning" && entry.message == "Authentication failed for account[1]") {
 			foundExpectedWarning = true;
 		}
 	}
