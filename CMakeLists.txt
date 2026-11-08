@@ -129,6 +129,17 @@ option(
     "Check and Enable interprocedural optimization (IPO/LTO)"
     ON
 )
+# Explicit -march target used by GNU/Clang Release optimization for the core
+# binary and libbot_engine (both consume the same value). The default keeps the
+# historical host-tuned behavior; release profiles that must stay portable
+# (e.g. the ARM64 release Dockerfile) override it with an explicit target.
+set(
+    CANARY_TARGET_ARCH
+    "native"
+    CACHE
+    STRING
+    "GCC/Clang -march value for Release/RelWithDebInfo optimization (e.g. armv8-a)"
+)
 option(
     FEATURE_METRICS
     "Enable metrics feature"

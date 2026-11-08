@@ -167,7 +167,7 @@ foreach(
         target_compile_options(
             ${core_target}
             PRIVATE $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O3
-                    -march=native>
+                    -march=${CANARY_TARGET_ARCH}>
         )
     elseif(MSVC)
         target_compile_options(

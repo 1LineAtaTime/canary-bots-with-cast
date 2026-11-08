@@ -141,7 +141,7 @@ if(UNIX)
     )
     target_compile_options(bot_engine
         PRIVATE -fno-lto
-                $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O3 -march=native>
+                $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O3 -march=${CANARY_TARGET_ARCH}>
     )
     target_link_options(bot_engine PRIVATE -fno-lto)
 
