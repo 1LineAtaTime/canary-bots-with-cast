@@ -289,7 +289,8 @@ bool Account::authenticatePassword(const std::string &password) {
 		return true;
 	}
 
-	g_logger().error("Password '{}' doesn't match any account", getPassword());
+	// Security: Never log passwords or stored password hashes to avoid credential exposure in log sinks.
+	g_logger().warn("Authentication failed for account[{}]", m_account->id);
 	return false;
 }
 
