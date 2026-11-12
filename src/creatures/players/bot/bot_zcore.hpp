@@ -242,7 +242,7 @@ inline int64_t zSteadyMs() {
 struct ZPlanParams {
 	int32_t legMax = 80; // max same-floor leg length (Chebyshev) between hops
 	int32_t hopCost = 150; // flat cost per traversal (≈ 15 straight steps) — favours fewer hops
-	int32_t maxHops = 8; // plans needing more floor changes than this are rejected
+	int32_t maxHops = 16; // plans needing more floor changes than this are rejected (live: BotEngine::Z_MAX_HOPS)
 	uint32_t maxExpansions = 4096; // Dijkstra settle budget (portals, not tiles)
 
 	// ---- Optional wall-clock abort (server only; the offline simulator leaves both at zero) ----

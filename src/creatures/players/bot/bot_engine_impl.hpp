@@ -6553,7 +6553,13 @@ private:
 	// guid -> {door tile key, first-attempt time}: the door this bot is currently bridging to.
 	std::unordered_map<uint32_t, std::pair<uint64_t, int64_t>> s_doorBridgeAttempt;
 	uint32_t s_zDoorBridgeOk = 0, s_zDoorBridgeGiveup = 0;
-	static constexpr int32_t Z_MAX_HOPS = 8;
+	// Complex enclosed terrain needs more floor changes than a simple stair pair: the
+	// Venore Elves mountain (hunt 402) routes town <-> summit through ~14 portal hops
+	// (repeated z7<->z6 ladder hops, a z8 detour, then the summit ladder chain). At 8 the
+	// Dijkstra stopped before reaching town, stranding the explorer with return_route_unavailable.
+	// Depth stays bounded by the 4096-portal settle budget, hopCost (favours fewer hops) and
+	// the per-tick plan deadline, so a larger ceiling widens reach without unbounded cost.
+	static constexpr int32_t Z_MAX_HOPS = 16;
 
 	// ---- Autonomous Activity Reroll Config ----
 	// All values below are runtime-configurable via config.lua keys (see
