@@ -262,15 +262,17 @@ binaries; MariaDB can run natively on ARM64. This path uses emulation and has
 been tested on a 2-vCPU ARM64 VPS with Ubuntu 24.04, an Ubuntu 24.04 AMD64 runtime,
 and MariaDB 11.4. It does not establish native ARM64 build compatibility.
 
-Bot startup now loads one bot at a time, waiting 100 ms **after** each completed
-load, and pauses 35 seconds after each batch of 50 attempts. Unobserved bots get
-time to hibernate before the next batch. Failed loads get up to three attempts
-with a one-second retry delay; a failed bot does not prevent later bots loading.
-Watch `[BOT_BATCH] completed N/total; loaded=M` in the server log for progress.
-The full 997-bot pool takes at least about 13 minutes to register, plus world
-loading and actual bot-load time. Online visibility is published per batch when
-`botPlayersShowAsOnline` is enabled; quest/access setup runs for each successfully loaded bot before hibernation,
-and persisted-state restoration is scheduled after the final attempt.
+Bot startup loads one bot at a time and yields to the dispatcher after each load.
+The delay starts at 100 ms, rises to at most one second when registration is slow
+or the dispatcher runs the timer late, and drops back as the server catches up.
+Failed loads get up to three attempts, with a one-second retry delay.
+
+At the fastest pace, 997 bots spend about 100 seconds in scheduled waits, plus
+world loading and actual bot registration. Look for
+`[BOT_BATCH] completed N/total; loaded=M` in the server log. Every 50 bots and at
+the end, startup reports progress and publishes online visibility when
+`botPlayersShowAsOnline` is enabled. Each bot receives quest access before it can
+hibernate. Persisted-state restoration runs after the final load attempt.
 
 ### 5. (Optional) Website + cast + client
 

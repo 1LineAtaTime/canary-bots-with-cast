@@ -365,14 +365,18 @@ function botStartup.onStartup()
 	logger.info("[BotManager] Found " .. total .. " bots in database, loading "
 		.. #botNames .. " (stratified across level/vocation) as INACTIVE...")
 
-	-- Load consecutive batches of 50. Schedule the next load only after this
-	-- one finishes, giving unobserved bots time to hibernate between batches.
-	local batchSize, batchPauseMs = 50, 35000
+	-- Yield after every load. Back off when registration is expensive or a
+	-- timer runs late, then recover gradually as the dispatcher catches up.
+	local batchSize = 50 -- Progress and online visibility updates only.
+	local minDelayMs, maxDelayMs = 100, 1000
+	local nextDelayMs = minDelayMs
 	local loadedCount = 0
 	local function loadNextBot(i, attempt, delay)
 		local name = botNames[i]
 		if not name then return end
+		local due = Game.monotonicMs() + delay
 		addEvent(function()
+			local started = Game.monotonicMs()
 			local ok, player = pcall(Game.loadBotPlayer, name)
 			if not ok then
 				logger.error("[BotManager] Error loading bot '{}': {}", name, tostring(player))
@@ -399,7 +403,7 @@ function botStartup.onStartup()
 				logger.warn("[BotManager] Failed to load bot: " .. name)
 			end
 
-			-- After all bots loaded, set required quest/access storages
+			-- Finalize online visibility and restore persisted states after loading.
 			if i == #botNames then
 				-- PERF_INVESTIGATION_2026-05-28: sync bot rows into players_online
 				-- exactly once after loading completes. Previously Game::updatePlayersOnline
@@ -465,11 +469,15 @@ function botStartup.onStartup()
 				logger.info("[BOT_BATCH] completed " .. i .. "/" .. #botNames .. "; loaded=" .. loadedCount)
 			end
 			if i < #botNames then
-				loadNextBot(i + 1, 1, i % batchSize == 0 and batchPauseMs or 100)
+				local pressureMs = math.max(started - due, Game.monotonicMs() - started)
+				-- Leave four times the measured load cost or scheduling lag for
+				-- other work. Cap the wait so a busy server still makes progress.
+				nextDelayMs = math.max(minDelayMs, math.floor(nextDelayMs / 2), math.min(maxDelayMs, pressureMs * 4))
+				loadNextBot(i + 1, 1, nextDelayMs)
 			end
 		end, delay)
 	end
-	loadNextBot(1, 1, 100)
+	loadNextBot(1, 1, minDelayMs)
 
 	return true
 end

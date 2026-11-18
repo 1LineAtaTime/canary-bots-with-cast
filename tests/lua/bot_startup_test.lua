@@ -48,12 +48,13 @@ local function startup(options)
 		end
 	end
 	addEvent = function(callback, delay)
-		check(delay > 0, "startup must yield to the dispatcher")
+		check(delay >= 100, "startup must respect the server's Lua timer minimum")
 		state.events[#state.events + 1] = { callback = callback, delay = delay, due = state.now + delay }
 		state.maxPending = math.max(state.maxPending, #state.events)
 	end
 	Game = {
 		createTile = function() end,
+		monotonicMs = function() return state.now end,
 		loadBotPlayer = function(name)
 			state.attempts[name] = (state.attempts[name] or 0) + 1
 			local call = { name = name, start = state.now }
@@ -90,7 +91,8 @@ local function startup(options)
 			-- their entry point is scheduled once, only after every load is attempted.
 			state.finalizers[#state.finalizers + 1] = { after = #state.calls, due = event.due }
 		else
-			state.now = math.max(state.now, event.due)
+			local lag = options.dispatcherLag and options.dispatcherLag[executed + 1] or 0
+			state.now = math.max(state.now, event.due) + lag
 			event.callback()
 		end
 		executed = executed + 1
@@ -112,12 +114,13 @@ test("slow loads have one pending load and yield after completion", function()
 	check(s.initialPending == 1, "all loads were queued before the first one completed")
 	check(s.maxPending <= 1, "startup accumulated a load backlog")
 	for i = 2, #s.calls do
-		check(s.calls[i].start - s.calls[i - 1].finish >= 100, "slow load starved dispatcher work")
+		local gap = s.calls[i].start - s.calls[i - 1].finish
+		check(gap > 100 and gap <= 1000, "slow loads must get a bounded backoff")
 	end
 	check(s.loaded == 49, "not all bots loaded")
 end)
 
-test("997 bots load in twenty batches with hibernation pauses", function()
+test("997 fast loads finish in about 100 seconds of scheduler time", function()
 	local s = startup({ target = 997 })
 	check(s.loaded == 997 and #s.calls == 997, "population was lost or loaded twice")
 	local batches = 0
@@ -125,11 +128,20 @@ test("997 bots load in twenty batches with hibernation pauses", function()
 		if log.message:find("[BOT_BATCH]", 1, true) then batches = batches + 1 end
 	end
 	check(batches == 20, "last partial batch was not reported")
-	for i = 2, #s.calls do
-		local expected = (i - 1) % 50 == 0 and 35000 or 100
-		check(s.calls[i].start - s.calls[i - 1].finish == expected, "incorrect batch pacing")
-	end
+	local elapsed = s.calls[#s.calls].finish
+	check(elapsed <= 100000, string.format("healthy registration took %.1fs", elapsed / 1000))
 	check(#s.finalizers == 1 and s.finalizers[1].after == 997, "finalization ran early or twice")
+end)
+
+test("dispatcher lag increases the delay and healthy callbacks lower it", function()
+	local s = startup({ target = 8, dispatcherLag = { [2] = 200 } })
+	local function gap(i)
+		return s.calls[i].start - s.calls[i - 1].finish
+	end
+	check(gap(2) == 300, "test did not simulate a late callback")
+	check(gap(3) > 100 and gap(3) <= 1000, "late callback did not slow the next load")
+	check(gap(4) < gap(3) and gap(8) == 100, "healthy callbacks did not recover the normal pace")
+	check(s.loaded == 8 and s.maxPending == 1, "startup lost bots or queued parallel loads under lag")
 end)
 
 test("transient nil load retries before advancing", function()

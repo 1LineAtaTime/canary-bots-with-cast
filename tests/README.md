@@ -5,8 +5,10 @@
 From the repository root, run `lua tests/lua/bot_startup_test.lua` or
 `luajit tests/lua/bot_startup_test.lua`. These tests exercise the real
 `BotStartup` handler with a fake dispatcher and database; no C++ build, running
-server, or database is needed. They cover slow loads, batch boundaries, retries,
-online visibility, population selection, and finalization scheduling.
+server, or database is needed. They cover registration of 997 bots on a healthy
+dispatcher, backoff on slow loads and late timers, recovery, retries, online
+visibility, population selection, and finalization scheduling.
+
 Run `lua tools/bot_brain/test_startup_batches.lua` (and repeat with LuaJIT)
 to simulate hibernation during batching and verify quest access is initialized
 before the Lua player cache is cleared.
