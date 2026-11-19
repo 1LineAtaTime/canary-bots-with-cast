@@ -569,7 +569,8 @@ void Game::start(ServiceManager* manager) {
 		UPDATE_PLAYERS_ONLINE_DB, [this] { updatePlayersOnline(); }, "Game::updatePlayersOnline"
 	);
 
-	// Bot AI engine — load shared library, then start batch tick
+	// Bot AI engine — load shared library (Linux) or bind the statically-linked
+	// engine (Windows; the path argument is ignored there), then start batch tick
 	auto& botLoader = BotEngineLoader::getInstance();
 	if (botLoader.load("./libbot_engine.so")) {
 		g_botEngine().loadHuntData();

@@ -21,9 +21,6 @@
 
 #include "creatures/players/bot/bot_engine_impl.hpp"
 
-#include <fcntl.h>
-#include <unistd.h>
-
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 // ----------------------------------------------------------------------------
@@ -50,7 +47,7 @@ std::string botCsvFormatTs(int64_t msEpoch) {
 	}
 	const time_t secs = static_cast<time_t>(msEpoch / 1000);
 	struct tm tmBuf {};
-	localtime_r(&secs, &tmBuf);
+	botPlatformLocalTime(secs, tmBuf);
 	char buf[32];
 	std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tmBuf);
 	return buf;
@@ -415,28 +412,8 @@ bool botCsvAtomicWrite(const std::string& path, const std::string& content, std:
 
 	// 1. write + fsync the temp file (same tmp-then-rename idiom as the z-graph cache
 	//    writer at bot_zgraph.cpp:1757-1761, plus fsync of file AND directory).
-	{
-		const int fd = ::open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-		if (fd < 0) {
-			errOut = fmt::format("open('{}') failed: {}", tmp, strerror(errno));
-			return false;
-		}
-		size_t off = 0;
-		while (off < content.size()) {
-			const ssize_t w = ::write(fd, content.data() + off, content.size() - off);
-			if (w <= 0) {
-				errOut = fmt::format("write('{}') failed: {}", tmp, strerror(errno));
-				::close(fd);
-				return false;
-			}
-			off += static_cast<size_t>(w);
-		}
-		if (::fsync(fd) != 0) {
-			errOut = fmt::format("fsync('{}') failed: {}", tmp, strerror(errno));
-			::close(fd);
-			return false;
-		}
-		::close(fd);
+	if (!botPlatformWriteFileDurable(tmp, content, errOut)) {
+		return false;
 	}
 
 	// 2. one .bak generation (gitignored — Step 0)
@@ -455,11 +432,7 @@ bool botCsvAtomicWrite(const std::string& path, const std::string& content, std:
 		return false;
 	}
 	const std::string dir = fs::path(path).parent_path().string();
-	const int dfd = ::open(dir.empty() ? "." : dir.c_str(), O_RDONLY | O_DIRECTORY);
-	if (dfd >= 0) {
-		::fsync(dfd);
-		::close(dfd);
-	}
+	botPlatformSyncDirectory(dir);
 	return true;
 }
 
