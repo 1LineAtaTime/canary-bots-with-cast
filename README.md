@@ -198,59 +198,134 @@ It runs comfortably with a few hundred bots online on this modest spec.
 
 ## Quick start
 
-> The build toolchain (vcpkg + CMake) is identical to upstream Canary. If you are
-> new to building Canary, follow the official
-> [build guides](https://github.com/opentibiabr/canary/tree/main/docs/building)
-> for the vcpkg/`VCPKG_ROOT` setup first — then build **this** repo (it already
-> contains the bot engine source).
+There are two ways to run it: **use our prebuilt packages** (no compiler needed), or
+**build the server yourself**. Either way you also need a MySQL/MariaDB database and the
+world map, which is not shipped here.
 
-### 1. Build
+### Which download?
+
+| Channel | Where | What it is |
+|---|---|---|
+| **Latest release** (stable) | [Releases → Latest](https://github.com/1LineAtaTime/canary-bots-with-cast/releases/latest) | A versioned, tested package. Use this unless you want the newest changes. |
+| **Beta pre-release** (automatic) | [`ci-beta`](https://github.com/1LineAtaTime/canary-bots-with-cast/releases/tag/ci-beta) | Built automatically from the [`beta`](https://github.com/1LineAtaTime/canary-bots-with-cast/tree/beta) branch, at most once a day and only when `beta` has new commits. Newest fixes and features, **not** manually tested. Always a pre-release, never "Latest". |
+
+Each release's notes list its exact assets and step-by-step commands; the summary below
+applies to both.
+
+---
+
+### Option A — Use our release packages
+
+Pick **one** of the two paths: a fresh install, or upgrading an install you already run.
+
+#### A1. Fresh install
+
+1. Download the binaries for your OS plus the runtime data:
+   - **Linux x64:** `canary` + `libbot_engine.so` (beta: `canary-bots-beta-linux-x64.tar.gz`).
+     Needs glibc ≥ 2.35 and GCC 13's `libstdc++` (Ubuntu 24.04 has it; on Ubuntu 22.04
+     install `libstdc++6` from `ppa:ubuntu-toolchain-r/test`).
+   - **Windows x64:** `canary.exe` (beta: `canary-bots-beta-win64.zip`). The bot engine is
+     linked in: no DLLs, no VC++ redistributable.
+   - **Runtime data** (`data/`, `data-otservbr-global/`, `database/`, `schema.sql`,
+     `config.lua.dist`; beta: `canary-bots-beta-runtime.tar.gz`). Extract it next to the binaries.
+2. Download the world map [`otservbr.otbm`](https://github.com/opentibiabr/canary/releases)
+   from upstream Canary into `data-otservbr-global/world/`.
+3. Create the database:
+   ```bash
+   mysql -u root -p -e "CREATE DATABASE canary DEFAULT CHARACTER SET utf8mb3;"
+   ```
+   - **Beta:** import the ready-made database from `canary-bots-beta-db-fresh.zip`:
+     `mysql -u root -p canary < canary-bots-beta-fresh.sql`
+   - **Versioned release:** import `schema.sql`, then the bot data:
+     `cd database/bots && DB_USER=root DB_PASS=yourpass DB_NAME=canary ./import.sh`
+4. `cp config.lua.dist config.lua`, then set your `mysql*` connection and `ip`.
+5. Start `canary` (`canary.exe` on Windows). The first boot finishes the Lua migrations.
+
+Default admin login: account **`@god`** / password **`god12345`**. Change it after the first login.
+
+#### A2. Upgrading an existing install
+
+1. Stop the server and back up the database (`mysqldump`).
+2. Apply the new SQL, in order:
+   - **Beta:** extract `canary-bots-beta-sql.zip` and run `upgrade.sh` (or the files in
+     `upgrade/`, in the order `UPGRADE.md` lists). It upgrades a database from the previous
+     versioned release; the CI checks that the result is identical to a fresh install.
+   - **Versioned release:** run the `database/bots/*.sql` files that are new since your
+     version (see [database/bots/README.md](database/bots/README.md)).
+3. Replace the binaries, `data/` and `data-otservbr-global/`. Keep your world map and your
+   `config.lua` (compare it with the new `config.lua.dist` for new keys).
+4. Start the server: it applies any new Lua migration by itself.
+
+> Never import the fresh-install database over an existing install: it replaces your
+> accounts and characters.
+
+---
+
+### Option B — Build the server yourself
+
+The build toolchain (vcpkg + CMake) is identical to upstream Canary. If you are new to
+building Canary, follow the official
+[build guides](https://github.com/opentibiabr/canary/tree/main/docs/building) for the
+vcpkg/`VCPKG_ROOT` setup first, then build **this** repo (it already contains the bot
+engine source). Use `main` for the latest release, or `beta` for the newest changes.
+
+#### B1. Linux
 
 ```bash
-git clone <this-repo-url> canary-bots
-cd canary-bots
+git clone https://github.com/1LineAtaTime/canary-bots-with-cast.git canary-bots
+cd canary-bots            # git checkout beta   for the newest changes
 cmake --preset linux-release -DTOGGLE_BIN_FOLDER=ON
 cmake --build --preset linux-release -j4
 # Low-RAM machines: build with fewer jobs, e.g.
 #   cmake --build build/linux-release -j2
 ```
 
-Outputs `canary` and `libbot_engine.so` under `build/linux-release/bin/`. Copy
-both next to your server working directory.
+Outputs `canary` and `libbot_engine.so` under `build/linux-release/bin/`. Copy both into
+your server working directory. The release preset uses `-march=native`; to build binaries
+for other machines on the `beta` branch, add `-DCANARY_TARGET_ARCH=x86-64-v2`.
 
-> Prefer not to compile? Prebuilt Linux binaries (`canary` + `libbot_engine.so`)
-> are attached to the GitHub **Releases** for this repo.
+#### B2. Windows (`beta` branch; part of the next release)
 
-### 2. Database
-
-```bash
-mysql -u root -p -e "CREATE DATABASE canary DEFAULT CHARSET=utf8mb3;"
-mysql -u root -p canary < schema.sql
-# Seed the bot data (god account, bot account, bots, hunts, market, …):
-cd database/bots && DB_USER=root DB_PASS=yourpass DB_NAME=canary ./import.sh
+```powershell
+cmake --preset windows-release
+cmake --build --preset windows-release
 ```
 
-See [database/bots/README.md](database/bots/README.md) for the manual import
-order and details. Default admin login afterwards is account **`@god`** /
-password **`god12345`** — change it after first login.
+Builds one `canary.exe` with the bot engine linked in statically. The preset targets the
+VS 2026 toolset (`v145`); with VS 2022, override `VCPKG_PLATFORM_TOOLSET` to `v143` in a
+local `CMakeUserPresets.json` (gitignored) instead of editing the preset. There is no
+`/cavebot reload` on Windows: restart the server instead.
 
-### 3. Configure
+#### B3. Database
+
+- **Fresh install:**
+  ```bash
+  mysql -u root -p -e "CREATE DATABASE canary DEFAULT CHARACTER SET utf8mb3;"
+  mysql -u root -p canary < schema.sql
+  # Seed the bot data (god account, bot account, bots, market, houses, …):
+  cd database/bots && DB_USER=root DB_PASS=yourpass DB_NAME=canary ./import.sh
+  ```
+  See [database/bots/README.md](database/bots/README.md) for the manual import order.
+- **Upgrading an existing database:** stop the server, back up, then run the
+  `database/bots/*.sql` files added since the version you built before, in numeric order
+  (the table in [database/bots/README.md](database/bots/README.md) says which ones are
+  safe to re-run). The server applies its own Lua migrations at the next start.
+
+#### B4. Configure and run
 
 ```bash
 cp config.lua.dist config.lua
 ```
 
-Edit `config.lua`: set your `mysql*` connection, `ip = "127.0.0.1"` for a local
-install, and the bot keys (see below). Then download the world map
-[`otservbr.otbm`](https://github.com/opentibiabr/canary/releases) from the
-upstream Canary release matching the base version and place it per `mapName`.
+Edit `config.lua`: set your `mysql*` connection, `ip = "127.0.0.1"` for a local install,
+and the bot keys (see below). Download the world map
+[`otservbr.otbm`](https://github.com/opentibiabr/canary/releases) from upstream Canary and
+place it per `mapName`. Then start `canary` (on Linux the `.so` is loaded automatically).
+Connect with an OTClient (protocol 13+).
 
-### 4. Run
+---
 
-Start `canary` (the `.so` is loaded automatically). On first boot the migrations
-finish setting up the bot tables. Connect with an OTClient (protocol 13+).
-
-### 5. (Optional) Website + cast + client
+### Optional: website, cast and client
 
 - **Website / cast login:** install [MyAAC](https://github.com/slawkens/myaac)
   and drop in our cast-aware `deployment/web/login.php` (it intercepts the
