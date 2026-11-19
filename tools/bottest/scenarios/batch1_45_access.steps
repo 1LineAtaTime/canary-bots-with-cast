@@ -1,0 +1,19 @@
+# SCENARIO: batch1_45_access   SEED: 0   CAMERAS: none   BOTCFG: off
+# #45: /cavebot is registered "normal"; the player subcommands (party usage, release) must reach a
+# normal player (Harness One, group 1), and every admin subcommand must still be refused.
+@p1 login
+@p1 sleep 2
+@p1 say /cavebot party
+@p1 sleep 2
+@srv expect src=cli:p1 k=see_msg text~="Usage: /cavebot party" min=1 within=10
+@p1 say /cavebot release
+@p1 sleep 2
+@srv expect src=cli:p1 k=see_msg text~="cavebot.*(releas|claim|spawn)" min=1 within=10 optional=1
+@p1 say /cavebot reload
+@p1 sleep 3
+@srv expect src=cli:p1 k=see_msg text~="God access" min=1 within=10
+@p1 say /cavebot botcfg
+@p1 sleep 2
+@srv expect src=cli:p1 k=see_msg text~="God access" min=2 within=15
+@srv expect-none src=srv msg~="ABI pre-flight|Starting hot-reload|\[reload:" within=20
+@p1 logout

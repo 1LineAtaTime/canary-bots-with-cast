@@ -1474,6 +1474,28 @@ botKiteMaxMs = 45000
 -- and starving them forever.
 botKiteCooldownMs = 12000
 
+-- BOT_TEST_HARNESS Phase 2: server-truth audit stream (tools/bottest). One synchronous NDJSON
+-- file, epoch-ms per record, written by the main binary (not the async logger, which drops
+-- lines). OFF by default; when off every engine hook is a single load-and-test. These are the
+-- DEFAULTS only: `/cavebot audit on|off|watch <bot>|unwatch <bot>|kinds <list>|status` changes
+-- them at runtime (survives /cavebot reload, resets on restart); `/cavebot audit config`
+-- re-applies these lines after a `/cavebot reloadconfig`.
+botAuditEnabled = false
+-- Relative to canary's working directory; the directory is created on first write.
+botAuditPath = "logs/bot_audit.ndjson"
+-- "all" or a comma list of: probe,state,wake,hib,walkpause,path,pathout,decide,cmd,census
+botAuditKinds = "all"
+-- Comma list of bot names for the per-bot kinds ("" = none). "*" = every bot, but ONLY for the
+-- low-rate kinds wake,hib,state,decide and pathout osc/stuck/abandoned; probe, path, walkpause and
+-- pathout "arrived" always need an explicit name (per-tick kinds x 1000 bots would mean hundreds of
+-- KB/s of synchronous writes on the dispatcher). census and cmd ignore this list.
+botAuditWatch = ""
+-- Rotation cap in MB: past it the file moves to <path>.1 (one generation kept, ~2x on disk).
+botAuditMaxMb = 32
+-- Per-watched-bot snapshot cadence, and whole-population aggregate cadence.
+botAuditProbeMs = 500
+botAuditCensusSec = 10
+
 
 -- ############################################################################
 -- #                     CAST & BOT CUSTOMIZATION  —  END                     #

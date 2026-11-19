@@ -1,0 +1,45 @@
+# SCENARIO: fix_50_reload_unload   SEED: 0   CAMERAS: none   BOTCFG: off
+# Fix #50 on a live server: `/cavebot reload` really unloads libbot_engine.so (-fno-gnu-unique, so
+# the boot copy is no longer pinned NODELETE) and survives it (bot_host: dispatcher Tasks and
+# Players are allocated by the executable, so a Task still queued after dlclose carries no vptr
+# into the unloaded image). Three reloads, each with walk pauses likely pending:
+#   1. `reload debug,$BOT` from NORMAL AI with p1 standing at the Thais depot (bots awake near an
+#      observer -> observed-tier walk pauses scheduled through botHostScheduleEvent);
+#   2. `reload debug,$BOT` with $BOT walking next to p1 (its own observed pauses);
+#   3. a plain `reload` the same way (ends debug mode; does not repopulate -> restart afterwards).
+# Run: runner.py fix_50_reload_unload.steps --var BOT=<Thais bot>   (used: Kaelis Duke)
+# Server-side, sample `grep -c libbot_engine /proc/$(pidof canary)/maps` around the run (a loop ON
+# the server, not an ssh poll). Acceptance:
+#   - maps count unchanged across all three reloads (5 lines = one mapped copy; the old build showed
+#     10 after the first reload: boot copy + live copy);
+#   - every reload logs "Hot-reload complete"; at least one logs "teardown: cancelled N pending
+#     dispatcher event(s)" (logged only when N > 0: b5_f50 had 1 at reload 1, none at 2 and 3);
+#   - no SEGV / core dump during the run and for 30 min after the last reload (journal);
+#   - no Lua errors.
+@p1 login
+@p1 goto 32369,32232,7 range=2 stuck=15 timeout=120
+@p1 goto 32369,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32351,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32347,32218,7 range=2 stuck=15 timeout=120
+@p1 hold 90
+@srv note "F50 reload 1: reload debug from normal AI, observed bots awake around p1"
+@srv cmd _global "reload debug,$BOT"
+@srv sleep 25
+@srv cmd "$BOT" teleport 32349,32216,7 expect="teleported"
+@srv cmd "$BOT" goto 32369,32232,7 expect="walking to"
+@srv sleep 8
+@srv note "F50 reload 2: reload debug while $BOT walks beside p1"
+@srv cmd _global "reload debug,$BOT"
+@srv sleep 25
+@srv cmd "$BOT" teleport 32349,32216,7 expect="teleported"
+@srv cmd "$BOT" goto 32369,32232,7 expect="walking to"
+@srv sleep 8
+@srv note "F50 reload 3: plain reload while $BOT walks beside p1"
+@srv cmd _global reload
+@srv sleep 30
+@p1 hold 60
+@srv expect src=srv msg~="teardown: cancelled [0-9]+ pending dispatcher event" min=1 within=400
+@srv expect src=srv msg~="Hot-reload complete" min=3 within=400
+@srv expect-none src=srv msg~="SEGV|core-dump|Segmentation" within=400
+@srv expect-none src=srv msg~="Lua Script Error" within=400
+@p1 logout

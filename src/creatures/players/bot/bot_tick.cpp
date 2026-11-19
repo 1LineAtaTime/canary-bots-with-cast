@@ -1656,7 +1656,13 @@ bool BotEngine::virtualTryStartHunt(BotState &bot) {
 			if (match(script, "hunt")) eligible.push_back(&script);
 		}
 	}
-	if (eligible.empty()) return false;
+	if (eligible.empty()) {
+		// BOT_TEST_HARNESS: virtual twin of the live tryStartHunt decide hook.
+		if (audFor(AUD_DECIDE, bot.guid)) [[unlikely]] {
+			botAudDecide(bot, "hunt", "none", 0, "virtual=1 eligible=0");
+		}
+		return false;
+	}
 
 	// Player-proximity weighting (2026-06-15): bias toward hunts whose patrol waypoints are
 	// near a real-player / cast-watched-bot anchor. Empty-anchor / disabled → uniform (unchanged).
@@ -1683,6 +1689,14 @@ bool BotEngine::virtualTryStartHunt(BotState &bot) {
 			const int32_t d = sampledMinChebForScript(s);
 			if (d >= 0 && d <= livenessCfg_.proxNearTiles) s_proxHuntNearReserved++;
 		}
+	}
+
+	// BOT_TEST_HARNESS: virtual twin of the live tryStartHunt decide hook.
+	if (audFor(AUD_DECIDE, bot.guid)) [[unlikely]] {
+		botAudDecide(bot, "hunt", fmt::format("{}:{}", selected->id, selected->name),
+			static_cast<int64_t>(eligible.size()),
+			fmt::format("virtual=1 prox={} town={}", (livenessCfg_.proxEnabled && !currentAnchorPts_.empty()) ? 1 : 0,
+				selected->townId));
 	}
 
 	// Reserve (hunts) or stamp the shared-quest cooldown
@@ -3200,6 +3214,27 @@ void BotEngine::doActivityReroll(BotState& bot) {
 	const int roll = uniform_random(1, total);
 	int cumulative = 0;
 
+	// BOT_TEST_HARNESS: one `decide what=reroll` record per roll for a WATCHED bot, emitted on
+	// whichever terminal path returns (they all call recordActOutcome first). Runs for live AND
+	// hibernated bots — virtualAdvanceIdle drives this same function — so the virtual twin is
+	// covered by the same hook. Unwatched: one mask load.
+	s_audLastActOutcome = 0xFF;
+	struct AudRerollScope {
+		const BotState& b;
+		int roll;
+		int total;
+		int w[5];
+		bool huntCD;
+		bool pz;
+		bool armed;
+		~AudRerollScope() {
+			if (armed) {
+				botAudReroll(b, roll, total, w, huntCD, pz, s_audLastActOutcome);
+			}
+		}
+	} audReroll { bot, roll, total, { wDwell, wPoi, wHunt, wParty, wTravel }, huntOnCD, pzLocked,
+		audFor(AUD_DECIDE, bot.guid) };
+
 	// --- IDLE/DWELL ---
 	cumulative += wDwell;
 	if (roll <= cumulative) {
@@ -4124,7 +4159,16 @@ void BotEngine::tick() {
 		}
 
 		bool wasBotActive = bot.active;
-		processBot(bot);
+		// BOT_TEST_HARNESS: per-bot AI wall time + post-wake first-act latency, for WATCHED bots
+		// only. Unwatched bots pay the single mask load in audFor and nothing else.
+		if (audNamed(AUD_PROBE | AUD_WAKE, bot.guid)) [[unlikely]] {
+			auditWakeFirstAct(bot);
+			const uint64_t audT0 = botMonoUs();
+			processBot(bot);
+			s_audBot[bot.guid].tickUs = static_cast<int64_t>(botMonoUs() - audT0);
+		} else {
+			processBot(bot);
+		}
 		if (wasBotActive && !bot.active) {
 			deactivatedThisTick++;
 		}
@@ -4153,6 +4197,11 @@ void BotEngine::tick() {
 	int64_t jitter_fneStart = botMonoMs();
 	flushNavEvents();
 	int64_t jitter_fneMs = botMonoMs() - jitter_fneStart;
+
+	// BOT_TEST_HARNESS Phase 2: audit stream. Off = one generation poll + one mask test. On =
+	// watched-bot state diff / probe, the 10 s census, then ONE synchronous write to the
+	// main-binary sink. Inside the measured body on purpose: its cost must show in perf-gate.
+	auditTick();
 
 	// JITTER DIAGNOSTIC: log if tick body or gap-since-last-tick exceeds threshold.
 	// Body breakdown: vt=virtualTick, fne=flushNavEvents, awake/hib = bot population.

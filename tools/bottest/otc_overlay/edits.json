@@ -1,0 +1,29 @@
+{
+  "_note": "Harness overlay for OTClient Redemption (opentibiabr/otclient). Applied by setup_client.py to a COPY of the installed client, never to the install. Each edit must match exactly once (line endings normalised), so upstream drift fails loudly instead of silently producing a different client.",
+  "edits": [
+    {
+      "file": "init.lua",
+      "why": "no network asset installer (dudantas/tibia-client); assets come from the local install",
+      "regex": "(?s)    clientAssets = \\{.*?\\n    \\}, -- \\./client_assets",
+      "replace": "    clientAssets = false, -- HARNESS: network asset installer disabled (setup_client.py)"
+    },
+    {
+      "file": "init.lua",
+      "why": "per-instance identity: each instance (p1, c1, ...) gets its own write dir %APPDATA%/otc-harness/otch-<name>/, log and settings",
+      "find": "g_app.setCompactName(\"otclient\");\ng_app.setOrganizationName(\"otcr\");",
+      "replace": "-- HARNESS: per-instance identity so each instance has its own write dir / log / settings\nHARNESS_INSTANCE = os.getenv(\"OTC_HARNESS_INSTANCE\") or \"default\"\ng_app.setCompactName(\"otch-\" .. HARNESS_INSTANCE);\ng_app.setOrganizationName(\"otc-harness\");"
+    },
+    {
+      "file": "mods/client_mods/mods.otmod",
+      "why": "game_bot dials an external BotServer (ws://arm.skalski.pro:8000) and must never load in the harness",
+      "find": "    - game_bot\n",
+      "replace": ""
+    },
+    {
+      "file": "init.lua",
+      "why": "audio OFF from the first frame: persisted per instance before client_options reads it (enableAudio / enableMusicSound / musicSoundVolume) and the sound manager disabled before modules/client starts the login music",
+      "find": "g_modules.ensureModuleLoaded('corelib')\n",
+      "replace": "g_modules.ensureModuleLoaded('corelib')\n-- HARNESS: audio OFF (no music, no sound effects) before any module can play; client_options\n-- then loads these values instead of its defaults. harness_ctl re-asserts it at runtime.\ng_settings.set('enableAudio', false)\ng_settings.set('enableMusicSound', false)\ng_settings.set('musicSoundVolume', 0)\nif g_sounds then g_sounds.setAudioEnabled(false) end\n"
+    }
+  ]
+}

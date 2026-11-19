@@ -1,0 +1,29 @@
+# SCENARIO: fix_125_heal_log   SEED: 0   CAMERAS: auto   BOTCFG: auto
+# Fix #125 (part 1) - no heal is logged "at full HP". Baseline B4 (runs/bl_b4): 60 x "Shymm Dawnsbane:
+# HEAL: exura vita (1585/1585)" while hunting Frazzlemaws. Cause: the heal ladder decides on the HP
+# BEFORE the cast (hpPct <= 75, or a paralysis cure), but the log printed the HP AFTER it -- so every
+# heal that topped the bot up read as a heal at full HP (the DBG snapshot 1.4 s before showed 81 %
+# and falling). The ladder was right; the line now reads "HEAL: <words> hp <before>-><after>/<max>
+# (decided at N%)[ (paralysis cure)|(emergency)]".
+# PRECONDITION: DEBUG MODE, a pinned healer-vocation bot $H sent to a hunt ($HUNT, as in baseline B4):
+# castLog lines reach the journal for debug bots. Run: --var H=<name> --var HUNT=<script name>.
+# Acceptance over 5 min of hunting: >= 1 heal line in the new format; no heal line whose HP reads full
+# in the old format; no ordinary heal (not a paralysis cure) decided above the 75 % threshold.
+# Offline replay: python tools/bottest/replay.py <this> runs/bl_b4 -> the old-format check FAILS (60).
+@srv audit kinds state,cmd
+@srv audit watch $H
+@srv audit on expect="enabled=on"
+# Batch-4 deploy (2026-11-19): castLog() returns early unless bot.verboseLog, which only a REAL cast
+# viewer turns on -- a pinned debug bot alone logs no HEAL line at all (run b4_f125heal: HP dipped to
+# 23-69 % and was topped up repeatedly, 0 HEAL lines). The camera is the observer, as in baseline B4.
+@cam:$H login
+@srv cmd "$H" hunt $HUNT
+@srv sleep 300
+@srv cmd "$H" status expect="state="
+@srv expect src=srv msg~="HEAL: .* hp [0-9]+->[0-9]+/[0-9]+ \(decided at [0-9]+%\)" min=1 within=320
+@srv expect-none src=srv msg~="HEAL: [a-z ]+ \(([0-9]+)/\1\)" within=320
+@srv expect-none src=srv msg~="HEAL: .*decided at (7[6-9]|[89][0-9]|100)%\)$" within=320
+@srv expect-none src=srv msg~="Lua Script Error" within=320
+@srv audit watch clear
+@srv audit off
+@cam:$H logout

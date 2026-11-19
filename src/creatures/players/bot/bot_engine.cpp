@@ -661,6 +661,12 @@ bool BotEngine::hibernateBot(uint32_t guid) {
 		bot.state = BotAIState::IDLE;
 		if (deactivateBot(guid)) {
 			s_reclaimToInactive.erase(guid);
+			if (audFor(AUD_HIB, guid)) [[unlikely]] {
+				botAudBegin("hib", &bot);
+				botAudStr("result", "deactivated");
+				botAudStr("reason", "reclaim_to_inactive");
+				botAudEnd();
+			}
 			g_logger().info("[BotEngine] reclaim-to-inactive: '{}' deactivated (was never logged in before its party)",
 				bot.name);
 			return true;
@@ -851,6 +857,16 @@ bool BotEngine::hibernateBot(uint32_t guid) {
 	}
 
 	bot.hibernated = true;
+	// BOT_TEST_HARNESS: `hib` record for a WATCHED bot (refusals are not recorded: a camera'd bot
+	// is refused every 300 ms by the proximity loop and would flood the stream).
+	if (audFor(AUD_HIB, guid)) [[unlikely]] {
+		botAudBegin("hib", &bot);
+		botAudStr("result", "ok");
+		botAudInt("pool", static_cast<int64_t>(hibernationPool_.size()));
+		botAudInt("cascade", s_inPartyHibernateCascade ? 1 : 0);
+		botAudInt("anchors", static_cast<int64_t>(currentAnchorPts_.size()));
+		botAudEnd();
+	}
 	// VT_LAG false-positive fix (2026-06-08): reset the per-bot virtualTick timestamp on
 	// awake→hibernated transition. Without this, the next virtualTick visit would
 	// compute per_bot_elapsed = (now - last-hibernated-visit), which spans the entire
@@ -903,6 +919,13 @@ bool BotEngine::wakeBot(uint32_t guid) {
 	refreshAnchorsIfStale(100);
 	if (shouldGateWake(guid)) {
 		wakeGated60s_++;
+		// BOT_TEST_HARNESS: a density-capped wake is exactly the "why did nobody walk in" answer.
+		if (audFor(AUD_WAKE, guid)) [[unlikely]] {
+			botAudBegin("wake", &bot);
+			botAudStr("result", "gated");
+			botAudStr("path", proximityWake ? "prox" : (s_burstCenterValid ? "burst" : "explicit"));
+			botAudEnd();
+		}
 		return false;
 	}
 
@@ -1296,6 +1319,30 @@ bool BotEngine::wakeBot(uint32_t guid) {
 		static_cast<int>(bot.state), static_cast<int>(bot.huntPhase),
 		proximityWake ? "prox" : "burst", wokeVisible ? 1 : 0,
 		(proximityWake && wokeVisible) ? 1 : 0, currentAnchorPts_.size());
+
+	// BOT_TEST_HARNESS: structured twin of the [WAKE_VIS] line for WATCHED bots. `path` splits
+	// the log's "burst" into burst (teleport fan-out, wakeBotsInRadius) and explicit (/cavebot wake,
+	// cast login, cascade). `landing` is where the virtual sim had the bot; `moved` is how far the
+	// wake placement (chooseWakePosition: off-screen staging / unsafe-tile walk-back) moved it.
+	if (audFor(AUD_WAKE, guid)) [[unlikely]] {
+		botAudBegin("wake", &bot);
+		botAudStr("result", "ok");
+		botAudStr("path", proximityWake ? "prox" : (s_burstCenterValid ? "burst" : "explicit"));
+		botAudInt("visible", wokeVisible ? 1 : 0);
+		botAudInt("sparkle", (proximityWake && wokeVisible) ? 1 : 0);
+		botAudInt("fast", visibleBurstWake ? 1 : 0);
+		botAudPos("landing", virtualPos);
+		botAudInt("moved", std::max({ std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(virtualPos.x)),
+		                              std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(virtualPos.y)),
+		                              std::abs(static_cast<int32_t>(bot.currentPos.z) - static_cast<int32_t>(virtualPos.z)) }));
+		botAudInt("quietTicks", bot.wakeQuietTicks);
+		botAudInt("anchors", static_cast<int64_t>(currentAnchorPts_.size()));
+		botAudInt("cascade", s_inPartyCascade ? 1 : 0);
+		botAudEnd();
+		if (audNamed(AUD_WAKE, guid)) {
+			s_audBot[guid].wakeAtMs = botAudEpochMs(); // closed by the first AI tick (event=first_act)
+		}
+	}
 
 	// Cascade: any party member woken → wake the whole team and materialize the Canary
 	// Party retroactively. The thread_local guard ensures Party::create runs once at the

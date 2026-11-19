@@ -1,0 +1,48 @@
+# SCENARIO: fix_119_route_no_backtrack   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #119 - goTo's chunked walk no longer backtracks out of a dead-end pocket. Baseline B5 (runs/bl_b5
+# cmd-5.txt): `/cavebot route` temple (32369,32237,7) -> ammo shop (32345,32246,6) = "leg 1 -> hop 1
+# (stairs UP) ... = 88 tiles OK", "TOTAL 94 tiles across 2 leg(s)", 10 tiles revisited: the first chunk
+# target (32357,32242,7) is a straight-line point that walks the bot into the pocket at (32360,32241,7),
+# and the next search walks it back out. goTo (and botTraceLegWalk, which `route` replays) now asks one
+# 512-node search for the WHOLE route first when 12 < Chebyshev <= 24, and chunks only if that fails.
+# Offline proof (botnavsim walk, Thais dump): old 87 tiles / 8 revisits / 2 searches -> new 65 / 0 / 1;
+# walkcheck z7 600 pairs: 0 walks lost, revisits 724 -> 42, tiles -10 %, searches/walk 2.16 -> 1.26.
+# PRECONDITION: `/cavebot route` needs an awake bot as the mover: run with a pinned debug bot
+# (`/cavebot reload debug,$R`) or with a player online somewhere. No player needed in Thais.
+# Acceptance:
+#   - leg 1 (to the stairs) is at most 75 tiles (baseline 88; direct route 65);
+#   - TOTAL at most 80 tiles across the 2 legs, 0 failed (baseline 94);
+#   - "[DIRECT_FIRST] 60s ..." is logged and missPerAwakeBot < 5 (cost bound, see below).
+# Baseline replay: the two route regexes run against runs/bl_b5/cmd-5.txt (the full reply) -> both
+# FAIL there (88 and 94); replay.py cannot do those (the audit `cmd` record keeps only the reply's 1st
+# line). replay.py on runs/bl_b5 FAILS the [DIRECT_FIRST] presence check (the line is new).
+# Batch-4 deploy (2026-11-19): with no player online normal AI keeps awake=0, so the awake>=10
+# precondition below is unreachable; p1 stands at the Thais depot so the proximity wake keeps bots awake.
+# Final-leg NO PATH (b4_f119, 2026-11-19 01:08): the goal (32345,32246,6) is the authored `stand` of every
+# Thais *~ammo city route, sits in a NON-PZ shop and inside Galuna's walk zone (spawn 32343,32245, walkRadius 2).
+# `route` traces the final leg with arrival 0 and a non-mover creature on the goal blocks it off-PZ
+# (Player::canWalkthrough: NPC off-PZ / player > protection level -> false). Reproduced on demand (run
+# f119_blk2): another bot on the goal -> the identical line "(32350,32245,6) -> (32345,32246,6) = *** NO PATH ***
+# ... [cheb=5]"; the mover itself on it, or nobody -> 6 tiles OK. A live goto (arrival 3) still arrives, adjacent.
+# So a TOTAL failure here with leg 1 OK means "goal occupied": check the shop (Galuna / a shopping bot) first.
+@p1 login
+@p1 goto 32369,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32351,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32347,32218,7 range=2 stuck=15 timeout=120
+@p1 hold 20
+@srv audit kinds path,cmd
+@srv audit on expect="enabled=on"
+@srv cmd _global route 32369,32237,7 32345,32246,6 expect="hop 1 \(stairs UP\): \(32369,32237,7\) -> \(32350,32246,7\) = ([0-6]?[0-9]|7[0-5]) tiles OK"
+@srv cmd _global route 32369,32237,7 32345,32246,6 expect="TOTAL ([0-7]?[0-9]|80) tiles across 2 leg\(s\), 0 failed"
+# Live cost of direct-first (review): plain walk callers only, one search per attempt, and a per-bot
+# 3 s limiter after any miss. Over one 60 s window the misses per awake bot must stay < 5 (the
+# limiter's ceiling is 20/min); the counter line itself must exist.
+@p1 hold 65
+# Precondition for the bound below (review round 2): at least one 60 s line in which the live path
+# actually ran -- >= 10 awake bots AND hit+miss+suppressed >= 1 -- else missPerAwakeBot<5 is vacuous.
+@srv expect src=srv k=direct_first msg~="60s hit=[0-9]+ miss=[0-9]+ suppressed=[0-9]+ awake=[0-9]+" min=1 within=70
+@srv expect src=srv k=direct_first msg~="60s (hit=[1-9][0-9]* miss=[0-9]+ suppressed=[0-9]+|hit=[0-9]+ miss=[1-9][0-9]* suppressed=[0-9]+|hit=[0-9]+ miss=[0-9]+ suppressed=[1-9][0-9]*) awake=[1-9][0-9]+ " min=1 within=70
+@srv expect-none src=srv k=direct_first msg~="missPerAwakeBot=([5-9]|[1-9][0-9]+)[.]" within=70
+@srv expect-none src=srv msg~="Lua Script Error" within=120
+@srv audit off
+@p1 logout

@@ -517,7 +517,8 @@ function botManager.onThink(interval)
 				local rv = BotSystem.executeReload(opts)
 				resultText = (rv and rv.message) or "reload returned nil"
 			else
-				resultText = Game.botCommand(botName, cmd) or ""
+				-- 3rd arg labels the BOT_TEST_HARNESS `cmd` audit record only.
+				resultText = Game.botCommand(botName, cmd, "queue") or ""
 				logger.info("[BotManager] Command '" .. cmd .. "' for '" .. botName .. "': " .. resultText)
 			end
 

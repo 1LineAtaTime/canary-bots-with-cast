@@ -30,6 +30,14 @@ static inline bool isDebugOn(uint32_t guid) {
 	return it != s_debugConfigs.end() && it->second.enabled;
 }
 
+// BOT_TEST_HARNESS Phase 2 (plan §3.2 "[BOT:EVT] fix"): [BOT:EVT] lines used to carry only a
+// relative `t=` on the cycle-cached OTSYS_TIME clock and no bot name, so they could not be joined
+// to anything. Appended (never inserted) so positional readers of `t=`/`evtGap=`/kind keep
+// working: ` bot='Name' guid=N ems=<epoch ms>`. merge.py already resolves `bot='...'`/`guid=N`.
+static std::string dbgEvtSuffix(const BotState& bot) {
+	return fmt::format(" bot='{}' guid={} ems={}", bot.name, bot.guid, botAudEpochMs());
+}
+
 
 // ---- Navigation event tracking (writes to bot_nav_events table) ----
 
@@ -49,6 +57,13 @@ static inline bool isDebugOn(uint32_t guid) {
 // ============================================================================
 
 void BotEngine::castLog(BotState& bot, const std::string& msg) {
+	// BOT_TEST_HARNESS: remember the last decision line of a WATCHED bot as the "why" of its next
+	// state record — before the verboseLog gate, so it works without a cast viewer. One load when off.
+	// NAMED bots only (audNamed, never `watch *`): no map insert + string copy per castLog for
+	// the whole population. `*` state records therefore say reason=unlogged.
+	if (audNamed(AUD_STATE | AUD_PROBE, bot.guid)) [[unlikely]] {
+		botAudNoteLog(bot.guid, msg);
+	}
 	if (!bot.verboseLog) return;
 
 	auto player = bot.getPlayer();
@@ -59,6 +74,9 @@ void BotEngine::castLog(BotState& bot, const std::string& msg) {
 }
 
 void BotEngine::castLogError(BotState& bot, const std::string& msg) {
+	if (audNamed(AUD_STATE | AUD_PROBE, bot.guid)) [[unlikely]] {
+		botAudNoteLog(bot.guid, msg);
+	}
 	if (!bot.verboseLog) return;
 
 	auto player = bot.getPlayer();
@@ -471,11 +489,11 @@ void BotEngine::dbgEmitHeartbeat(BotState& bot, BotDebugCfg& cfg) {
 			int32_t pdx = std::abs(static_cast<int32_t>(bot.walkTarget.x) - static_cast<int32_t>(bot.currentPos.x));
 			int32_t pdy = std::abs(static_cast<int32_t>(bot.walkTarget.y) - static_cast<int32_t>(bot.currentPos.y));
 			int32_t pathLen = std::max(pdx, pdy);
-			g_logger().info("{} t={:.1f}s STUCK pos=({},{},{}) duration={:.1f}s walkTarget=({},{},{}) chebyshev={}",
+			g_logger().info("{} t={:.1f}s STUCK pos=({},{},{}) duration={:.1f}s walkTarget=({},{},{}) chebyshev={}{}",
 				EVT_TAG, tSinceStart,
 				bot.currentPos.x, bot.currentPos.y, bot.currentPos.z,
 				walkAge / 1000.0,
-				bot.walkTarget.x, bot.walkTarget.y, bot.walkTarget.z, pathLen);
+				bot.walkTarget.x, bot.walkTarget.y, bot.walkTarget.z, pathLen, dbgEvtSuffix(bot));
 		}
 	}
 	// Refresh walk-target tracking
@@ -495,10 +513,10 @@ void BotEngine::dbgEmitEvent(const BotState& bot, BotDebugCfg* cfg,
 	double tSinceStart = (OTSYS_TIME() - cfg->debugStartTime) / 1000.0;
 	int64_t gap = cfg->lastEventTime > 0 ? (OTSYS_TIME() - cfg->lastEventTime) : 0;
 	cfg->lastEventTime = OTSYS_TIME();
-	auto player = bot.getPlayer();
-	std::string botName = player ? player->getName() : "?";
-	g_logger().info("{} t={:.1f}s evtGap={}ms {} {}",
-		EVT_TAG, tSinceStart, gap, kind, fields);
+	// The bot name + epoch-ms ride at the END of the line (dbgEvtSuffix) so every existing
+	// consumer that reads `t=` / `evtGap=` / the kind positionally keeps working.
+	g_logger().info("{} t={:.1f}s evtGap={}ms {} {}{}",
+		EVT_TAG, tSinceStart, gap, kind, fields, dbgEvtSuffix(bot));
 }
 
 // Enumerate tiles affected by an AoE spell — uses isInAoeArea over a bounding box
@@ -584,8 +602,8 @@ void BotEngine::dbgRecordPreCast(BotState& bot, const std::string& descriptor,
 		}
 	}
 	double tSinceStart = (OTSYS_TIME() - cfg->debugStartTime) / 1000.0;
-	g_logger().info("{} t={:.1f}s spell_precast {} tiles={} expected({})=[{}]",
-		EVT_TAG, tSinceStart, descriptor, areaTiles.size(), expectedCount, expected);
+	g_logger().info("{} t={:.1f}s spell_precast {} tiles={} expected({})=[{}]{}",
+		EVT_TAG, tSinceStart, descriptor, areaTiles.size(), expectedCount, expected, dbgEvtSuffix(bot));
 
 	// Render an overlay grid showing affected tiles around bot (1 tile = '+', tile-with-creature = 'X')
 	if (cfg->gridEnabled) {
@@ -673,8 +691,8 @@ void BotEngine::dbgEmitPostCastIfDue(BotState& bot) {
 		}
 	}
 	double tSinceStart = (OTSYS_TIME() - cfg->debugStartTime) / 1000.0;
-	g_logger().info("{} t={:.1f}s spell_result {} elapsed={}ms hits({})=[{}] missed({})=[{}] totalDmg={}",
-		EVT_TAG, tSinceStart, pc.descriptor, elapsed, hitCount, hits, missCount, misses, totalDamage);
+	g_logger().info("{} t={:.1f}s spell_result {} elapsed={}ms hits({})=[{}] missed({})=[{}] totalDmg={}{}",
+		EVT_TAG, tSinceStart, pc.descriptor, elapsed, hitCount, hits, missCount, misses, totalDamage, dbgEvtSuffix(bot));
 
 	pc.active = false;
 	pc.preTargets.clear();
@@ -702,16 +720,16 @@ std::string BotEngine::dbgHandleCommand(BotState* bot, const std::string& rest) 
 		cfg.lastEventTime = 0;
 		cfg.pending.active = false;
 		auto player = bot->getPlayer();
-		g_logger().info("{} t=0.0s debug_session_start bot={} guid={} snapMs={}",
-			EVT_TAG, player ? player->getName() : "?", bot->guid, cfg.snapshotMs);
+		g_logger().info("{} t=0.0s debug_session_start bot={} guid={} snapMs={} ems={}",
+			EVT_TAG, player ? player->getName() : "?", bot->guid, cfg.snapshotMs, botAudEpochMs());
 		return "debug ON";
 	}
 	if (rest == "off") {
 		bool wasEnabled = cfg.enabled;
 		if (wasEnabled) {
 			auto player = bot->getPlayer();
-			g_logger().info("{} debug_session_end bot={} guid={}",
-				EVT_TAG, player ? player->getName() : "?", bot->guid);
+			g_logger().info("{} debug_session_end bot={} guid={} ems={}",
+				EVT_TAG, player ? player->getName() : "?", bot->guid, botAudEpochMs());
 		}
 		cfg.enabled = false;
 		cfg.pending.active = false;
@@ -735,3 +753,729 @@ std::string BotEngine::dbgHandleCommand(BotState* bot, const std::string& rest) 
 	return fmt::format("unknown debug verb '{}'. valid: on, off, status, grid on|off, events on|off, snapshot <ms>", rest);
 }
 
+
+// ============================================================================
+// BOT_TEST_HARNESS Phase 2 — audit stream, engine side
+//
+// Declarations + the rules this code lives by are in bot_engine_impl.hpp (search
+// "BOT_TEST_HARNESS Phase 2"). The writer is the main-binary BotAuditSink. Nothing here runs
+// off the dispatcher and nothing here owns a thread.
+// ============================================================================
+
+namespace {
+	constexpr size_t AUD_FLUSH_AT = 256 * 1024;      // flush mid-tick past this many bytes
+	constexpr size_t AUD_BUF_CAP = 8 * 1024 * 1024;  // hard cap if the sink never drains
+
+	struct AudKindName {
+		const char* name;
+		uint32_t bit;
+	};
+	constexpr AudKindName kAudKinds[] = {
+		{ "probe", AUD_PROBE },     { "state", AUD_STATE },     { "wake", AUD_WAKE },
+		{ "hib", AUD_HIB },         { "walkpause", AUD_WALKPAUSE }, { "path", AUD_PATH },
+		{ "pathout", AUD_PATHOUT }, { "decide", AUD_DECIDE },   { "cmd", AUD_CMD },
+		{ "census", AUD_CENSUS },
+	};
+
+	// Same order as BotEngine::ActOutcome (bot_engine_impl.hpp).
+	constexpr const char* kActOutcomeNames[] = {
+		"dwell", "poi", "poi_fail", "hunt", "hunt_fail", "party", "party_fail",
+		"travel", "city_walk", "travel_fail", "rounding_tail",
+	};
+
+	std::string audLower(std::string_view s) {
+		std::string out(s);
+		std::ranges::transform(out, out.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		return out;
+	}
+
+	std::string audTrim(std::string_view s) {
+		size_t b = 0;
+		size_t e = s.size();
+		while (b < e && std::isspace(static_cast<unsigned char>(s[b]))) {
+			++b;
+		}
+		while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1]))) {
+			--e;
+		}
+		return std::string(s.substr(b, e - b));
+	}
+
+	std::vector<std::string> audSplitCsv(std::string_view csv) {
+		std::vector<std::string> out;
+		size_t start = 0;
+		while (start <= csv.size()) {
+			size_t comma = csv.find(',', start);
+			if (comma == std::string_view::npos) {
+				comma = csv.size();
+			}
+			std::string tok = audTrim(csv.substr(start, comma - start));
+			if (!tok.empty()) {
+				out.push_back(std::move(tok));
+			}
+			start = comma + 1;
+		}
+		return out;
+	}
+
+	std::string audMaskNames(uint32_t mask) {
+		std::string out;
+		for (const auto& k : kAudKinds) {
+			if (mask & k.bit) {
+				if (!out.empty()) {
+					out.push_back(',');
+				}
+				out += k.name;
+			}
+		}
+		return out.empty() ? std::string("(none)") : out;
+	}
+}
+
+int64_t botAudEpochMs() {
+	return BotAuditSink::epochMs();
+}
+
+void botAudBegin(const char* kind, const BotState* bot) {
+	if (s_audBuf.size() > AUD_BUF_CAP) {
+		// The sink has not drained for a very long time (it never should: auditTick flushes every
+		// tick). Never grow without bound — count and drop.
+		s_audDropped += static_cast<uint64_t>(std::count(s_audBuf.begin(), s_audBuf.end(), '\n'));
+		s_audBuf.clear();
+	}
+	auto out = std::back_inserter(s_audBuf);
+	fmt::format_to(out, R"({{"v":1,"ts":{},"seq":{},"src":"srv","k":"{}")",
+		BotAuditSink::epochMs(), BotAuditSink::get().nextSeq(), kind);
+	if (bot) {
+		fmt::format_to(out, R"(,"guid":{},"cid":{},"bot":)", bot->guid, 0x10000000u + bot->guid);
+		BotAuditSink::appendJsonString(s_audBuf, bot->name);
+		fmt::format_to(out, R"(,"pos":[{},{},{}],"st":"{}","hib":{})",
+			bot->currentPos.x, bot->currentPos.y, static_cast<int>(bot->currentPos.z),
+			botStateName(bot->state), bot->hibernated ? 1 : 0);
+	}
+}
+
+void botAudEnd() {
+	s_audBuf += "}\n";
+	if (s_audBuf.size() >= AUD_FLUSH_AT) {
+		botAudFlush();
+	}
+}
+
+void botAudFlush() {
+	// s_audAlive: false once this module's statics are being torn down (process exit can run
+	// ~BotEngine after them) — never touch a destroyed buffer.
+	if (!s_audAlive || s_audBuf.empty()) {
+		return;
+	}
+	BotAuditSink::get().write(s_audBuf); // no-op (discard) while the sink is disabled
+	s_audBuf.clear();
+}
+
+void botAudStr(const char* key, std::string_view v) {
+	s_audBuf += ",\"";
+	s_audBuf += key;
+	s_audBuf += "\":";
+	BotAuditSink::appendJsonString(s_audBuf, v);
+}
+
+void botAudInt(const char* key, int64_t v) {
+	fmt::format_to(std::back_inserter(s_audBuf), R"(,"{}":{})", key, v);
+}
+
+void botAudPos(const char* key, const Position& p) {
+	fmt::format_to(std::back_inserter(s_audBuf), R"(,"{}":[{},{},{}])", key, p.x, p.y, static_cast<int>(p.z));
+}
+
+void botAudNoteLog(uint32_t guid, const std::string& msg) {
+	auto& w = s_audBot[guid];
+	w.lastLog.assign(BotAuditSink::utf8Prefix(msg, 200)); // never split a multi-byte character
+	w.lastLogMs = botAudEpochMs();
+}
+
+void botAudWalkPause(const BotState& bot, bool observed, int32_t ms, uint8_t walkBias, uint32_t nThisRoute, size_t steps) {
+	botAudBegin("walkpause", &bot);
+	botAudStr("tier", observed ? "observed" : "unobserved");
+	botAudInt("ms", ms);
+	botAudInt("walkBias", walkBias);
+	botAudInt("nThisRoute", nThisRoute);
+	botAudInt("steps", static_cast<int64_t>(steps));
+	botAudEnd();
+}
+
+void botAudPathout(const BotState& bot, const char* outcome, const std::string& route, size_t idx, size_t n,
+                   const char* reason, int64_t extra) {
+	botAudBegin("pathout", &bot);
+	botAudStr("outcome", outcome);
+	botAudStr("route", route);
+	botAudInt("wp", static_cast<int64_t>(idx));
+	botAudInt("wps", static_cast<int64_t>(n));
+	if (reason) {
+		botAudStr("reason", reason);
+	}
+	if (extra >= 0) {
+		botAudInt("val", extra);
+	}
+	if (bot.hasWalkTarget) {
+		botAudPos("walk", bot.walkTarget);
+	}
+	botAudEnd();
+}
+
+void botAudDecide(const BotState& bot, const char* what, std::string_view chosen, int64_t candidates, std::string_view detail) {
+	botAudBegin("decide", &bot);
+	botAudStr("what", what);
+	botAudStr("chosen", chosen);
+	if (candidates >= 0) {
+		botAudInt("n", candidates);
+	}
+	if (!detail.empty()) {
+		botAudStr("detail", detail);
+	}
+	botAudEnd();
+}
+
+void botAudReroll(const BotState& bot, int roll, int total, const int (&w)[5], bool huntOnCD, bool pzLocked, uint8_t outcome) {
+	const char* chosen = outcome < std::size(kActOutcomeNames) ? kActOutcomeNames[outcome] : "none";
+	botAudBegin("decide", &bot);
+	botAudStr("what", "reroll");
+	botAudStr("chosen", chosen);
+	botAudInt("roll", roll);
+	botAudInt("total", total);
+	fmt::format_to(std::back_inserter(s_audBuf), R"(,"w":{{"dwell":{},"poi":{},"hunt":{},"party":{},"travel":{}}})",
+		w[0], w[1], w[2], w[3], w[4]);
+	// Reject reasons doActivityReroll already computed (no new work): bins zeroed by eligibility.
+	std::string rej;
+	if (huntOnCD) {
+		rej += "hunt_cooldown";
+	}
+	if (pzLocked) {
+		rej += rej.empty() ? "pz_locked" : ",pz_locked";
+	}
+	if (!rej.empty()) {
+		botAudStr("rej", rej);
+	}
+	if (bot.hasWalkTarget) {
+		botAudPos("walk", bot.walkTarget);
+	}
+	if (bot.currentPOI) {
+		botAudStr("poi", bot.currentPOI->name);
+	}
+	if (bot.huntScriptId) {
+		botAudInt("hunt", bot.huntScriptId);
+	}
+	if (bot.travelDestTownId) {
+		botAudInt("travelTo", bot.travelDestTownId);
+	}
+	const int64_t gnow = OTSYS_TIME();
+	if (bot.dwellUntil > gnow) {
+		botAudInt("dwellMs", bot.dwellUntil - gnow);
+	}
+	botAudEnd();
+}
+
+void BotAudPathScope::emit() noexcept {
+	try {
+		const uint64_t us = botMonoUs() - t0;
+		botAudBegin("path", bot);
+		botAudStr("planner", planner);
+		botAudPos("src", src);
+		botAudPos("dst", dst);
+		botAudInt("arrival", arrival);
+		botAudStr("result", res);
+		if (len >= 0) {
+			botAudInt("len", len);
+		}
+		if (expanded >= 0) {
+			botAudInt("expanded", expanded);
+		}
+		fmt::format_to(std::back_inserter(s_audBuf), R"(,"ms":{:.3f})", static_cast<double>(us) / 1000.0);
+		botAudEnd();
+	} catch (...) {
+		// a destructor must not throw (bad_alloc while formatting would terminate the server)
+	}
+}
+
+const BotState* BotEngine::auditBotByGuid(uint32_t guid) const {
+	auto it = guidToIndex_.find(guid);
+	return it != guidToIndex_.end() ? &bots_[it->second] : nullptr;
+}
+
+void BotEngine::auditRefreshCache(uint32_t gen) {
+	auto& sink = BotAuditSink::get();
+	s_aud.gen = gen;
+	const std::string kinds = sink.kinds();
+	const std::string watch = sink.watch();
+	uint32_t mask = 0;
+	if (sink.enabled()) {
+		for (const auto& tok : audSplitCsv(kinds)) {
+			const std::string k = audLower(tok);
+			for (const auto& kn : kAudKinds) {
+				if (k == "all" || k == "*" || k == kn.name) {
+					mask |= kn.bit;
+				}
+			}
+		}
+	}
+	s_aud.probeMs = std::max<int64_t>(100, sink.probeMs());
+	s_aud.censusMs = std::max<int64_t>(1000, sink.censusMs());
+	s_aud.watchAll = false;
+	s_aud.watchNamesLower.clear();
+	for (const auto& tok : audSplitCsv(watch)) {
+		const std::string w = audLower(tok);
+		if (w == "*") {
+			s_aud.watchAll = true;
+		} else {
+			s_aud.watchNamesLower.push_back(w);
+		}
+	}
+	s_aud.mask = mask;
+	s_aud.watch.clear();
+	if (mask == 0) {
+		s_audBot.clear();
+		return;
+	}
+	auditResolveWatch(botAudEpochMs());
+	std::erase_if(s_audBot, [](const auto& kv) { return !s_aud.watchAll && !s_aud.watch.contains(kv.first); });
+	s_audLastCensusMs = 0; // first census right after (re)enabling
+	// Settings marker: tells a reader exactly when a window started and what it was recording.
+	botAudBegin("audit", nullptr);
+	botAudStr("kinds", audMaskNames(mask));
+	botAudStr("watch", watch);
+	botAudInt("watchResolved", static_cast<int64_t>(s_aud.watch.size()));
+	botAudInt("gen", gen);
+	botAudEnd();
+}
+
+void BotEngine::auditResolveWatch(int64_t nowMs) {
+	s_aud.lastResolveMs = nowMs;
+	s_aud.watch.clear();
+	if (s_aud.watchNamesLower.empty()) {
+		return;
+	}
+	for (const auto& b : bots_) {
+		if (b.name.empty()) {
+			continue;
+		}
+		const std::string ln = audLower(b.name);
+		for (const auto& w : s_aud.watchNamesLower) {
+			if (w == ln) {
+				s_aud.watch.insert(b.guid);
+				break;
+			}
+		}
+	}
+}
+
+void BotEngine::auditTick() {
+	const uint32_t gen = BotAuditSink::get().generation();
+	if (gen != s_aud.gen) [[unlikely]] {
+		auditRefreshCache(gen);
+	}
+	if (s_aud.mask == 0) [[likely]] {
+		if (!s_audBuf.empty()) {
+			botAudFlush();
+		}
+		return;
+	}
+	const int64_t now = botAudEpochMs();
+	// Re-resolve names periodically: a watched bot can register/unregister after the toggle.
+	if (!s_aud.watchNamesLower.empty() && now - s_aud.lastResolveMs >= 5000) {
+		auditResolveWatch(now);
+	}
+	if (s_aud.mask & (AUD_PROBE | AUD_STATE | AUD_PATHOUT)) {
+		if (s_aud.watchAll) {
+			// "*": state + oscillation for every ACTIVE bot (a compare per bot per tick). The probe
+			// (and path/walkpause, via audFor) only for bots named explicitly.
+			for (auto& b : bots_) {
+				if (b.active) {
+					auditVisit(b, now, s_aud.watch.contains(b.guid));
+				}
+			}
+		} else {
+			for (const uint32_t g : s_aud.watch) {
+				auto it = guidToIndex_.find(g);
+				if (it != guidToIndex_.end()) {
+					auditVisit(bots_[it->second], now, true);
+				}
+			}
+		}
+	}
+	if (audOn(AUD_CENSUS) && now - s_audLastCensusMs >= s_aud.censusMs) {
+		s_audLastCensusMs = now;
+		auditCensus(now);
+	}
+	if (s_audDropped > 0) {
+		botAudBegin("audit", nullptr);
+		botAudInt("dropped", static_cast<int64_t>(s_audDropped));
+		botAudEnd();
+		s_audDropped = 0;
+	}
+	botAudFlush();
+}
+
+// One watched bot, once per engine tick (100 ms). Covers live AND hibernated bots, so the
+// virtual-sim twin's state changes are recorded by the very same diff as the live handler's.
+void BotEngine::auditVisit(BotState& b, int64_t now, bool probe) {
+	auto& w = s_audBot[b.guid];
+
+	// ---- state: sampled diff (there is no central setter: ~95 direct assignments) ----
+	const bool phaseChanged = w.ph != b.huntPhase && (b.state == BotAIState::HUNTING || w.st == BotAIState::HUNTING);
+	if (w.init && (w.st != b.state || phaseChanged) && (s_aud.mask & AUD_STATE)) {
+		botAudBegin("state", &b);
+		botAudStr("from", botStateName(w.st));
+		botAudStr("to", botStateName(b.state));
+		if (phaseChanged || b.state == BotAIState::HUNTING) {
+			botAudStr("pfrom", huntPhaseName(w.ph));
+			botAudStr("pto", huntPhaseName(b.huntPhase));
+		}
+		const bool fresh = !w.lastLog.empty() && now - w.lastLogMs <= 2000;
+		botAudStr("reason", fresh ? std::string_view(w.lastLog) : std::string_view(b.hibernated ? "virtual-sim" : "unlogged"));
+		botAudStr("detect", "tick-diff");
+		botAudEnd();
+	}
+	w.init = true;
+	w.st = b.state;
+	w.ph = b.huntPhase;
+
+	// ---- pathout osc: period-2/3 position cycling (awake bots; live position) ----
+	if ((s_aud.mask & AUD_PATHOUT) && !b.hibernated) {
+		const auto player = b.getPlayer();
+		const Position p = player ? player->getPosition() : b.currentPos;
+		if (w.ringN == 0 || w.ring[0] != p) {
+			const bool p2 = w.ringN >= 2 && w.ring[1] == p;
+			const bool p3 = w.ringN >= 3 && w.ring[2] == p && w.ring[1] != p;
+			w.osc2 = p2 ? static_cast<uint8_t>(std::min<int>(w.osc2 + 1, 250)) : 0;
+			w.osc3 = p3 ? static_cast<uint8_t>(std::min<int>(w.osc3 + 1, 250)) : 0;
+			for (int i = 3; i > 0; --i) {
+				w.ring[i] = w.ring[i - 1];
+			}
+			w.ring[0] = p;
+			if (w.ringN < 4) {
+				w.ringN++;
+			}
+			// 4 consecutive returns = A B A B A B (period 2) or A B C A B C A (period 3)
+			const int period = w.osc2 >= 4 ? 2 : (w.osc3 >= 4 ? 3 : 0);
+			if (period != 0 && now - w.oscLastEmitMs >= 10000) {
+				w.oscLastEmitMs = now;
+				botAudBegin("pathout", &b);
+				botAudStr("outcome", "osc");
+				botAudInt("period", period);
+				botAudInt("returns", period == 2 ? w.osc2 : w.osc3);
+				botAudPos("a", w.ring[1]);
+				botAudPos("b", w.ring[0]);
+				if (b.hasWalkTarget) {
+					botAudPos("walk", b.walkTarget);
+				}
+				botAudEnd();
+				w.osc2 = 0;
+				w.osc3 = 0;
+			}
+		}
+	}
+
+	// ---- probe ----
+	if (probe && (s_aud.mask & AUD_PROBE) && now - w.lastProbeMs >= s_aud.probeMs) {
+		w.lastProbeMs = now;
+		auditProbe(b, w, now);
+	}
+}
+
+void BotEngine::auditProbe(BotState& b, BotAuditBotState& w, int64_t now) {
+	const auto player = b.hibernated ? nullptr : b.getPlayer();
+	botAudBegin("probe", &b);
+	botAudStr("ph", huntPhaseName(b.huntPhase));
+	botAudInt("fc", static_cast<int>(b.fcState));
+	botAudInt("tgt", b.huntTargetId);
+	botAudInt("atk", b.attackerId);
+	if (b.hasWalkTarget) {
+		botAudPos("walk", b.walkTarget);
+	}
+	botAudInt("pathLen", player ? static_cast<int64_t>(player->listWalkDir.size()) : -1);
+	botAudInt("awake", player ? 1 : 0);
+	if (player) {
+		// Same observer predicate as botWalkObserved, recomputed here WITHOUT touching its
+		// 500 ms cache so the probe cannot shift walk-pause timing.
+		bool observed = false;
+		if (!currentAnchors_.empty()) {
+			// Named copy, exactly like botWalkObserved: iterating find()'s result on the temporary
+			// directly could dangle (find returns a reference into the temporary).
+			auto spectators = Spectators().find<Player>(player->getPosition(), true);
+			for (const auto& s : spectators) {
+				const auto other = s ? s->getPlayer() : nullptr;
+				if (!other || other->getID() == player->getID()) {
+					continue;
+				}
+				if (!other->isBotPlayer() || other->getCastViewerCount() > 0) {
+					observed = true;
+					break;
+				}
+			}
+		}
+		botAudInt("obs", observed ? 1 : 0);
+		botAudInt("cast", player->getCastViewerCount());
+		const int32_t maxHp = player->getMaxHealth();
+		botAudInt("hpPct", maxHp > 0 ? player->getHealth() * 100 / maxHp : 0);
+		const Position lp = player->getPosition();
+		if (lp != b.currentPos) {
+			botAudPos("live", lp);
+		}
+	}
+	botAudInt("tickUs", w.tickUs);
+	if (b.huntScriptId) {
+		botAudInt("hunt", b.huntScriptId);
+		botAudInt("wp", static_cast<int64_t>(b.huntWaypointIdx));
+		botAudInt("kills", b.huntKillCount);
+	}
+	if (b.followingCityRoute) {
+		botAudInt("routeIdx", static_cast<int64_t>(b.cityRouteIdx));
+		botAudInt("routeLen", static_cast<int64_t>(b.cityRouteWps.size()));
+	}
+	if (!b.travelPhase.empty()) {
+		botAudStr("travel", b.travelPhase);
+	}
+	if (b.wakeQuietTicks) {
+		botAudInt("quiet", b.wakeQuietTicks);
+	}
+	const int64_t gnow = OTSYS_TIME();
+	if (b.nextRerollTime > gnow) {
+		botAudInt("rerollInMs", b.nextRerollTime - gnow);
+	}
+	if (b.dwellUntil > gnow) {
+		botAudInt("dwellMs", b.dwellUntil - gnow);
+	}
+	if (b.pendingWalkPauseEventId != 0) {
+		botAudInt("pausing", 1);
+	}
+	if (!w.lastLog.empty()) {
+		botAudStr("lastAct", w.lastLog);
+		botAudInt("lastActAgeMs", now - w.lastLogMs);
+	}
+	botAudEnd();
+}
+
+// Called from the tick loop the first time a watched bot runs its AI after a wake.
+void BotEngine::auditWakeFirstAct(BotState& bot) {
+	auto it = s_audBot.find(bot.guid);
+	if (it == s_audBot.end() || it->second.wakeAtMs == 0) {
+		return;
+	}
+	const int64_t dt = botAudEpochMs() - it->second.wakeAtMs;
+	it->second.wakeAtMs = 0;
+	if (!audFor(AUD_WAKE, bot.guid)) {
+		return;
+	}
+	botAudBegin("wake", &bot);
+	botAudStr("event", "first_act");
+	botAudInt("firstActMs", dt);
+	botAudEnd();
+}
+
+// Whole-population aggregate (plan R10): every registered bot, hibernated included. ~1000
+// struct reads every botAuditCensusSec; no Player lookups except one per awake bot (cast count).
+void BotEngine::auditCensus(int64_t /*nowMs*/) {
+	uint32_t active = 0, awake = 0, hib = 0, cast = 0, paused = 0;
+	uint32_t byState[9] = {};
+	uint32_t phaseAwake[5] = {};
+	uint32_t phaseHib[5] = {};
+	std::map<uint32_t, std::pair<uint32_t, uint32_t>> byTown; // townId -> (awake, hib)
+	struct HuntAgg {
+		uint32_t n = 0, patrolling = 0, kills = 0, pctN = 0;
+		uint64_t pctSum = 0;
+	};
+	HuntAgg vh;
+	HuntAgg lh;
+	std::unordered_map<uint32_t, size_t> patrolLen;
+	patrolLen.reserve(huntScripts_.size());
+	for (const auto& s : huntScripts_) {
+		patrolLen[s.id] = s.patrolWaypoints.size();
+	}
+	for (const auto& b : bots_) {
+		if (!b.active) {
+			continue;
+		}
+		active++;
+		if (b.aiPaused) {
+			paused++;
+		}
+		byState[std::min<size_t>(static_cast<size_t>(b.state), 8)]++;
+		auto& t = byTown[b.townId];
+		if (b.hibernated) {
+			hib++;
+			t.second++;
+		} else {
+			awake++;
+			t.first++;
+			if (auto p = b.getPlayer(); p && p->getCastViewerCount() > 0) {
+				cast++;
+			}
+		}
+		if (b.state == BotAIState::HUNTING) {
+			const auto pi = std::min<size_t>(static_cast<size_t>(b.huntPhase), 4);
+			if (b.hibernated) {
+				phaseHib[pi]++;
+			} else {
+				phaseAwake[pi]++;
+			}
+			HuntAgg& h = b.hibernated ? vh : lh;
+			h.n++;
+			h.kills += b.huntKillCount;
+			if (b.huntPhase == HuntPhase::PATROLLING) {
+				h.patrolling++;
+				auto it = patrolLen.find(b.huntScriptId);
+				if (it != patrolLen.end() && it->second > 0) {
+					h.pctSum += std::min<size_t>(b.huntWaypointIdx, it->second) * 100 / it->second;
+					h.pctN++;
+				}
+			}
+		}
+	}
+	botAudBegin("census", nullptr);
+	botAudInt("reg", static_cast<int64_t>(bots_.size()));
+	botAudInt("active", active);
+	botAudInt("awake", awake);
+	botAudInt("hibn", hib);
+	botAudInt("cast", cast);
+	botAudInt("paused", paused);
+	auto out = std::back_inserter(s_audBuf);
+	s_audBuf += R"(,"state":{)";
+	bool first = true;
+	for (size_t i = 0; i < 9; ++i) {
+		if (byState[i] == 0) {
+			continue;
+		}
+		fmt::format_to(out, R"({}"{}":{})", first ? "" : ",", botStateName(static_cast<BotAIState>(i)), byState[i]);
+		first = false;
+	}
+	s_audBuf += R"(},"phase":{)";
+	first = true;
+	for (size_t i = 0; i < 5; ++i) {
+		if (phaseAwake[i] == 0 && phaseHib[i] == 0) {
+			continue;
+		}
+		fmt::format_to(out, R"({}"{}":[{},{}])", first ? "" : ",", huntPhaseName(static_cast<HuntPhase>(i)),
+			phaseAwake[i], phaseHib[i]);
+		first = false;
+	}
+	s_audBuf += R"(},"town":{)";
+	first = true;
+	for (const auto& [town, ah] : byTown) {
+		fmt::format_to(out, R"({}"{}":[{},{}])", first ? "" : ",", town, ah.first, ah.second);
+		first = false;
+	}
+	s_audBuf += "}";
+	const auto hunt = [&out](const char* key, const HuntAgg& h) {
+		fmt::format_to(out, R"(,"{}":{{"n":{},"patrolling":{},"kills":{},"wpPct":{}}})", key, h.n, h.patrolling,
+			h.kills, h.pctN ? static_cast<int64_t>(h.pctSum / h.pctN) : -1);
+	};
+	hunt("vhunt", vh); // virtual (hibernated) hunting twins
+	hunt("lhunt", lh); // live (awake) hunters
+	botAudInt("anchors", static_cast<int64_t>(currentAnchorPts_.size()));
+	botAudInt("realPlayers", botPerf_.gaugeRealPlayers);
+	botAudInt("wakeTried60s", wakeTried60s_);
+	botAudInt("wakeGated60s", wakeGated60s_);
+	botAudInt("wakeGranted60s", wakeGranted60s_);
+	botAudEnd();
+}
+
+// `/cavebot audit on|off|status|watch <bot>|watch clear|unwatch <bot>|kinds <list>|config|flush|mark <text>`
+// Runtime toggles live in the main-binary sink: in memory, they survive /cavebot reload and reset
+// on restart. config.lua (botAudit*) stays the source of the defaults; `config` re-applies it.
+std::string BotEngine::auditCommand(const std::string& argsIn) {
+	auto& sink = BotAuditSink::get();
+	const std::string args = audTrim(argsIn);
+	const auto sp = args.find(' ');
+	const std::string verb = audLower(args.substr(0, sp));
+	std::string rest = sp == std::string::npos ? std::string() : audTrim(args.substr(sp + 1));
+	if (rest.size() >= 2 && rest.front() == '"' && rest.back() == '"') {
+		rest = rest.substr(1, rest.size() - 2);
+	}
+	std::string note;
+
+	if (verb.empty() || verb == "status") {
+		// status reply below
+	} else if (verb == "on") {
+		sink.setEnabled(true);
+		note = "audit ON";
+	} else if (verb == "off") {
+		botAudFlush();
+		sink.setEnabled(false);
+		note = "audit OFF";
+	} else if (verb == "watch") {
+		const std::string lr = audLower(rest);
+		if (rest.empty()) {
+			// list only
+		} else if (lr == "clear" || lr == "none") {
+			sink.setWatch("");
+			note = "watch list cleared";
+		} else {
+			bool known = rest == "*";
+			for (const auto& b : bots_) {
+				if (!known && audLower(b.name) == lr) {
+					known = true;
+				}
+			}
+			sink.addWatch(rest);
+			note = fmt::format("watching '{}'{}", rest, known ? "" : " (no registered bot has that name yet)");
+		}
+	} else if (verb == "unwatch") {
+		note = sink.removeWatch(rest) ? fmt::format("unwatched '{}'", rest) : fmt::format("'{}' was not watched", rest);
+	} else if (verb == "kinds") {
+		if (rest.empty()) {
+			return "usage: /cavebot audit kinds all | <comma list of probe,state,wake,hib,walkpause,path,pathout,decide,cmd,census>";
+		}
+		std::string unknown;
+		for (const auto& tok : audSplitCsv(rest)) {
+			const std::string k = audLower(tok);
+			bool ok = k == "all" || k == "*";
+			for (const auto& kn : kAudKinds) {
+				ok = ok || k == kn.name;
+			}
+			if (!ok) {
+				if (!unknown.empty()) {
+					unknown.push_back(',');
+				}
+				unknown += k;
+			}
+		}
+		sink.setKinds(rest);
+		note = unknown.empty() ? std::string("kinds set") : "kinds set (UNKNOWN, ignored: " + unknown + ")";
+	} else if (verb == "config") {
+		sink.applyConfig();
+		note = "config.lua botAudit* re-applied (runtime toggles discarded)";
+	} else if (verb == "flush") {
+		botAudFlush();
+		note = "flushed";
+	} else if (verb == "mark") {
+		// Scenario markers for the harness ("begin <runId>" / "end <runId>"): written while on.
+		if (sink.enabled()) {
+			botAudBegin("mark", nullptr);
+			botAudStr("text", rest);
+			botAudEnd();
+			botAudFlush();
+			note = "marked";
+		} else {
+			note = "audit is off - mark not written";
+		}
+	} else {
+		return "usage: /cavebot audit on|off|status|watch <bot>|watch clear|unwatch <bot>|kinds <list>|config|flush|mark <text>";
+	}
+
+	// Apply now rather than at the next tick, so the reply below shows the effective state and the
+	// `audit` settings marker lands before anything recorded under the new settings.
+	const uint32_t gen = sink.generation();
+	if (gen != s_aud.gen) {
+		auditRefreshCache(gen);
+		botAudFlush();
+	}
+	std::string resolved;
+	for (const uint32_t g : s_aud.watch) {
+		if (const BotState* b = auditBotByGuid(g)) {
+			resolved += fmt::format("{}{}({}{})", resolved.empty() ? "" : ",", b->name, g, b->hibernated ? ",hib" : "");
+		}
+	}
+	return fmt::format("{}{}\n[BOT_AUDIT] engine: kinds={} watchResolved={}{} probeMs={} buffered={}B",
+		note.empty() ? std::string() : "[BOT_AUDIT] " + note + "\n", sink.status(), audMaskNames(s_aud.mask),
+		resolved.empty() ? std::string("(none)") : resolved, s_aud.watchAll ? " +ALL(*)" : "", s_aud.probeMs,
+		s_audBuf.size());
+}

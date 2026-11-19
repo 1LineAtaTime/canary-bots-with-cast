@@ -1,0 +1,22 @@
+# SCENARIO: baseline_b4_lurekite   SEED: 0   CAMERAS: auto   BOTCFG: auto
+# Phase 3 (lean) baseline B4 - lure + kite. DEBUG MODE (pinned bot $H). The bot is sent to a
+# lure-armed hunt (`hunt $HUNT`, min_monsters>0 in hunt_scripts.csv) and watched by an @cast camera
+# (the camera is the observer: no same-floor player goto reaches a spawn). Server truth: journal
+# `LURE ENGAGE` / `KITE ... legs= elapsed= reason=` + audit probe/state for $H; client truth: the
+# camera's see_self HP + see_creature / missiles. Metrics: baseline_metrics.py b4.
+@srv audit kinds probe,state,cmd,pathout
+@srv audit watch $H
+@srv audit on expect="enabled=on"
+@cam:$H login
+@cam:$H perceive reset=1
+@srv cmd "$H" hunt $HUNT
+@srv cmd "$H" lure optional=1
+@cam:$H hold 120 watch=$H
+@srv cmd "$H" status expect="state="
+@cam:$H hold 180 watch=$H
+@srv cmd "$H" status expect="state="
+@cam:$H perceive
+@srv expect src=srv msg~="LURE ENGAGE" min=1 within=400 optional=1
+@srv audit watch clear
+@srv audit off
+@cam:$H logout

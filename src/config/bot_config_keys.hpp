@@ -674,3 +674,41 @@
 	   because a shrine walk owns none of the door handling, tile claims,            \
 	   occupancy cap or exit planner that a house visit does. */                     \
 	INT (BOT_HOUSE_SHRINE,                 "botHouseShrine",                15)
+
+// ============================================================================
+// BOT_TEST_HARNESS Phase 2 — server-truth audit stream (NDJSON, epoch-ms).
+//
+// Read by the MAIN-BINARY sink (src/creatures/players/bot/bot_audit_sink.cpp), not by the
+// engine's hot path: the engine only polls the sink's generation counter once per tick and
+// caches a kind bitmask, so every hook costs one load-and-test while this is off.
+//
+// Expanded at the very END of ConfigKey_t (after FORCE_LOGOUT_ON_CONNECTION_LOSS), which
+// shifts no existing ordinal at all — neither a BOT_* key the .so reads nor a core key. The
+// ordinals are past MAGIC_ENUM_RANGE_MAX, so these keys are C++-only (not in Lua configKeys),
+// like FORCE_LOGOUT_ON_CONNECTION_LOSS.
+//
+// config.lua holds the DEFAULTS only. `/cavebot audit on|off|watch|kinds` changes them at
+// runtime in memory (they survive `/cavebot reload`, reset on restart); `/cavebot audit config`
+// re-applies these keys after a `/cavebot reloadconfig`.
+// ============================================================================
+#define BOT_AUDIT_CONFIG_KEYS(INT, BOOL, STR)                                        \
+	/* Master switch. OFF by default: nothing is written and every hook is one load. */ \
+	BOOL(BOT_AUDIT_ENABLED,                "botAuditEnabled",               false)    \
+	/* Relative paths resolve against canary's working directory; the parent          \
+	   directory is created on first write. */                                        \
+	STR (BOT_AUDIT_PATH,                   "botAuditPath",                  "logs/bot_audit.ndjson") \
+	/* Comma list of kinds, or "all": probe,state,wake,hib,walkpause,path,pathout,     \
+	   decide,cmd,census. */                                                          \
+	STR (BOT_AUDIT_KINDS,                  "botAuditKinds",                 "all")    \
+	/* Comma list of bot names whose per-bot kinds are recorded ("" = none). "*" =      \
+	   every bot for the LOW-RATE kinds only (wake,hib,state,decide, pathout            \
+	   osc/stuck/abandoned); probe/path/walkpause/pathout-arrived need explicit names.  \
+	   census and cmd are global and ignore this list. */                              \
+	STR (BOT_AUDIT_WATCH,                  "botAuditWatch",                 "")       \
+	/* Rotation cap: past this the file moves to <path>.1 (one generation kept), so    \
+	   disk use is bounded at ~2x this value. */                                       \
+	INT (BOT_AUDIT_MAX_MB,                 "botAuditMaxMb",                 32)       \
+	/* Per-watched-bot snapshot cadence. */                                           \
+	INT (BOT_AUDIT_PROBE_MS,               "botAuditProbeMs",               500)      \
+	/* Whole-population aggregate cadence (all bots, hibernated included). */         \
+	INT (BOT_AUDIT_CENSUS_SEC,             "botAuditCensusSec",             10)

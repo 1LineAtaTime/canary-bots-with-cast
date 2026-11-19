@@ -1,0 +1,29 @@
+# SCENARIO: fix_121_yalahar_no_travel_sink   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #121 - Yalahar is not a population sink. Baseline B3 (runs/bl_b3): census town 17 = 135-141 of 500
+# bots, 110 of them TRAVELING ("Yalahar (17): total=134 hib=134 ... TRAVEL=110"). Cause: the virtual
+# walk_to_boat only boarded within Chebyshev 3 / same z of travel_positions (32816,31272,6), but every
+# Yalahar *~boat route ends at Karith, (32815,31278,5); hibernated bots looped boat route -> temple
+# fallback -> boat route forever, and the virtual sim had no travel ceiling to break the loop.
+# PRECONDITION: normal AI (no debug), >= 60 min after the restart that deployed the fix -- right after a
+# restart Yalahar still holds the bots whose persisted position is there (105 of 500 on 2026-11-18) and
+# they leave over the first tens of minutes. No player needed.
+# Acceptance (10 min window):
+#   - the new per-town travel line is logged (every 5 min) and never shows Yalahar with >= 25 travelling
+#     bots (baseline: 110; other towns showed <= 6);
+#   - no census record has Yalahar's hibernated count at >= 60 (12 % of 500; baseline 135-141);
+#   - the virtual travel ceiling ([VTRAVEL_TIMEOUT], rate-limited to 1 line / 10 s) is a backstop, not a
+#     path: at most 30 lines in 10 min (a systemic stall would saturate at 60).
+# Offline replay on the pre-fix baseline: python tools/bottest/replay.py <this> runs/bl_b3 -> census check
+# FAILS (93 records over the limit); the travel_by_town line is new, so its min=1 check fails there too.
+@srv audit kinds census
+@srv audit on expect="enabled=on"
+@srv audit mark "F121 start"
+@srv sleep 610
+@srv audit mark "F121 end"
+@srv expect src=srv k=population msg~="travel_by_town" min=1 within=620
+@srv expect-none src=srv k=population msg~="travel_by_town.* t17=(2[5-9]|[3-9][0-9]|[0-9]{3,})( |$)" within=620
+@srv expect src=srv:audit k=census min=10 within=620
+@srv expect-none src=srv:audit k=census town~="'17': \[\d+, ([6-9][0-9]|[0-9]{3,})\]" within=620
+@srv expect src=srv k=vtravel_timeout min=0 max=30 within=620
+@srv expect-none src=srv msg~="Lua Script Error" within=620
+@srv audit off

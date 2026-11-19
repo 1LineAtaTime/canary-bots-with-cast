@@ -47,19 +47,29 @@ local function simulationTick(playerId)
 	sim.eventId = addEvent(simulationTick, 1000, playerId)
 end
 
+-- BOT_TEST_HARNESS Phase 2: every engine call from this talkaction goes through cavebotCall so
+-- the `cmd` audit record can say WHO issued it. A cast operator runs /cavebot AS the watched bot
+-- (protocolgame.cpp castOperatorExecute), so a bot player here means "cast-op". The source is a
+-- label only; it never changes what a command does.
+local cavebotSource = "talkaction"
+local function cavebotCall(botName, cmd)
+	return Game.botCommand(botName, cmd, cavebotSource)
+end
+
 local cavebotCmd = TalkAction("/cavebot")
 
 function cavebotCmd.onSay(player, words, param)
+	cavebotSource = (player.isBotPlayer and player:isBotPlayer()) and "cast-op" or "talkaction"
 	-- Party subcommand: available to ALL players (not just gods)
 	if param and param ~= "" then
 		local trimmedParam = param:lower():match("^%s*(.-)%s*$")
 		if trimmedParam == "party leave" or trimmedParam == "party dismiss" then
-			local result = Game.botCommand("*", "party leave " .. player:getId())
+			local result = cavebotCall("*", "party leave " .. player:getId())
 			player:sendTextMessage(MESSAGE_STATUS, result)
 			return true
 		elseif trimmedParam:sub(1,6) == "party " then
 			local vocList = trimmedParam:sub(7)
-			local result = Game.botCommand("*", "party create " .. player:getId() .. " " .. vocList)
+			local result = cavebotCall("*", "party create " .. player:getId() .. " " .. vocList)
 			player:sendTextMessage(MESSAGE_STATUS, result)
 			return true
 		elseif trimmedParam == "party" then
@@ -70,11 +80,11 @@ function cavebotCmd.onSay(player, words, param)
 			local nameArg = trimmedParam == "claim" and "" or trimmedParam:sub(7)
 			local cmd = "claimspawn " .. player:getId()
 			if nameArg ~= "" then cmd = cmd .. " " .. nameArg end
-			local result = Game.botCommand("_global", cmd)
+			local result = cavebotCall("_global", cmd)
 			player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))
 			return true
 		elseif trimmedParam == "release" or trimmedParam == "unclaim" then
-			local result = Game.botCommand("_global", "releasespawn " .. player:getId())
+			local result = cavebotCall("_global", "releasespawn " .. player:getId())
 			player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))
 			return true
 		end
@@ -144,7 +154,7 @@ function cavebotCmd.onSay(player, words, param)
 
 	-- Send one engine command and print whatever it returns, line by line.
 	local function csvCall(cmd)
-		local result = tostring(Game.botCommand("_global", cmd))
+		local result = tostring(cavebotCall("_global", cmd))
 		for line in result:gmatch("[^\n]+") do
 			player:sendTextMessage(MESSAGE_STATUS, line)
 		end
@@ -460,7 +470,7 @@ function cavebotCmd.onSay(player, words, param)
 			return true
 		end
 
-		local raw = tostring(Game.botCommand("_global", posCmd))
+		local raw = tostring(cavebotCall("_global", posCmd))
 		if raw:sub(1, 3) == "ERR" then
 			player:sendTextMessage(MESSAGE_STATUS, "[sim] " .. raw)
 			return true
@@ -631,9 +641,17 @@ function cavebotCmd.onSay(player, words, param)
 			-- bot-name path below and never reach this table.
 			perfstat = true, perfphases = true, perfreset = true,
 			probe = true, hibernateall = true,
+			-- BOT_TEST_HARNESS Phase 2. Registered in the SAME commit as the engine command, for
+			-- the reason the comments above record. Covers every form:
+			--   /cavebot audit on|off|status|config|flush
+			--   /cavebot audit watch <bot name>|clear   /cavebot audit unwatch <bot name>
+			--   /cavebot audit kinds all|probe,state,wake,hib,walkpause,path,pathout,decide,cmd,census
+			--   /cavebot audit mark <text>
+			-- Passed through with ORIGINAL CASE, so bot names with capitals survive.
+			audit = true,
 		}
 		if navHead and navGlobals[navHead] then
-			local result = Game.botCommand("_global", param)
+			local result = cavebotCall("_global", param)
 			for line in tostring(result):gmatch("[^\n]+") do
 				player:sendTextMessage(MESSAGE_STATUS, line)
 			end
@@ -645,14 +663,14 @@ function cavebotCmd.onSay(player, words, param)
 	-- /cavebot whohunts         → show all active hunt reservations
 	-- /cavebot whohunts wasp    → show reservations matching "wasp"
 	if param:lower():match("^whohunts") then
-		local result = Game.botCommand("_global", param:lower())
+		local result = cavebotCall("_global", param:lower())
 		player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))
 		return true
 	end
 
 	-- Global command: claims — list active player spawn-claims (owner + minutes left)
 	if param:lower() == "claims" then
-		local result = Game.botCommand("_global", "listclaims")
+		local result = cavebotCall("_global", "listclaims")
 		player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))
 		return true
 	end
@@ -660,14 +678,14 @@ function cavebotCmd.onSay(player, words, param)
 	-- Global command: clearclaim <name> — admin force-release a player spawn-claim
 	if param:lower():match("^clearclaim%s") then
 		local nameArg = param:sub(#"clearclaim " + 1)
-		local result = Game.botCommand("_global", "clearclaim " .. nameArg)
+		local result = cavebotCall("_global", "clearclaim " .. nameArg)
 		player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))
 		return true
 	end
 
 	-- Global command: partyinfo — show all active party hunts
 	if param:lower() == "partyinfo" then
-		local result = Game.botCommand("_global", "partyinfo")
+		local result = cavebotCall("_global", "partyinfo")
 		player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))
 		return true
 	end
@@ -677,8 +695,8 @@ function cavebotCmd.onSay(player, words, param)
 	-- [POPULATION] and [PROXIMITY] reports on demand. These are no longer
 	-- broadcast to admin chat on a timer (see bot_engine.cpp) — pull them here.
 	if param:lower() == "population" then
-		player:sendTextMessage(MESSAGE_STATUS, tostring(Game.botCommand("_global", "population")))
-		player:sendTextMessage(MESSAGE_STATUS, tostring(Game.botCommand("_global", "proximity")))
+		player:sendTextMessage(MESSAGE_STATUS, tostring(cavebotCall("_global", "population")))
+		player:sendTextMessage(MESSAGE_STATUS, tostring(cavebotCall("_global", "proximity")))
 		return true
 	end
 
@@ -691,7 +709,7 @@ function cavebotCmd.onSay(player, words, param)
 	-- Global command: partystop <botname> — dissolve a specific bot's party hunt
 	if param:lower():match("^partystop%s") then
 		local targetName = param:sub(11) -- after "partystop "
-		local result = Game.botCommand("_global", "partystop " .. targetName)
+		local result = cavebotCall("_global", "partystop " .. targetName)
 		player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))
 		return true
 	end
@@ -745,7 +763,7 @@ function cavebotCmd.onSay(player, words, param)
 	end
 
 	-- Route command to C++ BotEngine
-	local result = Game.botCommand(botName, cmdStr)
+	local result = cavebotCall(botName, cmdStr)
 	player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))
 
 	return true

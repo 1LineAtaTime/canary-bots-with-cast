@@ -35,6 +35,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 
 	auto player = bot.getPlayer();
 	if (!player) { result.inProgress = false; return result; }
+	// BOT_TEST_HARNESS: `pathout` only for a route that was still open when this call began, so a
+	// caller re-entering a finished route does not re-emit "arrived" every tick.
+	const size_t audIdxAtEntry = waypointIdx;
 
 	// Global stuck timeout: if no waypoint progress for globalTimeoutMs, abort
 	if (config.globalTimeoutMs > 0) {
@@ -51,6 +54,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 				fmt::format("wp {}/{} stuck {:.0f}min", waypointIdx + 1, waypoints.size(), noProgressDuration / 60000.0));
 			s_routeProgress.erase(bot.guid);
 			s_routeWpTimer.erase(bot.guid);
+			if (audFor(AUD_PATHOUT, bot.guid)) [[unlikely]] {
+				botAudPathout(bot, "stuck", config.logPrefix, waypointIdx, waypoints.size(), "no-progress", noProgressDuration);
+			}
 			waypointIdx = waypoints.size();
 			result.inProgress = false;
 			result.aborted = true;
@@ -172,6 +178,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 				castLogError(bot, fmt::format("{}: Aborting route — {} tiles from wp {}/{} at ({},{},{})",
 					config.logPrefix, sanityDist, waypointIdx + 1, waypoints.size(),
 					sanityWp.x, sanityWp.y, sanityWp.z));
+				if (audFor(AUD_PATHOUT, bot.guid)) [[unlikely]] {
+					botAudPathout(bot, "abandoned", config.logPrefix, waypointIdx, waypoints.size(), "too-far", sanityDist);
+				}
 				waypointIdx = waypoints.size();
 				result.inProgress = false;
 				result.aborted = true;
@@ -423,6 +432,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 						bot.nextRerollTime = nowMs + uniform_random(1200, 3000);
 						castLog(bot, fmt::format("{}: [JITTER] changed destination mid-route at wp {}/{}",
 							config.logPrefix, waypointIdx, routeLen));
+						if (audFor(AUD_PATHOUT, bot.guid)) [[unlikely]] {
+							botAudPathout(bot, "abandoned", config.logPrefix, waypointIdx, routeLen, "jitter-reroll");
+						}
 						result.inProgress = false;
 						result.aborted = true;
 						return result;
@@ -555,6 +567,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 							castLogError(bot, fmt::format("{}: Skipping unreachable wp {}/{} at ({},{},{}) (Z-REDIRECT pathfails={} FC target ({},{},{}) unreachable)",
 								config.logPrefix, waypointIdx + 1, waypoints.size(), wp.x, wp.y, wp.z,
 								bot.pathFailCount, sameZTarget.x, sameZTarget.y, sameZTarget.z));
+							if (audFor(AUD_PATHOUT, bot.guid)) [[unlikely]] {
+								botAudPathout(bot, "stuck", config.logPrefix, waypointIdx, waypoints.size(), "wp-skip-fc-unreachable");
+							}
 							waypointIdx++;
 							skipCount = 0;
 							bot.pathFailCount = 0;
@@ -568,6 +583,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 			if (skipCount >= 10) {
 				castLogError(bot, fmt::format("{}: Skipping unreachable wp {}/{} at ({},{},{}) (z mismatch: bot z={})",
 					config.logPrefix, waypointIdx + 1, waypoints.size(), wp.x, wp.y, wp.z, bot.currentPos.z));
+				if (audFor(AUD_PATHOUT, bot.guid)) [[unlikely]] {
+					botAudPathout(bot, "stuck", config.logPrefix, waypointIdx, waypoints.size(), "wp-skip-z-mismatch");
+				}
 				waypointIdx++;
 				skipCount = 0;
 				continue;
@@ -618,6 +636,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 			castLogError(bot, fmt::format("{}: Skipping stuck {} wp {}/{} at ({},{},{}) ({}s elapsed)",
 				config.logPrefix, waypointTypeName(waypoint.type), waypointIdx + 1, waypoints.size(),
 				wp.x, wp.y, wp.z, wpElapsed / 1000));
+			if (audFor(AUD_PATHOUT, bot.guid)) [[unlikely]] {
+				botAudPathout(bot, "stuck", config.logPrefix, waypointIdx, waypoints.size(), "wp-skip-timeout", wpElapsed);
+			}
 			waypointIdx++;
 			skipCount = 0;
 			bot.pathFailCount = 0;
@@ -825,6 +846,10 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 					config.logPrefix, waypointTypeName(waypoint.type), waypointIdx + 1, waypoints.size(),
 					wp.x, wp.y, wp.z, bot.pathFailCount, pathDist,
 					bot.currentPos.x, bot.currentPos.y, bot.currentPos.z));
+				if (audFor(AUD_PATHOUT, bot.guid)) [[unlikely]] {
+					// The route continues past the skipped waypoint, so this is scoped to ONE wp.
+					botAudPathout(bot, "stuck", config.logPrefix, waypointIdx, waypoints.size(), "wp-skip-pathfail", pathDist);
+				}
 				waypointIdx++;
 				skipCount = 0;
 				bot.pathFailCount = 0;
@@ -840,6 +865,12 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 	result.inProgress = false;
 	s_routeWpTimer.erase(bot.guid);
 	s_routeProgress.erase(bot.guid);
+	// "arrived" is per-route, so NAMED bots only; `watch *` keeps just osc/stuck/abandoned.
+	if (audIdxAtEntry < waypoints.size() && audNamed(AUD_PATHOUT, bot.guid)) [[unlikely]] {
+		// NB: a route whose remaining waypoints were all SKIPPED on the stuck timer also ends here
+		// (see planScopedWalk's comment) — the preceding `stuck reason=wp-skip*` records say so.
+		botAudPathout(bot, "arrived", config.logPrefix, waypointIdx, waypoints.size(), nullptr);
+	}
 	return result;
 }
 

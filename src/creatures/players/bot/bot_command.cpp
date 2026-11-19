@@ -24,6 +24,17 @@
 // ============================================================================
 
 std::string BotEngine::executeCommand(const std::string& botName, const std::string& command) {
+	// ---- BOT_TEST_HARNESS Phase 2: `/cavebot audit ...` (global; any botName, incl. "_global") ----
+	// Registered in the Lua talkaction's navGlobals allowlist in the SAME commit (bot_cavebot.lua),
+	// for the reason recorded there: route/fishspots shipped engine-only and answered "not found".
+	if (command.size() >= 5 && (command.size() == 5 || command[5] == ' ')) {
+		std::string head = command.substr(0, 5);
+		std::ranges::transform(head, head.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		if (head == "audit") {
+			return auditCommand(command.size() > 5 ? command.substr(6) : std::string());
+		}
+	}
+
 	// Global commands — don't need a specific bot
 	if (command == "schedule on") {
 		schedulerEnabled_ = true;
@@ -1243,6 +1254,10 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// so they print here rather than with the other nine.
 		out += "[BOT_CFG] BOT_SHRINE keys (src/config/bot_config_keys.hpp)\n";
 		BOT_SHRINE_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
+		// BOT_TEST_HARNESS Phase 2. Listed here in the SAME commit as the table (see the NOTE above).
+		// These are the config.lua DEFAULTS; the live runtime values are in `/cavebot audit status`.
+		out += "[BOT_CFG] BOT_AUDIT keys (src/config/bot_config_keys.hpp; runtime: /cavebot audit status)\n";
+		BOT_AUDIT_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
 #undef BOT_CFG_DUMP_INT
 #undef BOT_CFG_DUMP_BOOL
 #undef BOT_CFG_DUMP_STR
@@ -3707,6 +3722,7 @@ void BotEngine::cancelPendingDispatcherEvents() {
 
 void BotEngine::deactivateAll() {
 	cancelPendingDispatcherEvents();
+	botAudFlush(); // BOT_TEST_HARNESS: hand the audit tail to the sink before a reload tears down
 	for (auto& bot : bots_) {
 		if (bot.active) {
 			forceDeactivateBot(bot.guid);

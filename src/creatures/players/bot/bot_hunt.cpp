@@ -74,11 +74,22 @@ bool BotEngine::tryStartHunt(BotState& bot) {
 		}
 	}
 
-	if (eligible.empty()) return false;
+	if (eligible.empty()) {
+		// BOT_TEST_HARNESS: `decide what=hunt` for a WATCHED bot (twin: virtualTryStartHunt).
+		if (audFor(AUD_DECIDE, bot.guid)) [[unlikely]] {
+			botAudDecide(bot, "hunt", "none", 0, fmt::format("virtual=0 level={} cat={}", level, wantedCategory));
+		}
+		return false;
+	}
 
 	int idx = uniform_random(0, static_cast<int>(eligible.size()) - 1);
 	const HuntScript* selected = eligible[idx];
 	const bool selectedIsQuest = selected->isQuest || selected->scriptCategory == "quest";
+	if (audFor(AUD_DECIDE, bot.guid)) [[unlikely]] {
+		botAudDecide(bot, "hunt", fmt::format("{}:{}", selected->id, selected->name),
+			static_cast<int64_t>(eligible.size()),
+			fmt::format("virtual=0 level={} cat={} town={}", level, wantedCategory, selected->townId));
+	}
 
 	// Reserve (hunts) or stamp the shared-quest cooldown
 	if (selectedIsQuest) {

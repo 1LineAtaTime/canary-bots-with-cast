@@ -1,0 +1,18 @@
+# SCENARIO: baseline_b3_proximity   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Phase 3 (lean) baseline B3 — player-proximity weighting. NORMAL AI. The player parks next to the
+# Thais temple for 15 min (plan said 30; cut for the time box). Server truth: journal [PROXBIAS]
+# per-selection + 60 s summary + hib_by_town histogram; audit census (town awake/hib) + decide
+# (`watch *` = low-rate kinds). Client truth: unique bots seen. Metrics: baseline_metrics.py b3.
+@srv audit kinds wake,hib,state,decide,census,cmd
+@srv audit watch *
+@srv audit on expect="enabled=on"
+@srv audit mark "B3 start"
+@p1 login
+@p1 goto 32369,32228,7 range=2 stuck=15 timeout=120
+@p1 hold 900
+@srv expect src=srv msg~="PROXBIAS" min=1 within=1000
+@srv expect src=srv:audit k=census min=60 within=1000
+@srv audit mark "B3 end"
+@srv audit watch clear
+@srv audit off
+@p1 logout

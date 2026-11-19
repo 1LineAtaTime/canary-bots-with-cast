@@ -1,0 +1,18 @@
+{
+  "_note": "Non-secret harness config. Passwords AND the real server_host/ssh_target live ONLY in harness.local.json (gitignored); DB creds are read from .claude/secrets.local.",
+  "server_host": "127.0.0.1",
+  "ssh_target": "root@127.0.0.1",
+  "game_port": 7172,
+  "world": "Canary",
+  "client_dir": "~/Documents/otc-harness",
+  "client_exe": "otclient_gl_x64.exe",
+  "hub_port": 8765,
+  "fps": 10,
+  "players": {"p1": "Harness One"},
+  "secrets_file": "tools/bottest/harness.local.json",
+  "db_secrets_file": ".claude/secrets.local",
+  "clock_resample_s": 300,
+  "audit_path": "/home/tibia/canary/logs/bot_audit.ndjson",
+  "_audit_note": "server botAuditPath (config.lua) resolved against canary's working dir; \"\" disables the audit tail/pull",
+  "watch": {"poll": 10, "logstall": 180, "heartbeat": 30, "slow_ms": 500, "slow_per_min": 3, "max_age_min": 120}
+}

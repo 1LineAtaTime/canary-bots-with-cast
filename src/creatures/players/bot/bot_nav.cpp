@@ -433,6 +433,10 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 		return bot.fcState != FloorChangeState::NONE;
 	}
 
+	// BOT_TEST_HARNESS: `path` record for a WATCHED bot, emitted on every return below (RAII).
+	// Created AFTER the already-there / floor-change early-outs: those run no search.
+	BotAudPathScope audPath(&bot, "astar", bot.currentPos, target, arrivalDist);
+
 	// Allow A* to path onto the destination FC tile only when navigating to a walk-on FC target.
 	// We set the exact destination position — tile.cpp only allows the specific tile matching
 	// botAllowFcPos, blocking all other FC tiles as intermediate steps (prevents accidental
@@ -476,6 +480,7 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	if (navJitterMask > 0
 		&& botJitterPath(player, bot.currentPos, pathTarget, fpp, botNavSeed(bot.guid), navJitterMask, dirList)) {
 		if (allowFc) player->clearBotAllowFcPos();
+		audPath.ok("jitter", dirList.size());
 		botStartAutoWalk(bot, player, dirList);
 		return true;
 	}
@@ -484,6 +489,7 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	// With CHUNK_DIST=12, each sub-problem stays within the 512-node budget.
 	if (g_game().map.getPathMatchingCond(player, pathTarget, dirList, FrozenPathingConditionCall(pathTarget), fpp)) {
 		if (allowFc) player->clearBotAllowFcPos();
+		audPath.ok(dist > CHUNK_DIST ? "astar-chunk" : "astar", dirList.size());
 		botStartAutoWalk(bot, player,dirList);
 		return true;
 	}
@@ -511,6 +517,7 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 			dirList.clear();
 			if (g_game().map.getPathMatchingCond(player, offsetTarget, dirList, FrozenPathingConditionCall(offsetTarget), fpp)) {
 				if (allowFc) player->clearBotAllowFcPos();
+				audPath.ok("astar-offset", dirList.size());
 				botStartAutoWalk(bot, player,dirList);
 				return true;
 			}
@@ -518,6 +525,7 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	}
 
 	if (allowFc) player->clearBotAllowFcPos();
+	audPath.result("fail");
 
 	// Give up. A same-floor target that is only reachable by leaving this floor and coming back
 	// (bridges, underpasses, castle interiors, Thais' stacked cellars) is NOT solved here — the
@@ -642,9 +650,10 @@ bool BotEngine::goToWide(BotState& bot, const Position& target, int32_t maxDist)
 	const int64_t now = OTSYS_TIME();
 	auto& nextAllowed = s_wideSearchNextAllowed[bot.guid];
 	if (now < nextAllowed) {
-		return false;
+		return false; // cooldown: no search ran, so no `path` record either
 	}
 	nextAllowed = now + WIDE_SEARCH_COOLDOWN_MS;
+	BotAudPathScope audPath(&bot, "wide", bot.currentPos, target, maxDist);
 
 	FindPathParams fpp;
 	fpp.fullPathSearch = true;
@@ -662,8 +671,10 @@ bool BotEngine::goToWide(BotState& bot, const Position& target, int32_t maxDist)
 		FrozenPathingConditionCall(target), fpp, BotAStarNodes::BOT_MAX_NODES);
 	if (allowFc) player->clearBotAllowFcPos();
 	if (!ok) {
+		audPath.result("fail");
 		return false;
 	}
+	audPath.ok("wide", dirList.size());
 	nextAllowed = 0; // found a route — the next genuine failure may escalate at once
 	botStartAutoWalk(bot, player, dirList);
 	castLog(bot, fmt::format("PLEG: wide search rescued the leg to ({},{},{}) — {} steps",

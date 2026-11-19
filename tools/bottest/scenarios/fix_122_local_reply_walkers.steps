@@ -1,0 +1,62 @@
+# SCENARIO: fix_122_local_reply_walkers   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #122 - a keyword said near bots gets answered even when the bots nearby are walking travellers.
+# Baseline B7 (runs/bl_b7): 0 of 15 local keywords answered at the Thais depot; probe bl_b7b: 3 of the 5
+# nearest bots were TRAVELING, which could never reply; the one IDLE bot answered in 4.8 s.
+# Now: nearest eligible bot within earshot (|dx|<=8, |dy|<=6, same z -- the same predicate as at fire time), a standing (IDLE/DWELLING) bot first, else a WALKING
+# traveller (walk_to_boat / walk_from_boat / arrived, not mid floor-change; never at_boat/teleported,
+# hibernated, paused, or any other state). Walkers answer from the quick end of the delay (1.5-2.5 s)
+# and a reply whose speaker has left the player's screen (8 x 6) by then is dropped, not counted.
+# Server truth: always-on journal lines "[CHAT_REPLY] queued|said|skipped|dropped|none ..." (replies are
+# rare, one per player say at most). bot_chat_emissions stays dark by design: botTelemetryEnabled
+# defaults false since 2026-06-22 (faaf0d585); that is config, not breakage.
+# PRECONDITION: normal AI, 500 bots, one harness player (p1). Same 15 lines as baseline B7, part 1.
+# Acceptance (single run): >= 3 local replies said (baseline 0/15; spec chance 60 %, 60 s per-bot
+# cooldown, so ~5-9 is the expectation when responders exist), AND >= 1 reply queued to a TRAVELING
+# (walking) bot -- the new path, so the run cannot pass on standing bots alone (bl_b7b: 3 of the 5
+# nearest bots were travellers). "none"/"skipped" lines are informational. Lines are rate-limited 1/s per kind.
+# Offline replay: python tools/bottest/replay.py <this> runs/bl_b7 -> the said-count check FAILS (0).
+@srv audit kinds cmd,census
+@srv audit on expect="enabled=on"
+@srv audit mark "F122 start"
+@p1 login
+# avoid the teleporter at (32352,32221,7): come in along the y=32215 street
+@p1 goto 32369,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32351,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32347,32218,7 range=2 stuck=15 timeout=120
+@p1 hold 20
+@p1 say hi
+@p1 hold 15
+@p1 say hello
+@p1 hold 15
+@p1 say how much for a magic sword?
+@p1 hold 15
+@p1 say thanks
+@p1 hold 15
+@p1 say bye
+@p1 hold 15
+@p1 say hey
+@p1 hold 15
+@p1 say wts demon shield
+@p1 hold 15
+@p1 say yo
+@p1 hold 15
+@p1 say price of soft boots?
+@p1 hold 15
+@p1 say ty
+@p1 hold 15
+@p1 say sup
+@p1 hold 15
+@p1 say cya
+@p1 hold 15
+@p1 say hi all
+@p1 hold 15
+@p1 say wtb mana potions
+@p1 hold 15
+@p1 say hello there
+@p1 hold 15
+@srv audit mark "F122 end"
+@srv expect src=srv k=chat_reply msg~="\] said bot=.* pm=0 " min=3 within=420
+@srv expect src=srv k=chat_reply msg~="\] queued bot=.* st=TRAVELING" min=1 within=420
+@srv expect-none src=srv msg~="Lua Script Error" within=420
+@srv audit off
+@p1 logout

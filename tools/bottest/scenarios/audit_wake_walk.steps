@@ -1,0 +1,26 @@
+# SCENARIO: audit_wake_walk   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Phase 2 server truth, population kinds. NEEDS the Phase 2 build (see audit_probe_thais.steps).
+# B2-shaped and CAMERA-FREE on purpose (review R7: a camera is an observer and wakes its bot, so it
+# must never be part of a wake-realism measurement). Without a camera every `@srv audit` toggle goes
+# through the bot_commands queue: one production row each.
+# Records wake / hib / state for EVERY bot ("*" = low-rate kinds only: probe, path and walkpause are
+# never recorded for `*`, they need explicit names) plus the 10 s census, while the player walks
+# temple -> depot -> temple. merge.py joins each `wake` record
+# to p1's see_appear of the same bot (latency.json audit.wake_to_p1_appear; result.md).
+@srv audit kinds wake,hib,state,census,cmd
+@srv audit watch *
+@srv audit on expect="enabled=on"
+@p1 login
+@p1 goto 32365,32214,7 range=3 stuck=15 timeout=180
+@p1 hold 30
+@p1 goto 32369,32238,7 range=3 stuck=15 timeout=180
+@p1 hold 30
+@srv expect src=srv:audit k=wake result=ok min=1 within=600
+@srv expect src=srv:audit k=census min=5 within=600
+@srv expect src=srv:audit k=state min=1 within=600 optional=1
+@srv expect src=srv:audit k=hib min=0 within=600
+@srv expect-none src=srv:audit k=probe within=600
+@srv expect-none src=srv:audit k=path within=600
+@srv audit watch clear
+@srv audit off
+@p1 logout

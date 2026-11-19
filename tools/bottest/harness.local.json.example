@@ -1,0 +1,10 @@
+{
+  "_note": "Copy to harness.local.json (gitignored) and fill in. Never commit the real file. cast_operator_password is the server's castOperatorPassword: 5 wrong tries lock the IP for 15 min, so copy it, never guess it.",
+  "server_host": "<game server IP or hostname>",
+  "ssh_target": "<user@game-server, for journal tail and /cavebot over ssh>",
+  "account_name": "harnessacct",
+  "account_email": "harness@example.invalid",
+  "account_password": "<harness account password>",
+  "account_password_sha1": "<sha1 of the password, as stored in accounts.password>",
+  "cast_operator_password": "<castOperatorPassword from the server config.lua>"
+}

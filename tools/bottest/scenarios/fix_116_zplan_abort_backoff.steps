@@ -1,0 +1,51 @@
+# SCENARIO: fix_116_zplan_abort_backoff   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #116 - repeated ABORTED z-plans back off instead of re-planning every ~500 ms, WITHOUT costing
+# plans that succeed on a cheap retry, and a deferral/abort/backoff is a "wait", not a path failure.
+# PRECONDITION: debug mode with the bot pinned: `/cavebot reload debug,$R` (any high-level bot; the
+# baseline bot was Kolgaran Sunwalker). Run: runner.py fix_116_zplan_abort_backoff.steps --var R=<name>
+#
+# Leg A (control, cold cache): (32310,32211,6) -> depot cellar (32346,32231,8). Baseline B5 planned
+# this from (32321,32211,7) in ONE 81.5 ms search. Under the 15 ms search budget it may now abort and
+# must then finish on its free retry (the first abort never arms a backoff, the cached floods make
+# the retry cheap). Acceptance: the bot reaches the cellar, and no `backoff` path record in leg A.
+#
+# Leg B (the baseline loop): (32958,32076,7) -> (32818,32029,7), same floor, ~140 tiles, a start
+# pocket of 89 cells. Baseline (B6/S2): "[ZPLAN_SLOW] ABORTED 44-85ms" every ~500 ms for one bot.
+# Acceptance:
+#   - no ABORTED search runs 75 ms or longer: the leg pricer's backstop is 35 ms (15 ms search budget
+#     + 20 ms) and the one flood in flight when it trips is not interrupted (~30 ms cold), so the
+#     worst case is ~65 ms, plus slack -- against 81-85 ms at the baseline;
+#   - at most 10 `abort` path records in 150 s (up to 4 free retries while floods grow, then backoffs of 2,4,8,16,32,60 s) against
+#     ~300 at the baseline cadence, and at most 5 `backoff` answers: once a backoff is ARMED the
+#     scoped walk stops waiting and takes its normal 3-strike give-up (no motionless bot);
+#   - INFORMATIONAL (optional=1, reported as SKIP if absent): the bot reaches the goal (a probe within
+#     Chebyshev 3). If the pair converges it must arrive; if it never converges, giving up within a
+#     few seconds of the backoff being armed is the designed outcome. Leg A is the hard reach check.
+@srv audit kinds probe,path,pathout,state,cmd
+@srv audit watch $R
+@srv audit on expect="enabled=on"
+# ---- leg A ----
+@srv cmd "$R" teleport 32310,32211,6
+@srv sleep 3
+@srv audit mark "F116 A start"
+@srv cmd "$R" goto 32346,32231,8
+@srv sleep 110
+@srv expect src=srv:audit k=probe bot=$R pos~="x.: 3234[4-8], .y.: 322(29|3[0-3]), .z.: 8\}" min=1 within=112
+@srv expect-none src=srv:audit k=path bot=$R result=backoff within=112
+@srv audit mark "F116 A end"
+# ---- leg B ----
+@srv cmd "$R" teleport 32958,32076,7
+@srv sleep 3
+@srv audit mark "F116 B start"
+@srv cmd "$R" goto 32818,32029,7
+@srv sleep 150
+@srv audit mark "F116 B end"
+@srv expect src=srv:audit k=path bot=$R planner=zplan min=1 within=152
+@srv expect src=srv:audit k=path bot=$R planner=zplan result=abort min=0 max=10 within=152
+@srv expect src=srv:audit k=path bot=$R planner=zplan result=backoff min=0 max=5 within=152
+@srv expect-none src=srv k=zplan_slow msg~="ABORTED (7[5-9]|[89][0-9]|[0-9]{3,})ms" within=152
+@srv expect src=srv:audit k=probe bot=$R pos~="x.: 328(1[5-9]|2[01]), .y.: 320(2[6-9]|3[0-2]), .z.: 7\}" min=1 within=152 optional=1
+@srv expect-none src=srv msg~="Lua Script Error" within=300
+@srv cmd "$R" stop optional=1
+@srv audit watch clear
+@srv audit off

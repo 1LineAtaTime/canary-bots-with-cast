@@ -2597,8 +2597,14 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 	//
 	// forGuid == 0 is an admin/debug call (/cavebot zplan, route): never deferred, because an
 	// operator waiting on a command is not tier 3-5 work.
+	// BOT_TEST_HARNESS: `path planner=zplan` for a WATCHED bot (forGuid==0 = admin call, never
+	// recorded). result: ok | fail | fail-cached (negative cache) | deferred (tick budget, never
+	// started) | abort (mid-search deadline). deferred/abort are NOT failures — see below.
+	BotAudPathScope audPath((forGuid != 0 && audOn(AUD_PATH)) ? auditBotByGuid(forGuid) : nullptr, "zplan", from,
+		target, 0);
 	if (forGuid != 0 && s_tickBodyStartMs > 0
 	    && botMonoMs() - s_tickBodyStartMs > Z_PLAN_TICK_BUDGET_MS) {
+		audPath.result("deferred");
 		s_zPlanDeferrals++;
 		auto& st = s_zPlanDeferStreak[forGuid];
 		st.count++;
@@ -2636,6 +2642,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		} else if (e.srcKey == negSrc && e.tgtKey == negTgt && e.forceGraph == forceGraph
 		           && (e.guid == 0 || e.guid == forGuid)) {
 			// Verified match, not just a hash hit -- a collision must never strand a bot.
+			audPath.result("fail-cached");
 			s_zNegHits++;
 			if (negNow - s_zNegLastLogMs > 30000) {
 				s_zNegLastLogMs = negNow;
@@ -2855,6 +2862,14 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 			s_zPlanDeferWorstGuid = forGuid;
 		}
 	}
+	if (ok) {
+		audPath.ok("zplan", hops.size());
+	} else if (planAborted) {
+		audPath.result("abort");
+	} else {
+		audPath.result("fail");
+	}
+	audPath.expanded = static_cast<int64_t>(startReach.cellsVisited() + targetReach.cellsVisited());
 	const int64_t planMs = botMonoMs() - planStart;
 	if (planMs >= Z_PLAN_SLOW_MS) {
 		// The end-leg floods are the only unbounded-ish cost here; report their actual size so

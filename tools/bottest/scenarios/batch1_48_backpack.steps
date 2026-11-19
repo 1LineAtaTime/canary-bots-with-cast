@@ -1,0 +1,25 @@
+# SCENARIO: batch1_48_backpack   SEED: 0   CAMERAS: auto   BOTCFG: off
+# #48: a /cavebot reload must keep the bot's backpack. DEBUG MODE (pinned $R, awake).
+# Discriminator: `potion health` drinks one potion -> one fewer potion + an EMPTY FLASK in the bag
+# (the flask is not part of equipBot's seed). The old reactivation wiped and re-seeded the bag
+# (flask gone, potion count restored); the fix keeps both. Camera = @cast viewer of $R, which gets
+# the caster's open backpack at init (sendCastViewerInit), so `self` lists cont_*.
+@srv cmd "$R" hibernate via=queue
+@srv sleep 3
+@cam:$R login
+@srv sleep 3
+@cam:$R self as=S0
+@srv cmd "$R" potion health via=queue
+@srv sleep 3
+@cam:$R self as=S1
+@cam:$R logout
+@srv sleep 2
+@srv cmd _global reload via=queue timeout=90
+@srv sleep 25
+@srv cmd "$R" status via=queue expect="state="
+@srv cmd "$R" hibernate via=queue
+@srv sleep 3
+@cam:$R login
+@srv sleep 3
+@cam:$R self as=S2
+@cam:$R logout

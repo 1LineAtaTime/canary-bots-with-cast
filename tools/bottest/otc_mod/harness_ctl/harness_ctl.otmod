@@ -1,0 +1,11 @@
+Module
+  name: harness_ctl
+  description: Bot test harness control - streams client events to tools/bottest/hub.py over a loopback WebSocket and executes hub verbs
+  author: bottest
+  website: -
+  autoload: true
+  autoload-priority: 1500
+  sandboxed: false
+  scripts: [ ctl, perceive ]
+  @onLoad: HarnessCtl.init()
+  @onUnload: HarnessCtl.terminate()

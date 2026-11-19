@@ -32,6 +32,7 @@
 #include "lua/functions/lua_functions_loader.hpp"
 #include "creatures/players/bot/bot_engine.hpp"
 #include "creatures/players/bot/bot_engine_loader.hpp"
+#include "creatures/players/bot/bot_audit_sink.hpp" // BOT_TEST_HARNESS Phase 2: `cmd` audit record
 
 void GameFunctions::init(lua_State* L) {
 	Lua::registerTable(L, "Game");
@@ -1147,10 +1148,24 @@ int GameFunctions::luaGameBotCountActive(lua_State* L) {
 }
 
 int GameFunctions::luaGameBotCommand(lua_State* L) {
-	// Game.botCommand(botName, command)
+	// Game.botCommand(botName, command[, source])
+	// `source` only labels the BOT_TEST_HARNESS `cmd` audit record ("talkaction", "cast-op",
+	// "queue", ...); it never changes what the command does. Default "lua".
 	const std::string &botName = Lua::getString(L, 1);
 	const std::string &command = Lua::getString(L, 2);
 	std::string result = g_botEngine().executeCommand(botName, command);
+	auto &audit = BotAuditSink::get();
+	if (audit.enabled()) {
+		// Best-effort "ok": the engine answers every command with text, so failure is only
+		// recognisable by its wording. The reply head is recorded too, so this is a hint.
+		const bool ok = !result.empty()
+			&& result.find("not found") == std::string::npos
+			&& result.rfind("Unknown command", 0) != 0
+			&& result.find("FAILED") == std::string::npos;
+		const auto nl = result.find('\n');
+		audit.writeCmd(Lua::getString(L, 3, "lua"), botName, command, ok,
+		               std::string_view(result).substr(0, nl == std::string::npos ? result.size() : nl));
+	}
 	Lua::pushString(L, result);
 	return 1;
 }

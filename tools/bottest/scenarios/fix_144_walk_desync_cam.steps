@@ -1,0 +1,59 @@
+# SCENARIO: fix_144_walk_desync_cam   SEED: 0   CAMERAS: auto   BOTCFG: off
+# Fix #144, bot's-eye check: a failed walk step must not leave the bot running the rest of its queue
+# one tile off the planned line. Same walk as fix_119_bot_walk_cam (temple (32369,32237,7) -> ammo shop
+# (32345,32246,6), 72 tiles planned, clean walk f119_blk2 = 71 steps / 0 revisits), but a second pinned
+# bot is teleported onto a tile of the walker's queued line AFTER the walker's path was searched, on
+# the tile where the Rat stood in f119_cam1: (32356,32238,7), step ~30 of the walk.
+# Before the fix (f119_cam1, the Rat): 89 steps, 4 revisits, 2 reversals. The failed step pops its
+# direction anyway (Creature::onCreatureWalk) and only a real client gets sendCancelWalk(), so the
+# rest of the queue ran one tile off, ~11 directions burned against walls, the tail walked 6 tiles east.
+# After the fix: the engine sees the bot is not where its consumed directions lead (checkWalkDesync,
+# bot_walksync.hpp). Still on the line, it first re-queues the same walk (a bump, no search) up to 3
+# times -- a passing creature is walked past -- and the blocker here stands still, so the third
+# desync drops the queue and the walk re-plans from the real tile, around the blocker. Offline:
+# botnavsim `desync` on the same pair (stock 78 steps / 8 revisits / 1 reversal -> fix 66 = clean).
+# Run: runner.py fix_144_walk_desync_cam.steps --var BOT=<Thais bot> --var BLK=<any other bot>
+#   (BOT used for #119: Kaelis Duke). Both are pinned by `reload debug,$BOT;$BLK` (names are ;-separated: a comma is read as part of one name); debug isolation
+#   despawns every other bot until a restart, so restart canary afterwards to bring the population back.
+# NOT against production while the batch-5 deploy is pending (#50): run on a test server first.
+# Timing: the walker reached step 30 at t=7.7 s in f119_cam1; the blocker lands ~3.5-4.5 s after the
+# goto (cmd latency ~0.5 s), i.e. ~12+ steps ahead of the walker. A walk-pause (#120, the camera is an
+# observer) only delays the walker; the blocker is `stop`ped first so it stands still.
+# Acceptance, from BOTH layers:
+#   camera: the walk ends at (32345,32246,6) via z7 -> z6 with 0 reversals and <= 75 steps (clean 71 + 4);
+#     revisits are allowed (stepping back to go around a creature in a 1-wide street is legitimate);
+#   server: per-event "[WALK_DESYNC] $BOT at=... -> retry as issued (n/3)" and "... -> queue dropped,
+#     re-plan" lines, a 60 s line with count >= 1, replans >= 1 and retried >= 1, no stuck/abandoned/osc
+#     pathout, no failed walk search to the goal.
+@srv cmd _global "reload debug,$BOT;$BLK"
+@srv sleep 20
+@srv audit kinds probe,path,pathout,state,walkpause,cmd
+@srv audit watch "$BOT"
+@srv audit on expect="enabled=on"
+@srv cmd "$BLK" stop expect="stopped"
+@srv cmd "$BLK" teleport 32369,32215,7 expect="teleported to \(32369,32215,7\)"
+@srv cmd "$BOT" teleport 32369,32237,7 expect="teleported to \(32369,32237,7\)"
+@srv sleep 3
+@cam:$BOT login
+@cam:$BOT perceive expect="tap=true"
+@cam:$BOT self expect="pos=32369,32237,7"
+@srv audit mark "F144CAM goto ammo 32345,32246,6 from the temple, blocker to 32356,32238,7 in ~3 s"
+@srv cmd "$BOT" goto 32345,32246,6 via=cam expect="walking to \(32345,32246,6\)"
+@srv sleep 3
+@srv cmd "$BLK" teleport 32356,32238,7 expect="teleported to \(32356,32238,7\)"
+@srv sleep 100
+@cam:$BOT self expect="pos=32345,32246,6"
+@cam:$BOT walk-check end=32345,32246,6 z-seq=7,6 max-osc=0 min-steps=60 max-steps=75
+@cam:$BOT dump-view
+@srv audit mark "F144CAM end"
+# The 60 s summary closes at most 60 s after the desync; give it one full window.
+@srv sleep 65
+@srv expect src=srv k=walk_desync msg~="$BOT at=\([0-9]+,[0-9]+,7\) expected=.* -> retry as issued \(1/3\)" min=1 within=200
+@srv expect src=srv k=walk_desync msg~="$BOT at=\([0-9]+,[0-9]+,7\) expected=.* -> queue dropped, re-plan" min=1 within=200
+@srv expect src=srv k=walk_desync msg~="60s count=[1-9][0-9]* replans=[1-9][0-9]* bots=[1-9][0-9]* retried=[1-9]" min=1 within=200
+@srv expect-none src=srv:audit k=pathout bot=$BOT outcome~="^(stuck|abandoned|osc)$" within=200
+@srv expect-none src=srv:audit k=path bot=$BOT dst~="^.32345, 32246, 6.$" planner~="^(astar|jitter|wide|astar-chunk|astar-offset)$" result~="^fail" within=200
+@srv expect-none src=srv msg~="Lua Script Error" within=220
+@cam:$BOT logout
+@srv audit watch clear
+@srv audit off

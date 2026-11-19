@@ -37,6 +37,9 @@ target_sources(
             players/components/wheel/wheel_gems.cpp
             players/vocations/vocation.cpp
             players/bot/bot_engine_loader.cpp
+            # BOT_TEST_HARNESS Phase 2: the audit sink lives in the MAIN binary (not the .so) so
+            # its settings survive /cavebot reload; libbot_engine.so resolves it via -rdynamic.
+            players/bot/bot_audit_sink.cpp
 )
 
 # ===========================================================================

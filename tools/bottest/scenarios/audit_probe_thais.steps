@@ -1,0 +1,31 @@
+# SCENARIO: audit_probe_thais   SEED: 0   CAMERAS: auto   BOTCFG: auto
+# Phase 2 server truth, per-bot kinds. NEEDS the Phase 2 build (canary with BotAuditSink + the
+# matching libbot_engine.so); on an older server `/cavebot audit` answers "Bot 'audit' not found".
+# Picks one walking bot near the Thais temple and puts an @cast operator camera on it. The camera
+# is the in-band /cavebot channel (so every toggle below is a `cmd source=cast-op` record) AND an
+# observer, so the bot stays awake and its walk pauses may take the observed tier.
+# Proves: audit (settings marker), probe, census, cmd; state/decide/path/pathout are optional
+# because a 4-min window does not guarantee the bot changes state or re-plans; walkpause is counted
+# (min=0) and must never appear in HUNTING (the state allowlist).
+@p1 login
+@p1 goto 32369,32236,7 range=3 stuck=10
+@p1 wait-see any-bot moving=1 timeout=180 as=B1
+@cam:$B1 login
+@srv audit kinds all
+@srv audit watch "$B1"
+@srv audit on expect="enabled=on"
+@p1 hold 240 watch=$B1
+@srv expect src=srv:audit k=audit min=1 within=300
+@srv expect src=srv:audit k=probe bot=$B1 min=200 within=260
+@srv expect src=srv:audit k=census min=15 within=260
+@srv expect src=srv:audit k=cmd source=cast-op min=1 within=300
+@srv expect src=srv:audit k=state bot=$B1 min=1 within=260 optional=1
+@srv expect src=srv:audit k=decide bot=$B1 min=1 within=260 optional=1
+@srv expect src=srv:audit k=path bot=$B1 min=1 within=260 optional=1
+@srv expect src=srv:audit k=pathout bot=$B1 min=1 within=260 optional=1
+@srv expect src=srv:audit k=walkpause bot=$B1 min=0 within=260
+@srv expect-none src=srv:audit k=walkpause st=HUNTING within=260
+@srv audit unwatch "$B1"
+@srv audit off
+@cam:$B1 logout
+@p1 logout

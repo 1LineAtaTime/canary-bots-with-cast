@@ -1,0 +1,28 @@
+# SCENARIO: fix_125_first_act_watchall   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #125 (part 2) - `wake event=first_act` audit records exist for `watch *` runs, not only for bots
+# watched by name. Baseline: runs/bl_b2r 62 ok wakes / 0 first_act, bl_b3 83 / 0, p2_wake_1 21 / 0
+# (all `watch *`). The wake hook armed first_act only for named watches (audNamed); it now arms it for
+# every audited wake (audFor), and the tick loop checks for it only while a wake is pending.
+# PRECONDITION: normal AI, one harness player (p1). Same opening walk as baseline B2.
+# Acceptance: >= 1 first_act record whenever >= 1 ok wake happened (expect ~1 per ok wake).
+# Offline replay: python tools/bottest/replay.py <this> runs/bl_b2r -> the first_act check FAILS (0).
+@srv audit kinds wake,census,cmd
+@srv audit watch *
+@srv audit on expect="enabled=on"
+@srv audit mark "F125 first_act start"
+@p1 login
+@p1 goto 32369,32232,7 range=2 stuck=15 timeout=120
+@p1 goto 32369,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32351,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32347,32218,7 range=2 stuck=15 timeout=120
+@p1 hold 30
+@p1 goto 32369,32215,7 range=3 stuck=15 timeout=180
+@p1 goto 32369,32233,7 range=3 stuck=15 timeout=180
+@p1 hold 30
+@srv audit mark "F125 first_act end"
+@srv expect src=srv:audit k=wake result=ok min=1 within=600
+@srv expect src=srv:audit k=wake event=first_act min=1 within=600
+@srv expect-none src=srv msg~="Lua Script Error" within=600
+@srv audit watch clear
+@srv audit off
+@p1 logout

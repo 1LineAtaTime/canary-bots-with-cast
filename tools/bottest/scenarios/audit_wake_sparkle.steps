@@ -1,0 +1,33 @@
+# SCENARIO: audit_wake_sparkle   SEED: 0   CAMERAS: none   BOTCFG: auto
+# B2 sample builder: the audit_wake_walk route (temple <-> depot, Thais) repeated, plus a west leg,
+# so enough proximity wakes with visible=1/sparkle=1 accumulate to give a distribution of
+# audit wake -> p1 see_effect id=11 (login sparkle) on the landing tile. CAMERA-FREE (R7).
+# Extra legs are optional: a leg that STUCKs is skipped rather than ending the sample.
+@srv audit kinds wake,hib,state,census,cmd
+@srv audit watch *
+@srv audit on expect="enabled=on"
+@p1 login
+@p1 goto 32365,32214,7 range=3 stuck=15 timeout=180
+@p1 hold 20
+@p1 goto 32337,32221,7 range=3 stuck=15 timeout=180 optional=1
+@p1 hold 20
+@p1 goto 32369,32238,7 range=3 stuck=15 timeout=180
+@p1 hold 60
+@p1 goto 32365,32214,7 range=3 stuck=15 timeout=180
+@p1 hold 20
+@p1 goto 32337,32221,7 range=3 stuck=15 timeout=180 optional=1
+@p1 hold 20
+@p1 goto 32369,32238,7 range=3 stuck=15 timeout=180
+@p1 hold 60
+@p1 goto 32365,32214,7 range=3 stuck=15 timeout=180
+@p1 hold 20
+@p1 goto 32337,32221,7 range=3 stuck=15 timeout=180 optional=1
+@p1 hold 20
+@p1 goto 32369,32238,7 range=3 stuck=15 timeout=180
+@p1 hold 30
+@srv expect src=srv:audit k=wake result=ok min=1 within=1200
+@srv expect src=srv:audit k=wake result=ok sparkle=1 min=1 within=1200 optional=1
+@srv expect-none src=srv:audit k=probe within=1200
+@srv audit watch clear
+@srv audit off
+@p1 logout

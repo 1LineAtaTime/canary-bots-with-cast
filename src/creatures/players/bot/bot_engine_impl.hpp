@@ -29,6 +29,7 @@
  */
 
 #include "creatures/players/bot/bot_engine_interface.hpp"
+#include "creatures/players/bot/bot_audit_sink.hpp" // BOT_TEST_HARNESS Phase 2: main-binary NDJSON sink
 #include "creatures/players/bot/bot_pathcore.hpp" // BOT_NAV_REALISM Phase 2: dependency-free A* kernel
 #include "creatures/players/bot/bot_navdump.hpp" // BOT_NAV_REALISM Phase 3: offline-sim map dump format
 #include "creatures/players/bot/bot_zcore.hpp" // TRUE MULTI-FLOOR: dependency-free portal graph + z-route planner
@@ -3757,6 +3758,157 @@ inline BotDebugCfg* getDebugCfg(uint32_t guid) {
 	return it != s_debugConfigs.end() && it->second.enabled ? &it->second : nullptr;
 }
 
+// ============================================================================
+// BOT_TEST_HARNESS Phase 2 — audit stream, ENGINE side (implementation: bot_debug.cpp).
+//
+// The file writer and the settings live in the main binary (bot_audit_sink.hpp); this side
+// only decides what to record. Rules (plan REVISION 1, findings R4/R5/R10):
+//   * NO threads. Hooks append to s_audBuf on the dispatcher; BotEngine::auditTick() flushes
+//     it once per tick (and the destructor/deactivateAll flush the tail before a reload).
+//   * Off = ONE load: every hook starts with audOn()/audFor(), which test s_aud.mask. The mask
+//     is rebuilt only when the sink's generation counter moves (polled once per tick).
+//   * Per-bot kinds (probe/state/wake/hib/walkpause/path/pathout/decide) fire only for
+//     WATCHED bots; census (all bots, hibernated included) and cmd are global.
+//   * Timestamps are wall-clock epoch ms (system_clock), never OTSYS_TIME.
+// Envelope (plan §3.2, append-only keys): {"v":1,"ts":<epoch ms>,"seq":n,"src":"srv",
+//   "k":"<kind>","guid":..,"cid":<0x10000000+guid>,"bot":"Name","pos":[x,y,z],"st":"IDLE","hib":0|1, ...}
+// ============================================================================
+enum BotAuditKind : uint32_t {
+	AUD_PROBE = 1u << 0,
+	AUD_STATE = 1u << 1,
+	AUD_WAKE = 1u << 2,
+	AUD_HIB = 1u << 3,
+	AUD_WALKPAUSE = 1u << 4,
+	AUD_PATH = 1u << 5,
+	AUD_PATHOUT = 1u << 6,
+	AUD_DECIDE = 1u << 7,
+	AUD_CMD = 1u << 8,   // written by the main binary (Game.botCommand); listed for status only
+	AUD_CENSUS = 1u << 9,
+};
+// Kinds a `watch *` (every bot) may record. Only LOW-RATE events: per-tick kinds (path: one per
+// goTo, probe, walkpause) need an explicitly NAMED bot, or `*` would turn into hundreds of KB/s of
+// synchronous writes on the dispatcher. pathout under `*` is further limited to osc/stuck/abandoned
+// (route "arrived" is per-route and named-only).
+inline constexpr uint32_t AUD_WATCHALL_KINDS = AUD_WAKE | AUD_HIB | AUD_STATE | AUD_DECIDE | AUD_PATHOUT;
+
+struct BotAuditCache {
+	uint32_t mask = 0;                 // 0 = audit off. THE one load every hook pays.
+	uint32_t gen = 0xFFFFFFFFu;        // sink generation this cache was built from
+	bool watchAll = false;             // "*" in the watch list (event kinds only)
+	std::vector<std::string> watchNamesLower;
+	std::unordered_set<uint32_t> watch; // resolved guids of the NAMED watched bots
+	int64_t probeMs = 500;
+	int64_t censusMs = 10000;
+	int64_t lastResolveMs = 0;
+};
+inline BotAuditCache s_aud;
+inline std::string s_audBuf;          // pending NDJSON lines, flushed by auditTick
+// Teardown guard (trivially destructible, constant-initialised). The guard object below is defined
+// AFTER s_audBuf, so (inline-variable partial ordering) it is constructed after and destroyed BEFORE
+// s_audBuf. At process exit the .so's statics can die before BotEngineLoader's own destructor runs
+// ~BotEngine -> botAudFlush; that flush then sees false and leaves the dead buffer alone.
+inline bool s_audAlive = false;
+struct BotAudAliveGuard {
+	BotAudAliveGuard() { s_audAlive = true; }
+	~BotAudAliveGuard() { s_audAlive = false; }
+};
+inline BotAudAliveGuard s_audAliveGuard;
+inline uint64_t s_audDropped = 0;     // lines dropped by the buffer cap (sink unreachable)
+inline int64_t s_audLastCensusMs = 0;
+inline uint8_t s_audLastActOutcome = 0xFF; // set by recordActOutcome, read by the reroll decide hook
+
+// Per-watched-bot audit bookkeeping (lives outside BotState: BotState is ABI).
+struct BotAuditBotState {
+	bool init = false;
+	BotAIState st = BotAIState::INACTIVE;
+	HuntPhase ph = HuntPhase::PREPARING;
+	int64_t lastProbeMs = 0;
+	std::string lastLog;               // last castLog line (the "why" for state records)
+	int64_t lastLogMs = 0;
+	int64_t tickUs = 0;                // last processBot wall time
+	int64_t wakeAtMs = 0;              // set by the wake hook, cleared by the first AI tick
+	Position ring[4] {};               // last distinct positions (oscillation detector)
+	uint8_t ringN = 0;
+	uint8_t osc2 = 0, osc3 = 0;
+	int64_t oscLastEmitMs = 0;
+};
+inline std::unordered_map<uint32_t, BotAuditBotState> s_audBot;
+
+[[nodiscard]] inline bool audOn(uint32_t kinds) noexcept {
+	return (s_aud.mask & kinds) != 0;
+}
+// A bot named in the watch list, OR `watch *` for the low-rate kinds in AUD_WATCHALL_KINDS.
+[[nodiscard]] inline bool audFor(uint32_t kinds, uint32_t guid) {
+	const uint32_t on = s_aud.mask & kinds;
+	if (on == 0) {
+		return false;
+	}
+	if (s_aud.watchAll && (on & AUD_WATCHALL_KINDS) != 0) {
+		return true;
+	}
+	return s_aud.watch.contains(guid);
+}
+// Explicitly NAMED bots only (never `*`): per-tick/per-step work like castLog capture and the
+// processBot timer must not run for the whole population.
+[[nodiscard]] inline bool audNamed(uint32_t kinds, uint32_t guid) {
+	return (s_aud.mask & kinds) != 0 && s_aud.watch.contains(guid);
+}
+
+// Record builders (bot_debug.cpp). botAudBegin opens a record in s_audBuf; field helpers append
+// to it; botAudEnd closes it. Never interleave two records.
+int64_t botAudEpochMs();
+void botAudBegin(const char* kind, const BotState* bot);
+void botAudEnd();
+void botAudFlush();
+void botAudStr(const char* key, std::string_view v);
+void botAudInt(const char* key, int64_t v);
+void botAudPos(const char* key, const Position& p);
+void botAudNoteLog(uint32_t guid, const std::string& msg);
+void botAudWalkPause(const BotState& bot, bool observed, int32_t ms, uint8_t walkBias, uint32_t nThisRoute, size_t steps);
+void botAudPathout(const BotState& bot, const char* outcome, const std::string& route, size_t idx, size_t n,
+                   const char* reason, int64_t extra = -1);
+void botAudDecide(const BotState& bot, const char* what, std::string_view chosen, int64_t candidates,
+                  std::string_view detail = {});
+void botAudReroll(const BotState& bot, int roll, int total, const int (&w)[5], bool huntOnCD, bool pzLocked,
+                  uint8_t outcome);
+
+// RAII `path` record: armed only for a NAMED watched bot with the path kind on (never `*`), so an
+// unwatched call pays audFor() and nothing else. Default result is "unknown"; call
+// ok()/result("fail"|...)/skip() before returning. Emitted from the destructor so every return path of the planner is covered.
+struct BotAudPathScope {
+	const BotState* bot = nullptr;
+	const char* planner = "astar";
+	const char* res = "unknown"; // every return path must set ok()/result(): a gap shows as "unknown", never as a silent "fail"
+	Position src;
+	Position dst;
+	int32_t arrival = 0;
+	int64_t len = -1;
+	int64_t expanded = -1;
+	uint64_t t0 = 0;
+	BotAudPathScope(const BotState* b, const char* pl, const Position& from, const Position& to, int32_t arr) {
+		if (b && audFor(AUD_PATH, b->guid)) [[unlikely]] {
+			bot = b;
+			planner = pl;
+			src = from;
+			dst = to;
+			arrival = arr;
+			t0 = botMonoUs();
+		}
+	}
+	BotAudPathScope(const BotAudPathScope&) = delete;
+	BotAudPathScope& operator=(const BotAudPathScope&) = delete;
+	void ok(const char* pl, size_t n) { planner = pl; res = "ok"; len = static_cast<int64_t>(n); }
+	void result(const char* r) { res = r; }
+	void skip() { bot = nullptr; }
+	// Inline so an unarmed scope (every unwatched goTo) costs a null test, not an out-of-line call.
+	~BotAudPathScope() {
+		if (bot) [[unlikely]] {
+			emit();
+		}
+	}
+	void emit() noexcept; // bot_debug.cpp
+};
+
 // Debug-mode dimensions: 15 wide × 11 tall, bot at center (7L/7R, 5U/5D)
 inline constexpr int32_t DBG_GRID_HALF_X = 7;
 
@@ -4251,6 +4403,9 @@ public:
 	// failed before: the correct loop existed in deactivateAll(), which nothing ever called.
 	~BotEngine() override {
 		cancelPendingDispatcherEvents();
+		// BOT_TEST_HARNESS: hand the unflushed audit tail to the main-binary sink while this
+		// engine's code is still mapped (before dlclose wipes s_audBuf).
+		botAudFlush();
 	}
 
 	// Public because bot_zgraph.cpp's anonymous-namespace flood-fill predicate needs it, and a
@@ -5663,6 +5818,19 @@ private:
 	void dbgEmitPostCastIfDue(BotState& bot);
 	std::string dbgHandleCommand(BotState* bot, const std::string& rest); // "debug ..." verb dispatch
 
+	// BOT_TEST_HARNESS Phase 2 audit stream (bot_debug.cpp). auditTick runs once per engine tick
+	// on the dispatcher: refreshes the cached kind mask from the sink, runs the per-watched-bot
+	// state diff / oscillation detector / probe, the census, then flushes s_audBuf.
+	void auditTick();
+	void auditRefreshCache(uint32_t gen);
+	void auditResolveWatch(int64_t nowMs);
+	void auditVisit(BotState& bot, int64_t nowMs, bool probe);
+	void auditProbe(BotState& bot, BotAuditBotState& w, int64_t nowMs);
+	void auditCensus(int64_t nowMs);
+	void auditWakeFirstAct(BotState& bot);
+	const BotState* auditBotByGuid(uint32_t guid) const;
+	std::string auditCommand(const std::string& args); // `/cavebot audit ...`
+
 	// Party system (Phase 9) — human-led party follow
 	void doParty(BotState& bot);
 	void doPartyFollow(BotState& bot);  // renamed from old doParty body
@@ -5796,7 +5964,10 @@ private:
 		Dwell = 0, Poi, PoiFail, Hunt, HuntFail, Party, PartyFail,
 		Travel, CityWalk, TravelFail, RoundingTail
 	};
-	static void recordActOutcome(ActOutcome o) { s_actCum[static_cast<size_t>(o)]++; }
+	static void recordActOutcome(ActOutcome o) {
+		s_actCum[static_cast<size_t>(o)]++;
+		s_audLastActOutcome = static_cast<uint8_t>(o); // BOT_TEST_HARNESS: reroll `decide` record
+	}
 	std::string activityReport() const;
 	// Sums TABLE A and complains loudly if it is not 100. Does NOT rescale (that would run
 	// numbers the operator never wrote) and does NOT refuse to boot.

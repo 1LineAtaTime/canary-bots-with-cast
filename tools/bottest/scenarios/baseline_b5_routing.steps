@@ -1,0 +1,42 @@
+# SCENARIO: baseline_b5_routing   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Phase 3 (lean) baseline B5 - routing set. DEBUG MODE (pinned bot $R, every other bot despawned).
+# One pinned bot, fixed goals from the Thais temple, issued with /cavebot goto (the scoped route
+# planner seam), each in a fixed time slot. Server truth = audit probe (pos every 500 ms), path
+# (planner, result, ms) and pathout (arrived/stuck/osc/abandoned) for the named bot. No player:
+# B5 measures the planner, not observed behaviour. `route` / `zplan` are dumped for the FC goals.
+# G1 depot (same z) | G2 potions shop through a door | G3 ammo shop z=6 (stairs) |
+# G4 boat dock z=6 (ladder) | G5 depot cellar z=8 | G6 north gate (long, same z) | G7 temple.
+# Metrics: baseline_metrics.py b5 (arrival = first probe within Chebyshev 1 on the goal floor).
+@srv audit kinds probe,path,pathout,state,cmd
+@srv audit watch $R
+@srv audit on expect="enabled=on"
+@srv cmd "$R" teleport 32369,32237,7
+@srv sleep 3
+@srv cmd _global route 32369,32237,7 32345,32246,6 optional=1
+@srv cmd _global zplan 32369,32237,7 32310,32211,6 optional=1
+@srv cmd _global zplan 32369,32237,7 32346,32231,8 optional=1
+@srv audit mark "B5 G1 depot 32344,32227,7"
+@srv cmd "$R" goto 32344,32227,7
+@srv sleep 60
+@srv audit mark "B5 G2 potions-door 32400,32219,7"
+@srv cmd "$R" goto 32400,32219,7
+@srv sleep 90
+@srv audit mark "B5 G3 ammo-z6 32345,32246,6"
+@srv cmd "$R" goto 32345,32246,6
+@srv sleep 120
+@srv audit mark "B5 G4 boat-ladder-z6 32310,32211,6"
+@srv cmd "$R" goto 32310,32211,6
+@srv sleep 120
+@srv audit mark "B5 G5 depot-cellar-z8 32346,32231,8"
+@srv cmd "$R" goto 32346,32231,8
+@srv sleep 120
+@srv audit mark "B5 G6 north-gate 32369,32183,7"
+@srv cmd "$R" goto 32369,32183,7
+@srv sleep 90
+@srv audit mark "B5 G7 temple 32369,32237,7"
+@srv cmd "$R" goto 32369,32237,7
+@srv sleep 90
+@srv audit mark "B5 end"
+@srv expect src=srv:audit k=path min=1 within=900
+@srv audit watch clear
+@srv audit off

@@ -426,6 +426,14 @@ const BotPOI* BotEngine::selectNextPOI(BotState& bot) {
 					bot.currentPos.x, bot.currentPos.y, bot.currentPos.z,
 					candidates.size());
 			}
+			// BOT_TEST_HARNESS: `decide what=poi` for a WATCHED bot. selectNextPOI serves the live
+			// reroll AND the hibernated twin (virtualAdvanceIdle -> doActivityReroll), so one hook
+			// covers both.
+			if (audFor(AUD_DECIDE, bot.guid)) [[unlikely]] {
+				botAudDecide(bot, "poi", candidates[i]->name, static_cast<int64_t>(candidates.size()),
+					fmt::format("type={} roll={} totalWeight={} pzLocked={}", static_cast<int>(candidates[i]->type),
+						roll, totalWeight, pzLocked ? 1 : 0));
+			}
 			return candidates[i];
 		}
 	}
@@ -462,6 +470,11 @@ const BotPOI* BotEngine::selectNextPOI(BotState& bot) {
 				bot.guid, bot.townId, rewardWon ? "reward" : "imbuing",
 				s.shrine.x, s.shrine.y, s.shrine.z, s.stand.x, s.stand.y, s.stand.z);
 		}
+	}
+	if (audFor(AUD_DECIDE, bot.guid)) [[unlikely]] {
+		botAudDecide(bot, "poi", candidates.back()->name, static_cast<int64_t>(candidates.size()),
+			fmt::format("type={} roll={} totalWeight={} rounding=1", static_cast<int>(candidates.back()->type),
+				roll, totalWeight));
 	}
 	return candidates.back();
 }

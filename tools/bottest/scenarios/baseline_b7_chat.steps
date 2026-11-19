@@ -1,0 +1,73 @@
+# SCENARIO: baseline_b7_chat   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Phase 3 (lean) baseline B7 — chat replies. NORMAL AI. Part 1: keyword lines said near idle bots
+# at the Thais depot (spec: nearest IDLE/DWELLING bot within 7 tiles, replyChancePct=60, delay
+# 1.5-5 s, one pending reply per player, 60 s per-bot cooldown). Part 2: PMs to bots that are far
+# from any player (hibernated; spec pmReplyChancePct=90, same delay). The PM target names are
+# passed with --var PM1..PM5 (picked from census/hib state just before the run). Server truth:
+# bot_chat_emissions reply_* rows (pulled post-run) + journal. Metrics: baseline_metrics.py b7.
+@srv audit kinds cmd,census
+@srv audit on expect="enabled=on"
+@srv audit mark "B7 start"
+@p1 login
+# avoid the teleporter at (32352,32221,7): come in along the y=32215 street
+@p1 goto 32369,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32351,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32347,32218,7 range=2 stuck=15 timeout=120
+@p1 hold 20
+@p1 say hi
+@p1 hold 15
+@p1 say hello
+@p1 hold 15
+@p1 say how much for a magic sword?
+@p1 hold 15
+@p1 say thanks
+@p1 hold 15
+@p1 say bye
+@p1 hold 15
+@p1 say hey
+@p1 hold 15
+@p1 say wts demon shield
+@p1 hold 15
+@p1 say yo
+@p1 hold 15
+@p1 say price of soft boots?
+@p1 hold 15
+@p1 say ty
+@p1 hold 15
+@p1 say sup
+@p1 hold 15
+@p1 say cya
+@p1 hold 15
+@p1 say hi all
+@p1 hold 15
+@p1 say wtb mana potions
+@p1 hold 15
+@p1 say hello there
+@p1 hold 15
+@srv cmd "$PM1" status optional=1
+@srv cmd "$PM2" status optional=1
+@srv cmd "$PM3" status optional=1
+@srv cmd "$PM4" status optional=1
+@srv cmd "$PM5" status optional=1
+@srv cmd "$PM6" status optional=1
+@srv cmd "$PM7" status optional=1
+@srv cmd "$PM8" status optional=1
+@p1 pm "$PM1" hi
+@p1 hold 12
+@p1 pm "$PM2" hello
+@p1 hold 12
+@p1 pm "$PM3" how much for your sword?
+@p1 hold 12
+@p1 pm "$PM4" thanks
+@p1 hold 12
+@p1 pm "$PM5" where do you hunt?
+@p1 hold 12
+@p1 pm "$PM6" hey
+@p1 hold 12
+@p1 pm "$PM7" wtb boh
+@p1 hold 12
+@p1 pm "$PM8" yo
+@p1 hold 15
+@srv audit mark "B7 end"
+@srv audit off
+@p1 logout

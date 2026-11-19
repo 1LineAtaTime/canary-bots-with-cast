@@ -128,6 +128,12 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 		walkPauseInfo_[guid] = { OTSYS_TIME(), pauseMs };
 		castLog(bot, fmt::format("PAUSE {} {:.1f}s mid-route (wb={})",
 			pauseTier, pauseMs / 1000.0, wb));
+		// BOT_TEST_HARNESS: `walkpause` record (B1 acceptance) for a WATCHED bot.
+		if (audFor(AUD_WALKPAUSE, guid)) [[unlikely]] {
+			const bool observedTier = pauseTier[0] == 'o';
+			botAudWalkPause(bot, observedTier, pauseMs, wb,
+				observedTier ? bot.pausesThisRouteObserved : bot.pausesThisRoute, dirs.size());
+		}
 		const Position capturedPos = bot.currentPos;
 		const BotAIState capturedState = bot.state;
 		auto dirsCopy = dirs;

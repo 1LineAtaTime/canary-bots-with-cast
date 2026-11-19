@@ -451,4 +451,10 @@ enum ConfigKey_t : uint16_t {
 	// anything. Note this ordinal is past MAGIC_ENUM_RANGE_MAX (src/pch.hpp, 500), so
 	// the key is NOT registered in Lua's `configKeys` table — it is read from C++ only.
 	FORCE_LOGOUT_ON_CONNECTION_LOSS,
+
+	// BOT_TEST_HARNESS Phase 2 audit keys. Appended at the very END for the same reason as the
+	// key above: nothing before this point shifts. See BOT_AUDIT_CONFIG_KEYS.
+#define BOT_CFG_ENUMERATOR(enumKey, luaKey, defaultValue) enumKey,
+	BOT_AUDIT_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+#undef BOT_CFG_ENUMERATOR
 };

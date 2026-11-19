@@ -1,0 +1,35 @@
+# SCENARIO: baseline_b2_wake   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Phase 3 (lean) baseline B2 — wake realism. NORMAL AI (no debug reload), camera-free (a camera
+# is an observer and wakes its bot). Fixed player path: Thais temple -> depot -> north gate ->
+# outside the gate -> back to the temple. Server truth = audit wake (ok/gated, path, visible,
+# sparkle, firstActMs) for every bot (`watch *`, low-rate kinds) + census; client truth = p1
+# see_appear (pop-ins) and see_effect id=11 (login sparkle). Metrics: tools/bottest/baseline_metrics.py b2.
+@srv audit kinds wake,hib,state,census,cmd
+@srv audit watch *
+@srv audit on expect="enabled=on"
+@srv audit mark "B2 start"
+@p1 login
+@p1 perceive reset=1
+@p1 goto 32369,32232,7 range=2 stuck=15 timeout=120
+# (32352,32221,7) is a teleporter to 32251,32205,11 - approach the depot from the y=32215 street
+@p1 goto 32369,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32351,32215,7 range=2 stuck=15 timeout=120
+@p1 goto 32347,32218,7 range=2 stuck=15 timeout=120
+@p1 hold 30
+@p1 goto 32351,32215,7 range=3 stuck=15 timeout=180
+@p1 goto 32369,32215,7 range=3 stuck=15 timeout=180
+@p1 goto 32369,32193,7 range=3 stuck=15 timeout=180
+@p1 goto 32369,32183,7 range=3 stuck=15 timeout=180
+@p1 hold 30
+@p1 goto 32369,32170,7 range=4 stuck=15 timeout=120 optional=1
+@p1 hold 30
+@p1 goto 32369,32203,7 range=3 stuck=15 timeout=180
+@p1 goto 32369,32233,7 range=3 stuck=15 timeout=180
+@p1 hold 30
+@p1 perceive
+@srv expect src=srv:audit k=wake result=ok min=1 within=900
+@srv expect src=srv:audit k=census min=5 within=900
+@srv audit mark "B2 end"
+@srv audit watch clear
+@srv audit off
+@p1 logout

@@ -449,6 +449,14 @@ compile_commands.json
 !/tools/cfg_importer/
 /tools/cfg_importer/*.sql
 /tools/cfg_importer/__pycache__/
+# Bot test harness (OTClient-driven real player + cast cameras). harness.local.json holds the
+# harness account and cast-operator passwords — never commit it.
+!/tools/bottest/
+/tools/bottest/harness.local.json
+/tools/bottest/__pycache__/
+# Harness run dirs: per-run evidence, and the .cam packet records contain the (RSA-encrypted)
+# login packet, so they stay local.
+/runs/
 # Per-machine Claude Code config + secrets — stay local.
 # (Project-shared .claude/CLAUDE.md and .claude/skills/ are committed.)
 .claude/settings.local.json
