@@ -213,3 +213,21 @@ inline void botPlatformSyncDirectory(const std::string &dir) {
 	}
 #endif
 }
+
+// ----------------------------------------------------------------------------
+// Exported data symbol
+// ----------------------------------------------------------------------------
+//
+// The ABI marker (bot_engine.cpp, #58) must stay a default-visibility symbol of
+// libbot_engine.so: the loader reads it out of the .so file bytes before dlopen
+// and calls botEngineAbiTag() through dlsym. GCC wants the attribute on the FIRST
+// declaration, so the macro goes there.
+//
+// MSVC has no __attribute__ at all (a hard parse error, not a warning). Nothing
+// needs exporting there either: the engine is a static library linked into
+// canary.exe, so the marker is an ordinary external symbol of the same image.
+#ifdef _WIN32
+	#define BOT_PLATFORM_EXPORT
+#else
+	#define BOT_PLATFORM_EXPORT __attribute__((visibility("default")))
+#endif

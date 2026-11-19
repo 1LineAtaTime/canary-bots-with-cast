@@ -124,6 +124,9 @@ std::vector<uint32_t> BotEngine::findBotsForParty(uint8_t baseVocId, uint32_t pl
 }
 
 bool BotEngine::activateBotForParty(uint32_t guid, uint32_t leaderCreatureId, const Position& summonPos) {
+	// Debug isolation (#124): an ACTIVE non-pinned bot never exists while isolated, but this path
+	// also conscripts INACTIVE ones (wasInactive below), so it needs its own gate.
+	if (debugIsolateRefuses(guid, "party-activate")) return false;
 	auto it = guidToIndex_.find(guid);
 	if (it == guidToIndex_.end()) return false;
 

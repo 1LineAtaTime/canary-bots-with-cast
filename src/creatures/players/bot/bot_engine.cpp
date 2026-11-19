@@ -23,6 +23,12 @@
 
 #include "creatures/players/bot/bot_engine_impl.hpp"
 
+// A persisted task older than this is never restored (#47 review). Rows of bots outside the
+// startup population survive boot since #47, so without an age limit a crash, or a later raise
+// of botPlayersOnline, could resume a hunt saved days ago. `saved_at` is set by the column
+// default on insert and refreshed by every upsert; database/bots/24_bot_state_persistence_saved_at.sql
+// adds it to an existing table and MUST run before this engine does.
+static constexpr const char* BOT_PERSIST_FRESH_SQL = "`saved_at` >= NOW() - INTERVAL 24 HOUR";
 
 // PARTY_HUNT lifecycle coupling (2026-06-14): mirror of s_inPartyCascade for the HIBERNATE
 // side. hibernateBot blocks an independent (non-leader) party member from hibernating on its
@@ -189,6 +195,14 @@ void BotEngine::registerBot(const std::shared_ptr<Player>& player) {
 void BotEngine::unregisterBot(uint32_t guid) {
 	auto it = guidToIndex_.find(guid);
 	if (it == guidToIndex_.end()) return;
+	audClearFirstActPending(guid); // #125 review
+	// A pending mid-walk pause is a dispatcher Task whose lambda lives in this .so. Once the
+	// bot leaves bots_, cancelPendingDispatcherEvents (the reload drain) can no longer see it,
+	// so a later dlclose would leave it to fire into unmapped code (#60).
+	if (auto& event = bots_[it->second].pendingWalkPauseEventId; event != 0) {
+		g_dispatcher().stopEvent(event);
+		event = 0;
+	}
 
 	// BOT_LURE_KITE hygiene. Correctness does NOT depend on this — both features
 	// re-validate their own gate every tick and self-clear (beginHuntPhase is
@@ -222,6 +236,9 @@ void BotEngine::unregisterBot(uint32_t guid) {
 	// early-return without erasing walkPauseInfo_, so clean it up here to avoid a leak
 	// (and a stale entry surviving guid reuse).
 	walkPauseInfo_.erase(guid);
+	s_walkObsPending.erase(guid); // #120
+	clearWalkDesync(guid);        // #144
+	s_walkObsNextCheckMs.erase(guid);
 	// Same reasoning for the mount roll: unregisterBot is the only path that retires a guid
 	// outright, so without this the map would outlive its bots and a reused guid would
 	// inherit a stranger's mount intent (and its re-roll throttle).
@@ -239,7 +256,9 @@ void BotEngine::unregisterBot(uint32_t guid) {
 std::shared_ptr<Player> BotEngine::materializePlayerFromDb(BotState &bot) {
 	if (bot.name.empty()) return nullptr;
 
-	auto newPlayer = std::make_shared<Player>(nullptr);
+	// #50: allocated by the executable. A make_shared here would give the control block a vptr
+	// into this library, and an awake bot outlives a /cavebot reload in the game world.
+	auto newPlayer = botHostMakePlayer();
 	// Same reason as Game.loadBotPlayer: flag before the load so the badge/title/cyclopedia
 	// skip applies. This is the hibernation-pool-miss path, which is the HOT one -- it runs on
 	// every wake that cannot be served from the pool.
@@ -281,7 +300,96 @@ std::shared_ptr<Player> BotEngine::materializePlayerFromDb(BotState &bot) {
 	return newPlayer;
 }
 
+// ---- Debug isolation (#124) — see the member comment in bot_engine_impl.hpp ----
+
+// Isolation is only meaningful while something is pinned (#124 review). With an empty pin set it
+// would refuse every bot and the sweep would empty the server, so both treat it as OFF.
+bool BotEngine::debugIsolateRefuses(uint32_t guid, const char* path) {
+	if (!debugIsolate_ || s_debugPinned.empty() || s_debugPinned.count(guid) > 0) {
+		return false;
+	}
+	debugIsolateRefused_++;
+	const int64_t now = OTSYS_TIME();
+	auto& last = debugIsolateRefuseLogMs_[guid];
+	if (last == 0 || now - last >= 60000) {
+		last = now;
+		std::string name = std::to_string(guid);
+		if (auto it = guidToIndex_.find(guid); it != guidToIndex_.end()) {
+			name = bots_[it->second].name;
+		}
+		g_logger().info("[DEBUG_ISOLATE] refused {} for non-pinned bot '{}' (guid={})", path, name, guid);
+	}
+	return true;
+}
+
+std::string BotEngine::debugIsolateTurnOff(const char* why) {
+	debugIsolate_ = false;
+	debugIsolateRefuseLogMs_.clear();
+	// Give back exactly what `debugisolate on` took (#124 review 2): if the scheduler was running
+	// when isolation began, restart it; if something else had already stopped it (the debug reload
+	// does `schedule off` first), leave it off and say so.
+	std::string sched;
+	if (debugIsolateStoppedScheduler_) {
+		schedulerEnabled_ = true;
+		sched = "scheduler restored ON";
+	} else {
+		sched = schedulerEnabled_ ? "scheduler ON" : "scheduler still OFF (stopped before isolation; `schedule on` to resume)";
+	}
+	debugIsolateStoppedScheduler_ = false;
+	std::string msg = fmt::format("[DEBUG_ISOLATE] OFF ({}): {}", why, sched);
+	g_logger().warn("{}", msg);
+	return msg;
+}
+
+void BotEngine::debugIsolateAfterUnpin(uint32_t guid, const char* why) {
+	if (!debugIsolate_) {
+		return;
+	}
+	if (s_debugPinned.empty()) {
+		debugIsolateTurnOff(fmt::format("the last pinned bot was unpinned via {} -- isolation without a "
+			"pinned bot would despawn everything", why).c_str());
+		return;
+	}
+	if (guid != 0) {
+		std::string name = std::to_string(guid);
+		if (auto it = guidToIndex_.find(guid); it != guidToIndex_.end()) {
+			name = bots_[it->second].name;
+		}
+		g_logger().warn("[DEBUG_ISOLATE] '{}' unpinned via {} while isolation is ON: the sweep will "
+			"despawn it within 1 s ({} bot(s) still pinned)", name, why, s_debugPinned.size());
+	}
+}
+
+uint32_t BotEngine::debugIsolateSweep(const char* why) {
+	if (!debugIsolate_ || s_debugPinned.empty()) {
+		return 0; // never sweep with nothing pinned: that would empty the server
+	}
+	// Collect first: forceDeactivateBot mutates per-bot maps and may dissolve party hunts.
+	std::vector<std::pair<uint32_t, std::string>> victims;
+	for (const auto& b : bots_) {
+		if (b.guid == 0 || s_debugPinned.count(b.guid) > 0) {
+			continue;
+		}
+		const bool inPool = hibernationPool_.count(b.guid) > 0;
+		const auto p = b.getPlayer();
+		const bool inWorld = p && !p->isRemoved();
+		if (b.active || b.hibernated || inPool || inWorld) {
+			victims.emplace_back(b.guid, fmt::format("{}(state={} hib={} world={})", b.name,
+				static_cast<int>(b.state), b.hibernated ? 1 : 0, inWorld ? 1 : 0));
+		}
+	}
+	for (const auto& [guid, desc] : victims) {
+		forceDeactivateBot(guid);
+		g_logger().info("[DEBUG_ISOLATE] despawned non-pinned bot {} guid={} ({})", desc, guid, why);
+	}
+	debugIsolateDespawned_ += static_cast<uint32_t>(victims.size());
+	return static_cast<uint32_t>(victims.size());
+}
+
 bool BotEngine::activateBot(uint32_t guid) {
+	if (debugIsolateRefuses(guid, "activate")) {
+		return false;
+	}
 	// BOT_CSV: a failed authored-data load poisons the engine — no bot may activate on
 	// empty or partial data. ERROR on the first refusal and every ~60s, so the journal
 	// says WHY the world is empty; the server itself stays up and keeps serving logins
@@ -429,24 +537,20 @@ bool BotEngine::activateBot(uint32_t guid) {
 
 	player->setFightMode(FIGHTMODE_ATTACK);
 
-	// Enable cast broadcasting so @cast viewers can watch this bot. DB INSERT goes async
-	// via DatabaseTasks so /cavebot reload (200 activates in succession) doesn't stall the
-	// dispatcher on serial DB writes. In-game cast routing is in-memory above.
-	player->setCastBroadcasting(true);
+	// Enable cast broadcasting so @cast viewers can watch this bot.
+	enableBotCastBroadcast(guid, player);
 	auto& db = Database::getInstance();
-	g_botDatabaseTasks().execute(fmt::format(
-		"INSERT INTO `cast_broadcasters` (`player_id`, `player_name`) VALUES ({}, {}) "
-		"ON DUPLICATE KEY UPDATE `player_name` = {}",
-		guid, db.escapeString(player->getName()), db.escapeString(player->getName())));
 
 	// Initialize reroll timer (short delay before first autonomous activity)
 	bot.nextRerollTime = OTSYS_TIME() + uniform_random(5, 15) * 1000;
 	bot.postActivationReroll = true;
 
-	// Restore saved AI state if available (e.g. bot was deactivated mid-hunt by scheduler)
+	// Restore saved AI state if available (e.g. bot was deactivated mid-hunt by scheduler).
+	// Rows older than 24 h (BOT_PERSIST_FRESH_SQL) are ignored (#47 review): since #47 rows of bots
+	// outside the startup population survive boot, and a task saved days ago must not resume.
 	auto stateResult = db.storeQuery(fmt::format(
 		"SELECT `ai_state`, `hunt_script_id`, `hunt_phase`, `waypoint_idx`, `kill_count`, "
-		"`travel_dest_town_id` FROM `bot_state_persistence` WHERE `guid`={}", guid));
+		"`travel_dest_town_id` FROM `bot_state_persistence` WHERE `guid`={} AND {}", guid, BOT_PERSIST_FRESH_SQL));
 	if (stateResult) {
 		restoreSingleBotState(bot, stateResult);
 		g_botDatabaseTasks().execute(fmt::format("DELETE FROM `bot_state_persistence` WHERE `guid`={}", guid));
@@ -462,6 +566,23 @@ bool BotEngine::activateBot(uint32_t guid) {
 	return true;
 }
 
+bool BotEngine::enableBotCastBroadcast(uint32_t guid, const std::shared_ptr<Player>& player) {
+	if (!player) {
+		return false;
+	}
+	const bool wasBroadcasting = player->isCastBroadcasting();
+	// In-memory flag first: castViewerLogin reads only this. The cast_broadcasters INSERT goes
+	// async via DatabaseTasks so a reload or wake burst (hundreds in succession) does not stall
+	// the dispatcher on serial DB writes. ON DUPLICATE KEY makes a re-assert harmless.
+	player->setCastBroadcasting(true);
+	auto& db = Database::getInstance();
+	g_botDatabaseTasks().execute(fmt::format(
+		"INSERT INTO `cast_broadcasters` (`player_id`, `player_name`) VALUES ({}, {}) "
+		"ON DUPLICATE KEY UPDATE `player_name` = {}",
+		guid, db.escapeString(player->getName()), db.escapeString(player->getName())));
+	return wasBroadcasting;
+}
+
 bool BotEngine::deactivateBot(uint32_t guid) {
 	auto it = guidToIndex_.find(guid);
 	if (it == guidToIndex_.end()) return false;
@@ -469,6 +590,7 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 	auto& bot = bots_[it->second];
 	if (!bot.active) return false;
 	if (bot.state != BotAIState::IDLE && bot.state != BotAIState::DWELLING) return false;
+	audClearFirstActPending(guid); // #125 review
 
 	// BOT_PARTY_LEAK_FIX: last exit before the Player handle goes. deactivateBot had NO party
 	// handling at all, so a bot carrying a stale Canary party (engine state already zero, so the
@@ -493,13 +615,30 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 
 	auto& db = Database::getInstance();
 
+	if (bot.pendingWalkPauseEventId != 0) {
+		g_dispatcher().stopEvent(bot.pendingWalkPauseEventId);
+		bot.pendingWalkPauseEventId = 0;
+	}
+
+	// A hibernated bot is already out of the world: its Player lives only in
+	// hibernationPool_ and its real position is the virtual sim's currentPos (#60).
+	const bool wasHibernated = bot.hibernated;
 	auto player = bot.getPlayer();
+	if (!player && wasHibernated) {
+		if (auto pooled = hibernationPool_.find(guid); pooled != hibernationPool_.end()) {
+			player = pooled->second;
+		}
+	}
 	if (player) {
 		// Save current position to players table before removing from world
-		auto pos = player->getPosition();
-		g_botDatabaseTasks().execute(fmt::format(
-			"UPDATE `players` SET `posx`={}, `posy`={}, `posz`={} WHERE `id`={}",
-			pos.x, pos.y, pos.z, guid));
+		auto pos = wasHibernated ? bot.currentPos : player->getPosition();
+		// Never persist an unset position: a hibernated bot whose virtual sim never stamped
+		// currentPos would be written to (0,0,z) and log in off-map next time.
+		if (pos.x > 0) {
+			g_botDatabaseTasks().execute(fmt::format(
+				"UPDATE `players` SET `posx`={}, `posy`={}, `posz`={} WHERE `id`={}",
+				pos.x, pos.y, pos.z, guid));
+		}
 
 		// True offline: remove bot from game world (like a player disconnect)
 		player->setCastBroadcasting(false);
@@ -508,10 +647,19 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 		// in-memory setCastBroadcasting(false) already disconnects viewers; DB cleanup
 		// is non-critical and can be async.
 		g_botDatabaseTasks().execute(fmt::format("DELETE FROM `cast_broadcasters` WHERE `player_id` = {}", guid));
-		g_game().removeCreature(player, false);
-		g_game().removePlayer(player);
+		if (!wasHibernated) {
+			g_game().removeCreature(player, false);
+			g_game().removePlayer(player);
+		}
 		player->setOnline(false);
 		bot.playerRef = std::weak_ptr<Player>(); // release reference
+	}
+	if (wasHibernated) {
+		// Deactivated means truly offline, not "asleep": drop the pooled Player (it was saved
+		// when it hibernated) so activateBot re-materializes it from the DB, and leave the
+		// hibernation bookkeeping so it is no longer listed or woken as a hibernated bot.
+		hibernationPool_.erase(guid);
+		bot.hibernated = false;
 	}
 
 	// Cleanup stuck-loop counters
@@ -540,6 +688,9 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 	s_travelSrcPOI.erase(guid);
 	s_lastRouteEndPos.erase(guid);
 	walkPauseInfo_.erase(guid);
+	s_walkObsPending.erase(guid); // #120
+	clearWalkDesync(guid);        // #144
+	s_walkObsNextCheckMs.erase(guid);
 	// Dropping the mount roll here is what makes a true-offline deactivate→activate cycle a
 	// genuine reconnect: activateBot then finds no entry and re-rolls unthrottled.
 	botMountWants_.erase(guid);
@@ -566,12 +717,20 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 // Wake re-creates the Player from DB via materializePlayerFromDb() WITHOUT calling
 // activateBot (which would reset hunt state via lines ~1944-1998 in this file).
 
+// #115 density-gate backoff: guid -> earliest time the gate may be asked again. Written and read
+// only by wakeBot in this TU, so a TU-local is right; dlclose wipes it.
+namespace {
+	constexpr int64_t DENSITY_BACKOFF_MS = 5000;
+	std::unordered_map<uint32_t, int64_t> s_densityBackoff;
+}
+
 bool BotEngine::hibernateBot(uint32_t guid) {
 	auto it = guidToIndex_.find(guid);
 	if (it == guidToIndex_.end()) return false;
 
 	auto &bot = bots_[it->second];
 	if (bot.hibernated) return false;
+	audClearFirstActPending(guid); // #125 review
 	endIceFishSession(bot, "hibernated");
 	clearLootState(bot.guid);
 	// BOT_LURE_KITE: a hibernated bot has no Player and its virtual twin models neither
@@ -857,6 +1016,7 @@ bool BotEngine::hibernateBot(uint32_t guid) {
 	}
 
 	bot.hibernated = true;
+	clearWalkDesync(guid); // #144: no queue to judge while off-world
 	// BOT_TEST_HARNESS: `hib` record for a WATCHED bot (refusals are not recorded: a camera'd bot
 	// is refused every 300 ms by the proximity loop and would flood the stream).
 	if (audFor(AUD_HIB, guid)) [[unlikely]] {
@@ -880,6 +1040,9 @@ bool BotEngine::hibernateBot(uint32_t guid) {
 }
 
 bool BotEngine::wakeBot(uint32_t guid) {
+	if (debugIsolateRefuses(guid, "wake")) {
+		return false;
+	}
 	// BOT_CSV: same refusal as activateBot. Wake is the hibernation path's own entry and
 	// does not necessarily pass through activateBot, so both must be guarded or the
 	// population/wake route would still materialize bots onto poisoned data.
@@ -904,6 +1067,33 @@ bool BotEngine::wakeBot(uint32_t guid) {
 	const bool proximityWake = s_proximityWake;
 	s_proximityWake = true;
 
+	// #115: density-gate backoff. The Lua proximity monitor (bot_hibernation.lua, every 300 ms)
+	// offers every hibernated bot within 100 tiles of a player, and while a density ring is full
+	// each offer was refused anew: baseline B2 (bl_b2r) 11119 gated records in 234 s from 70 bots,
+	// census "wakeTried60s=1830 wakeGated60s=1821 wakeGranted60s=9". After a refusal the same bot
+	// is not re-offered to the gate for DENSITY_BACKOFF_MS (5 s). Per bot that is <= 0.2 gate calls/s
+	// instead of up to 2.3/s (bl_b2r's busiest bot: 529 refusals in 234 s). A ring slot frees when an
+	// awake bot walks out of the ring or the player moves -- awake bots near a player do not
+	// hibernate, so there is no cheaper "slot freed" event to listen for -- and the cost is that such
+	// a slot is refilled up to 5 s later. LRU order among candidates is unchanged: a deferred bot
+	// keeps its lastWakeAttemptMs. Only the plain proximity path backs off: forced, roam,
+	// party-cascade and party-hunt wakes, and teleport bursts (proximityWake=false), always reach
+	// shouldGateWake exactly as before.
+	const bool densityBackoffEligible = proximityWake && !s_inPartyCascade
+		&& s_forceWakeGuid != guid && s_roamWakeGuid != guid && bot.partyHuntId == 0;
+	if (densityBackoffEligible) {
+		const auto bo = s_densityBackoff.find(guid);
+		if (bo != s_densityBackoff.end() && OTSYS_TIME() < bo->second) {
+			// Keep shouldGateWake's single-shot discipline: both flags are consumed by every gate
+			// decision, and this is one. Neither names this guid (checked above), so a set flag
+			// is stale and must not survive into the next, unrelated wake.
+			s_forceWakeGuid = 0;
+			s_roamWakeGuid = 0;
+			wakeDeferred60s_++;
+			return false;
+		}
+	}
+
 	// Liveness diagnostics (2026-06-09): count this as a "tried" wake. Pre-gate so
 	// gated/granted/silently-failed all sum from this baseline. tried - gated - granted
 	// in the [PROXIMITY] periodic log = silent failures (chooseWakePosition / placement).
@@ -919,6 +1109,9 @@ bool BotEngine::wakeBot(uint32_t guid) {
 	refreshAnchorsIfStale(100);
 	if (shouldGateWake(guid)) {
 		wakeGated60s_++;
+		if (densityBackoffEligible) {
+			s_densityBackoff[guid] = OTSYS_TIME() + DENSITY_BACKOFF_MS;
+		}
 		// BOT_TEST_HARNESS: a density-capped wake is exactly the "why did nobody walk in" answer.
 		if (audFor(AUD_WAKE, guid)) [[unlikely]] {
 			botAudBegin("wake", &bot);
@@ -1299,15 +1492,8 @@ bool BotEngine::wakeBot(uint32_t guid) {
 		recentWakeStagger_++; // kept for legacy diagnostic / non-burst single-wake paths
 	}
 
-	// Re-enable cast broadcasting (lost when Player was destroyed). DB INSERT goes async
-	// via DatabaseTasks so the dispatcher doesn't block on N serial DB writes during a
-	// wake-burst. In-game cast routing uses player->castViewers in-memory, set above.
-	player->setCastBroadcasting(true);
-	auto &db = Database::getInstance();
-	g_botDatabaseTasks().execute(fmt::format(
-		"INSERT INTO `cast_broadcasters` (`player_id`, `player_name`) VALUES ({}, {}) "
-		"ON DUPLICATE KEY UPDATE `player_name` = {}",
-		guid, db.escapeString(bot.name), db.escapeString(bot.name)));
+	// Re-enable cast broadcasting (hibernateBot switched it off).
+	enableBotCastBroadcast(guid, player);
 
 	// [WAKE_VIS] closed-loop telemetry: path=prox (walk-by/cast, off-screen+sparkle
 	// eligible) vs burst (teleport/explicit, unchanged); visible=did it land on a
@@ -1339,8 +1525,12 @@ bool BotEngine::wakeBot(uint32_t guid) {
 		botAudInt("anchors", static_cast<int64_t>(currentAnchorPts_.size()));
 		botAudInt("cascade", s_inPartyCascade ? 1 : 0);
 		botAudEnd();
-		if (audNamed(AUD_WAKE, guid)) {
-			s_audBot[guid].wakeAtMs = botAudEpochMs(); // closed by the first AI tick (event=first_act)
+		// #125: was audNamed (named watches only), so `watch *` runs never saw first_act. Wakes are
+		// ~1/s server-wide; the tick loop pays a lookup only while one is pending.
+		if (audFor(AUD_WAKE, guid)) {
+			auto& ab = s_audBot[guid];
+			if (ab.wakeAtMs == 0) s_audFirstActPending++;
+			ab.wakeAtMs = botAudEpochMs(); // closed by the first AI tick (event=first_act)
 		}
 	}
 
@@ -1391,6 +1581,7 @@ bool BotEngine::wakeBot(uint32_t guid) {
 		}
 	}
 	wakeGranted60s_++;
+	s_densityBackoff.erase(guid);
 	return true;
 }
 
@@ -2251,11 +2442,11 @@ std::string BotEngine::buildProximityReport() {
 			? (wakeTried60s_ - wakeGated60s_ - wakeGranted60s_) : 0;
 		out += fmt::format(
 			"[PROXIMITY] anchor=({},{},{}) rings inner_hib={}/awake={} | mid_hib={}/awake={} | outer_hib={}/awake={}\n"
-			"  wake_60s: tried={} granted={} gated={} silent_fail={}\n"
+			"  wake_60s: tried={} granted={} gated={} silent_fail={} deferred={}\n"
 			"  outer_states: IDLE={} DWELL={} HUNT={} TRAVEL={} PARTY={} COMBAT={}\n",
 			cluster.centroid.x, cluster.centroid.y, cluster.centroid.z,
 			innerHib, innerAwake, midHib, midAwake, outerHib, outerAwake,
-			wakeTried60s_, wakeGranted60s_, wakeGated60s_, silentFail,
+			wakeTried60s_, wakeGranted60s_, wakeGated60s_, silentFail, wakeDeferred60s_,
 			sIdle, sDwell, sHunt, sTravel, sParty, sCombat);
 	}
 	return out;
@@ -2405,7 +2596,8 @@ void BotEngine::saveSingleBotState(const BotState& bot) {
 		"ON DUPLICATE KEY UPDATE "
 		"`ai_state`=VALUES(`ai_state`), `hunt_script_id`=VALUES(`hunt_script_id`), "
 		"`hunt_phase`=VALUES(`hunt_phase`), `waypoint_idx`=VALUES(`waypoint_idx`), "
-		"`kill_count`=VALUES(`kill_count`), `travel_dest_town_id`=VALUES(`travel_dest_town_id`)",
+		"`kill_count`=VALUES(`kill_count`), `travel_dest_town_id`=VALUES(`travel_dest_town_id`), "
+		"`saved_at`=CURRENT_TIMESTAMP",
 		bot.guid, escapedName, aiState,
 		huntScriptId, huntPhase, waypointIdx, killCount,
 		travelDest));
@@ -2602,11 +2794,14 @@ void BotEngine::saveAllStates() {
 		" ON DUPLICATE KEY UPDATE "
 		"`ai_state`=VALUES(`ai_state`), `hunt_script_id`=VALUES(`hunt_script_id`), "
 		"`hunt_phase`=VALUES(`hunt_phase`), `waypoint_idx`=VALUES(`waypoint_idx`), "
-		"`kill_count`=VALUES(`kill_count`), `travel_dest_town_id`=VALUES(`travel_dest_town_id`)"
+		"`kill_count`=VALUES(`kill_count`), `travel_dest_town_id`=VALUES(`travel_dest_town_id`), "
+		"`saved_at`=CURRENT_TIMESTAMP"
 	);
 
 	if (ok) {
 		g_logger().info("[BotEngine] saveAllStates: saved {} bot states", savedCount);
+		// Garbage-collect rows nothing will restore any more (#47 review).
+		db.executeQuery(fmt::format("DELETE FROM `bot_state_persistence` WHERE NOT ({})", BOT_PERSIST_FRESH_SQL));
 	} else {
 		g_logger().error("[BotEngine] saveAllStates: DB query failed");
 	}
@@ -2614,9 +2809,12 @@ void BotEngine::saveAllStates() {
 
 void BotEngine::restoreAllStates() {
 	auto& db = Database::getInstance();
-	auto result = db.storeQuery(
+	// Stale rows (bots outside earlier populations, a crash long ago) are dropped, not
+	// restored (#47 review); fresh rows of bots not loaded this boot are kept (#47).
+	db.executeQuery(fmt::format("DELETE FROM `bot_state_persistence` WHERE NOT ({})", BOT_PERSIST_FRESH_SQL));
+	auto result = db.storeQuery(fmt::format(
 		"SELECT `guid`, `ai_state`, `hunt_script_id`, `hunt_phase`, `waypoint_idx`, `kill_count`, "
-		"`travel_dest_town_id` FROM `bot_state_persistence`");
+		"`travel_dest_town_id` FROM `bot_state_persistence` WHERE {}", BOT_PERSIST_FRESH_SQL));
 
 	if (!result) {
 		g_logger().info("[BotEngine] restoreAllStates: no persisted states found");
@@ -2671,12 +2869,20 @@ void BotEngine::restoreAllStates() {
 // Shared library factory functions — called by BotEngineLoader via dlsym
 // ============================================================================
 
-// Generated at configure time (src/creatures/CMakeLists.txt); the loader compares it (#58).
+// Generated at build time (cmake/BotEngineAbiTag.cmake); the loader compares it (#58).
 #include "bot_engine_abi_tag.hpp"
 
 extern "C" {
+	// The loader finds this marker in the .so FILE BYTES before dlopen (#58 review), so a
+	// mismatched library is refused before any of its initialisers run and before a
+	// reload tears down the running engine. An exported definition with external linkage is
+	// always emitted (botEngineAbiTag also reads it); visibility must sit on the FIRST
+	// declaration, GCC ignores it on a redeclaration.
+	BOT_PLATFORM_EXPORT extern const char botEngineAbiMarker[]; // bot_platform.hpp
+	const char botEngineAbiMarker[] = BOT_ENGINE_ABI_MARKER;
+
 	const char* botEngineAbiTag() {
-		return BOT_ENGINE_ABI_TAG;
+		return botEngineAbiMarker + (sizeof(BOT_ENGINE_ABI_MARKER_PREFIX) - 1);
 	}
 
 	IBotEngine* createBotEngine() {

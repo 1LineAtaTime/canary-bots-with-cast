@@ -31,6 +31,7 @@
 #include "creatures/players/bot/bot_platform.hpp" // OS shims (POSIX/Win32); MUST be first
 #include "creatures/players/bot/bot_engine_interface.hpp"
 #include "creatures/players/bot/bot_audit_sink.hpp" // BOT_TEST_HARNESS Phase 2: main-binary NDJSON sink
+#include "creatures/players/bot/bot_host.hpp" // #50: executable-side allocation of Tasks and Players
 #include "creatures/players/bot/bot_pathcore.hpp" // BOT_NAV_REALISM Phase 2: dependency-free A* kernel
 #include "creatures/players/bot/bot_navdump.hpp" // BOT_NAV_REALISM Phase 3: offline-sim map dump format
 #include "creatures/players/bot/bot_zcore.hpp" // TRUE MULTI-FLOOR: dependency-free portal graph + z-route planner
@@ -3832,6 +3833,48 @@ struct BotAuditBotState {
 };
 inline std::unordered_map<uint32_t, BotAuditBotState> s_audBot;
 
+// #119 (review): goTo's direct-first attempt is OPT-IN per call site. Only plain walk callers --
+// the waypoint follower's non-NODE branch, the idle/POI walk and the depot walks -- open a
+// GoToDirectFirstScope; chase/flee/combat walks and the NODE 9-candidate probe never do, because
+// their targets move or rotate every call and each would pay a failed direct search.
+inline bool s_goToDirectFirstOptIn = false;
+struct GoToDirectFirstScope {
+	bool prev;
+	GoToDirectFirstScope() : prev(s_goToDirectFirstOptIn) { s_goToDirectFirstOptIn = true; }
+	~GoToDirectFirstScope() { s_goToDirectFirstOptIn = prev; }
+	GoToDirectFirstScope(const GoToDirectFirstScope&) = delete;
+	GoToDirectFirstScope& operator=(const GoToDirectFirstScope&) = delete;
+};
+// Always-on 60 s counters, logged as "[DIRECT_FIRST] 60s ..." by the tick loop's 60 s block.
+inline uint32_t s_directFirstHit60s = 0;        // direct search found the whole route
+inline uint32_t s_directFirstMiss60s = 0;       // direct search failed -> chunked walk (one wasted search)
+inline uint32_t s_directFirstSuppressed60s = 0; // in band + opted in, skipped: the bot missed < 3 s ago
+// #130 (review): goToWide's always-on cost, logged as "[WIDE] 60s ..." by the same 60 s block.
+inline uint32_t s_wide60sRuns = 0;          // searches that ran
+inline uint32_t s_wide60sOk = 0;            // ... and found a route
+inline uint32_t s_wide60sFcLeg = 0;         // ... from the FC machine's planned-hop ZLEG
+inline uint32_t s_wide60sDeferred = 0;      // per-tick cap reached: not run, not charged
+inline uint32_t s_wide60sCooldownSkips = 0; // per-bot cooldown: not run
+inline uint32_t s_wide60sMaxPerTick = 0;    // most searches in one tick (cap = 2)
+inline int64_t s_wide60sUsMax = 0;
+inline std::vector<uint32_t> s_wide60sUs;   // per-search microseconds for the p50 (bounded: 4096 entries)
+inline int64_t s_wideTickStamp = 0;         // s_tickBodyStartMs of the tick s_wideThisTick counts
+inline uint32_t s_wideThisTick = 0;
+// #125: wakes whose first AI tick has not been seen yet (s_audBot[guid].wakeAtMs != 0). Lets the tick
+// loop look for first_act under `watch *` without a per-bot map lookup while nothing is pending.
+inline uint32_t s_audFirstActPending = 0;
+// #125 (review): a bot that leaves the AI loop (unregister / deactivate / hibernate) before its first
+// tick will never close its pending first_act; clear it so the counter cannot drift upwards.
+inline void audClearFirstActPending(uint32_t guid) {
+	const auto it = s_audBot.find(guid);
+	if (it != s_audBot.end() && it->second.wakeAtMs != 0) {
+		it->second.wakeAtMs = 0;
+		if (s_audFirstActPending > 0) {
+			s_audFirstActPending--;
+		}
+	}
+}
+
 [[nodiscard]] inline bool audOn(uint32_t kinds) noexcept {
 	return (s_aud.mask & kinds) != 0;
 }
@@ -3862,7 +3905,8 @@ void botAudStr(const char* key, std::string_view v);
 void botAudInt(const char* key, int64_t v);
 void botAudPos(const char* key, const Position& p);
 void botAudNoteLog(uint32_t guid, const std::string& msg);
-void botAudWalkPause(const BotState& bot, bool observed, int32_t ms, uint8_t walkBias, uint32_t nThisRoute, size_t steps);
+void botAudWalkPause(const BotState& bot, bool observed, int32_t ms, uint8_t walkBias, uint32_t nThisRoute, size_t steps,
+                     const char* at = "issue");
 void botAudPathout(const BotState& bot, const char* outcome, const std::string& route, size_t idx, size_t n,
                    const char* reason, int64_t extra = -1);
 void botAudDecide(const BotState& bot, const char* what, std::string_view chosen, int64_t candidates,
@@ -4309,6 +4353,46 @@ private:
 	std::unordered_map<uint32_t, ZPlannedHop> s_plannedFc; // guid -> hop the FC machine should execute
 	// 5-min summary counters ([ZROUTE] line)
 	uint32_t s_zPlanOk = 0, s_zPlanFail = 0, s_zHopOk = 0, s_zHopFail = 0, s_zLegWalks = 0;
+	// #130: planner-leg wide escalations (goToWide: PLEG, both ZLEGs) that ran and found / did not find
+	// a route. A cooldown skip runs no search and counts in neither.
+	uint32_t s_legWideOk = 0, s_legWideFail = 0;
+	// #130 review R2-1: the LAST goToWide call was deferred by the per-tick cap -- no search ran, so
+	// "no path" is unknown, not false. Set only on a cap deferral (a cooldown skip is a real "not
+	// now" after a miss and keeps the ordinary fail path); cleared at the top of every call.
+	bool lastWideDeferred_ = false;
+	// How the LAST zPlanFullRoute call ended (#116 review). zPlanFullRoute still returns a bool, so
+	// callers that must tell "not yet" (out of time: the tick-budget deferral, a mid-search abort,
+	// the abort backoff) from "no route" read this right after the call. Single-threaded: tick()
+	// runs on the dispatcher only.
+	enum class ZPlanResult : uint8_t { OK, FAIL, FAIL_CACHED, DEFERRED, ABORTED, BACKOFF, NOT_READY };
+	ZPlanResult lastZPlanResult_ = ZPlanResult::FAIL;
+	bool lastZPlanWasWait() const {
+		return lastZPlanResult_ == ZPlanResult::DEFERRED || lastZPlanResult_ == ZPlanResult::ABORTED
+			|| lastZPlanResult_ == ZPlanResult::BACKOFF;
+	}
+	// True when THIS call armed a real abort backoff (the pair stopped converging), as opposed to
+	// an abort that still gets a free retry. planScopedWalk gives up on the former.
+	bool lastZPlanBackoffArmed_ = false;
+	// planScopedWalk WAITING on a short cold-cache deferral/abort instead of walking (#116 review).
+	// startMs bounds the total wait for one target (Z_PLAN_WAIT_MAX_MS); untilMs keeps doIdle's
+	// wedged-walk detector quiet between ticks. Cleared on retarget (target mismatch), on a plan
+	// that succeeds, by clearPlannerWalk and by forceDeactivateBot.
+	struct ZPlanWait {
+		Position target {};
+		int64_t startMs = 0;
+		int64_t untilMs = 0;
+		// Tombstone (#116 review 3): the cap expired for this target. Later calls for the SAME target
+		// give up at once instead of starting a fresh 12 s wait after each 3-strike cycle, so the
+		// total wait per target is a hard Z_PLAN_WAIT_MAX_MS. Cleared by a retarget, a plan that
+		// lands, clearPlannerWalk or forceDeactivateBot.
+		bool gaveUp = false;
+	};
+	std::unordered_map<uint32_t, ZPlanWait> s_zPlanWait;
+	static constexpr int64_t Z_PLAN_WAIT_MAX_MS = 12000;
+	bool zPlanWaiting(uint32_t guid) const {
+		auto it = s_zPlanWait.find(guid);
+		return it != s_zPlanWait.end() && OTSYS_TIME() < it->second.untilMs;
+	}
 	// One-shot planner tracing: when set, zPlanFullRoute's legCost logs every leg it prices with
 	// the branch that decided it ([ZLEGCOST]). Diagnostic only — set by `/cavebot zplan ... -v`
 	// around a single call, never left on (it is O(legs) log lines per plan).
@@ -4363,6 +4447,7 @@ private:
 			s_debugPinned.erase(guid);
 		}
 		s_probeBots.clear();
+		debugIsolateAfterUnpin(0, "probe clear");
 		return n;
 	}
 
@@ -4519,6 +4604,8 @@ private:
 
 	// Combat handlers (Phase 3)
 	void doSelfDefense(BotState& bot);
+	// The "ignore" branch's single hit-back (#123): damage scaled to the level gap, never lethal.
+	void ignoreHitBack(BotState& bot, const std::shared_ptr<Player>& player, const std::shared_ptr<Creature>& attacker);
 	void doCombat(BotState& bot);
 	void doFleeing(BotState& bot);
 	void doPKAttack(BotState& bot);
@@ -5529,9 +5616,10 @@ private:
 	bool botTraceLegWalk(const std::shared_ptr<Player>& mover, const Position& from, const Position& to,
 		int32_t arrivalDist, std::vector<Position>& outTiles, std::string& outNote);
 	bool goToWithDoors(BotState& bot, const Position& target, int32_t maxDist = -1, WaypointType wpType = WaypointType::NODE);
-	// One cooldown-gated unchunked wide search. Planner legs only — see the definition for why
-	// the cooldown is load-bearing rather than defensive.
-	bool goToWide(BotState& bot, const Position& target, int32_t maxDist);
+	// One unchunked wide search, bounded per bot (cooldown) and per tick (global cap). Callers:
+	// PLEG, planScopedWalk's ZLEG and the FC machine's planned-hop ZLEG (#130) -- the last is NOT a
+	// rare caller, see the definition. `site` labels the log line (the leg's logPrefix).
+	bool goToWide(BotState& bot, const Position& target, int32_t maxDist, const char* site = nullptr);
 	bool isAtPosition(const Position& a, const Position& b, int32_t range = 3) const;
 	bool tryOpenDoors(BotState& bot, const std::shared_ptr<Player>& player, const Position& targetPos);
 	bool tryOpenDoorAt(BotState& bot, const std::shared_ptr<Player>& player, const Position& doorPos);
@@ -5571,7 +5659,7 @@ private:
 		bool enableTeleportStand = false;
 		int32_t zChangeGraceMs = 500;
 		std::string logPrefix = "WP";
-		// Planner legs only. When a waypoint's ordinary chunked walk fails, escalate ONCE to the
+		// Planner legs (PLEG, both ZLEGs). When a waypoint's ordinary chunked walk fails, escalate to the
 		// unchunked wide search (4096 nodes, PATH_WIDE_DIST box) — the same tier planScopedWalk's
 		// direct search uses. A leg's first waypoint is usually a DOOR, and a door reachable only
 		// by a dogleg is precisely what the chunked walker cannot solve: it aims at a straight-line
@@ -5707,6 +5795,57 @@ private:
 	// walk pause doesn't run a Spectators::find<Player> scan on every walk step.
 	bool botWalkObserved(BotState& bot, const std::shared_ptr<Player>& player);
 
+	// #120: the observed-tier pause used to be rolled once, when a walk was ISSUED -- usually
+	// off-screen, since a bot is issued its path before it walks into view. A guid in this set is
+	// walking a path whose observed-tier roll has not happened yet (the walk was issued while
+	// nobody watched); maybeObservedMidWalkPause gives it that one roll on the first tick the walk
+	// IS watched, and can pause the bot mid-walk. Erased once rolled, or when the queue drains.
+	std::unordered_set<uint32_t> s_walkObsPending;
+	std::unordered_map<uint32_t, int64_t> s_walkObsNextCheckMs; // per-bot scan throttle (1 s)
+	void maybeObservedMidWalkPause(BotState& bot, const std::shared_ptr<Player>& player);
+	// Shared tail of botStartAutoWalk and the mid-walk roll: schedule `dirs` to be replayed after
+	// `pauseMs` (stale-replay guarded), record it for status/audit.
+	void scheduleWalkPause(BotState& bot, std::vector<Direction> dirs, int32_t pauseMs, bool observedTier,
+	                       uint8_t wb, const char* where);
+
+	// #144: walk-desync detector. Stock Creature::onCreatureWalk pops a direction BEFORE the move
+	// is tried; when the move fails (a creature on the next tile) it only sends sendCancelWalk() to
+	// a client. A human's client then drops its queue; a bot has none, so the rest of its queue runs
+	// one tile off the planned line, into walls. issueAutoWalk is the ONLY place the engine hands a
+	// queue to the server (every botStartAutoWalk exit and the walk-pause replay go through it) and
+	// it remembers that queue and where the bot stood; checkWalkDesync (once per awake-bot tick,
+	// processBot) replays the consumed directions from there, and when the bot is not where they
+	// lead it drops the rest of the queue so the state handler re-plans from the real tile.
+	// Live-only by construction: a hibernated bot has no Player and no queue (the virtual sim moves
+	// bot.currentPos itself and never fails a step).
+	struct WalkTrack {
+		std::vector<Direction> dirs; // == player->listWalkDir at the last in-sync check (back = next)
+		Position basePos;            // where the bot stood at that check
+		uint8_t retries = 0;         // bumps retried as issued in the current blocking episode
+	};
+	std::unordered_map<uint32_t, WalkTrack> walkTrack_;
+	// Forced re-plan budget (review round 1): WALK_DESYNC_BURST drops per window, the window doubling
+	// (2 s, 4 s, 8 s, 16 s) while drops keep landing on the same tile, back to 2 s at any other tile.
+	struct WalkDesyncLimit {
+		int64_t windowStartMs = 0;
+		uint8_t dropsInWindow = 0;
+		uint8_t sameTileStreak = 0;
+		Position lastDropPos {};
+	};
+	std::unordered_map<uint32_t, WalkDesyncLimit> walkDesyncLimit_;
+	std::unordered_map<uint32_t, int64_t> walkDesyncAwaitReplan_;   // guid -> when its queue was dropped
+	std::unordered_set<uint32_t> walkDesync60sBots_;
+	uint32_t walkDesync60sCount_ = 0;     // desyncs seen (bot off its queue's line, queue not empty)
+	uint32_t walkDesync60sRetried_ = 0;   // ... still on the line: the same walk re-queued (no search)
+	uint32_t walkDesync60sCleared_ = 0;   // ... queue dropped (forced re-plan)
+	uint32_t walkDesync60sReplans_ = 0;   // ... and a fresh walk was issued within 2 s of the drop
+	uint32_t walkDesync60sCooldown_ = 0;  // ... over the per-bot budget: left to stock, re-baselined
+	uint32_t walkDesync60sDropped_ = 0;   // tracking abandoned: z change / teleport / foreign queue
+	uint32_t walkDesync60sLogged_ = 0;    // per-event journal lines this window (capped)
+	void issueAutoWalk(BotState& bot, const std::shared_ptr<Player>& player, const std::vector<Direction>& dirs);
+	void checkWalkDesync(BotState& bot, const std::shared_ptr<Player>& player);
+	void clearWalkDesync(uint32_t guid); // unregister / deactivate / hibernate
+
 	// BOT_LIVENESS_PACK Phase C.2 + D: load chat templates from
 	// data/bot_chat/phrases.json. Populates chatCatalog_ + tradeCatalog_.
 	void loadBotChatPhrases();
@@ -5775,9 +5914,18 @@ private:
 	// Teleport helpers
 	void teleportToTemple(BotState& bot);
 
+	// Cast: turn the bot's broadcast on and re-assert its cast_broadcasters row (async). The ONE
+	// switch every path that brings a bot back into the world goes through -- activateBot, wakeBot
+	// and reactivateBotForReload (#131) -- so a camera login can attach to any awake, registered
+	// bot, which is what the cast list (getActiveBotNames) promises. Returns whether the bot was
+	// already broadcasting.
+	bool enableBotCastBroadcast(uint32_t guid, const std::shared_ptr<Player>& player);
+
 	// Equipment helpers
 	void loadEquipmentCsv(std::unordered_map<uint32_t, BotEquipment>& out);
-	void equipBot(BotState& bot);
+	// preserveBackpack: keep an existing backpack and its contents (reload reactivation, #48);
+	// slots, ring, quiver and the idempotent ensure-present seeds still run.
+	void equipBot(BotState& bot, bool preserveBackpack = false);
 	void applyBotImbuements(const std::shared_ptr<Player>& player, uint32_t baseVoc);
 	void applyBotForgeTiers(const std::shared_ptr<Player>& player);
 
@@ -6003,6 +6151,36 @@ private:
 	int32_t lastJitterHour_ = -1;
 	bool schedulerEnabled_ = true;
 	int64_t engineStartTime_ = 0;
+
+	// ---- Debug isolation (#124) ----
+	// `reload debug,<names>` promises a quiet world: only the pinned debug bots exist and act.
+	// The Lua flow used to approximate that by flipping every other bot inactive, but nothing
+	// stopped them coming back (the reload's own orphan recovery, the wake paths, party
+	// conscription) -- baseline: non-target bots woke, hunted, kited and logged PROCBOT_SLOW.
+	// With this flag the ENGINE enforces it: activateBot / wakeBot / activateBotForParty refuse
+	// any bot that is not in s_debugPinned, and a 1 s sweep in tick() despawns (true offline,
+	// forceDeactivateBot) any non-pinned bot that is active, hibernated or still standing in the
+	// world. Set by `/cavebot _global debugisolate on`, which executeReload issues after it has
+	// pinned the debug targets; it dies with the engine on every reload, so the Lua flow re-asserts
+	// it whenever debug mode survives a reload. Members, not BotState fields: ABI boundary.
+	bool debugIsolate_ = false;
+	int64_t debugIsolateNextSweepMs_ = 0;
+	uint32_t debugIsolateDespawned_ = 0;  // cumulative, for `debugisolate status`
+	uint32_t debugIsolateRefused_ = 0;
+	std::unordered_map<uint32_t, int64_t> debugIsolateRefuseLogMs_;
+	// True when debug isolation forbids `guid` from (re)entering the world. Logs once per guid per
+	// 60 s at the refusing call site's name.
+	bool debugIsolateRefuses(uint32_t guid, const char* path);
+	// Despawn every non-pinned bot that is active, hibernated or in the world. Returns the count.
+	// A no-op while nothing is pinned.
+	uint32_t debugIsolateSweep(const char* why);
+	// Call after removing `guid`'s pin (guid 0 = bulk). Turns isolation OFF (with a warning) when no
+	// pinned bot is left; otherwise warns that the sweep is about to despawn the unpinned bot.
+	void debugIsolateAfterUnpin(uint32_t guid, const char* why);
+	// Isolation OFF, restoring the population scheduler if (and only if) `debugisolate on` was what
+	// turned it off. Returns the log line it wrote.
+	std::string debugIsolateTurnOff(const char* why);
+	bool debugIsolateStoppedScheduler_ = false;
 
 	// Wake-burst stagger: 2026-05-27 — switched from counter+cap (only spread first 10
 	// bots) to GUID-based deterministic stagger. Each woken bot picks wakeQuietTicks
@@ -6520,6 +6698,9 @@ private:
 	uint32_t wakeTried60s_ = 0;
 	uint32_t wakeGated60s_ = 0;
 	uint32_t wakeGranted60s_ = 0;
+	// #115: proximity wakes NOT tried because the same bot was density-gated < 5 s ago (see
+	// wakeBot). Not part of tried/gated/granted.
+	uint32_t wakeDeferred60s_ = 0;
 	int64_t wakeStatsWindowStartMs_ = 0;
 
 	// HUNT phase-transition diagnostics (2026-06-10). Triangulates why hibernated bots

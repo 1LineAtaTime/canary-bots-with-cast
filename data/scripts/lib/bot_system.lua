@@ -1094,6 +1094,32 @@ function BotSystem.executeReload(opts)
 		return { ok = false, message = "reload already in progress", lines = lines }
 	end
 
+	-- ABI pre-flight (#58). Reads the ABI marker out of libbot_engine.so WITHOUT dlopen and
+	-- compares it with this canary binary's tag. A .so built from another tree (other headers,
+	-- compiler or flags) is refused here, before a single bot is deactivated, so the running
+	-- engine and population are untouched. The engine's own reload() repeats the check on
+	-- the exact bytes it loads and also keeps the old engine on a mismatch.
+	if Game.botCheckLibrary then
+		local abiOk, abiDetail, canHotReload = Game.botCheckLibrary()
+		if not abiOk and canHotReload == false then
+			-- Windows: the engine is statically linked, so there is nothing to reload. Refuse before
+			-- anything is deactivated; a pass would soft-reset every awake bot and apply nothing.
+			-- (Only `== false`: a binary older than this third return value gives nil.)
+			emit("reload UNAVAILABLE — nothing was touched:")
+			emit("  " .. tostring(abiDetail))
+			logger.warn("[reload:{}] refused, no hot-reload in this build: {}", source, tostring(abiDetail))
+			return { ok = false, message = "reload unavailable: " .. tostring(abiDetail), lines = lines }
+		end
+		if not abiOk then
+			emit("reload REFUSED — libbot_engine.so does not match this canary binary, nothing was touched:")
+			emit("  " .. tostring(abiDetail))
+			emit("  Rebuild canary + libbot_engine.so from the same commit, ship both, and restart.")
+			logger.error("[reload:{}] ABI pre-flight refused: {}", source, tostring(abiDetail))
+			return { ok = false, message = "abi pre-flight refused: " .. tostring(abiDetail), lines = lines }
+		end
+		logger.info("[reload:{}] ABI pre-flight ok ({})", source, tostring(abiDetail))
+	end
+
 	-- BOT_CSV pre-flight. Authored data lives in data/bot/authored/*.csv, and
 	-- Game.botReload() DESTROYS the engine before the new one parses those files —
 	-- so a malformed CSV has nothing to fall back to. It poisons the fresh engine and
@@ -1113,6 +1139,7 @@ function BotSystem.executeReload(opts)
 				emit("reload ABORTED — authored CSV failed to parse, nothing was touched:")
 				emit("  " .. csvResult)
 				emit("  Fix the file (or: git checkout -- data/bot/authored) and reload again.")
+				if Game.botDiscardLibraryCheck then Game.botDiscardLibraryCheck() end -- #114: no staged-copy residue
 				return { ok = false, message = "csv pre-flight failed: " .. csvResult, lines = lines }
 			end
 			logger.info("[reload:{}] csv pre-flight {}", source, csvResult)
@@ -1186,14 +1213,24 @@ function BotSystem.executeReload(opts)
 		end
 
 		-- 3. Reload the .so + hunt data — this destroys old hibernationPool_
-		local result = Game.botReload()
+		local result, refused = Game.botReload()
 		emit(tostring(result))
+		if refused then
+			-- The engine refused the new .so before tearing anything down (#58): the OLD engine
+			-- and its hibernation pool are still live. Re-materializing those bots from the DB
+			-- would create second Player objects, so skip step 4b; steps 5-7 re-register and
+			-- re-activate the force-deactivated bots in the same old engine.
+			hibernatedNames = {}
+			logger.error("[reload:{}] {}", source, tostring(result))
+		end
 
 		-- 4. Restart the 100ms tick loop (old cycleEvent may be stale after dlclose/dlopen)
 		Game.botStartTickLoop()
 	end)
 	if not prefixOk then
 		BotSystem._reloadInProgress = false
+		-- #114: if the error came before Game.botReload() consumed the staged copy, drop it.
+		if Game.botDiscardLibraryCheck then Game.botDiscardLibraryCheck() end
 		logger.error("[reload:{}] prefix error: {}", source, tostring(prefixErr))
 		return { ok = false, message = "reload prefix failed: " .. tostring(prefixErr), lines = lines }
 	end
@@ -1388,7 +1425,12 @@ function BotSystem.executeReload(opts)
 		-- re-materialized all 500 as live Player objects, so 499 of them stayed standing in
 		-- the world as motionless statues. That defeats the entire point of debug mode (and is
 		-- what an operator sees in-game as "why are there still bots everywhere?").
-		-- botForceDeactivateForReload despawns them, leaving exactly the debug targets.
+		-- botForceDeactivate is the TRUE offline path (removes the Player from the world and
+		-- drops any hibernation-pool ref). This used to call botForceDeactivateForReload, which
+		-- only clears the AI flag and deliberately leaves the Player standing (its job is the
+		-- pre-dlclose drain) -- so the "despawned N" count was a count of `true`s, the statues
+		-- stayed, and some came back to life (#124: non-target bots woke, hunted and kited).
+		-- The engine now also enforces isolation itself (`debugisolate on`, step 8).
 		if type(debugCount) == "number" and debugCount > 0 then
 			-- Iterate the ENGINE's registry, not BotPlayers: materialization is async, so
 			-- BotPlayers held only ~10 entries here and the first attempt despawned 9 of 500.
@@ -1398,7 +1440,7 @@ function BotSystem.executeReload(opts)
 			for i = 1, #all do
 				local guid = all[i].guid
 				if guid and not debugTargets[guid] then
-					if Game.botForceDeactivateForReload(guid) then
+					if Game.botForceDeactivate(guid) then
 						despawned = despawned + 1
 					end
 					if BotActive ~= nil then BotActive[guid] = false end
@@ -1420,7 +1462,12 @@ function BotSystem.executeReload(opts)
 				end
 			end
 			BotDebugPinned = {}
+			-- The fresh engine starts with isolation off; say so explicitly for the journal.
+			emit("debug isolation: " .. tostring(Game.botCommand("_global", "debugisolate off")))
 		elseif type(debugCount) == "number" and debugCount > 0 then
+			-- A new debug set replaces the old one: stale Lua pins would exempt bots that are no
+			-- longer targets from hibernation bookkeeping.
+			BotDebugPinned = {}
 			for guid, _ in pairs(debugTargets) do
 				local p = BotPlayers[guid]
 				local nm = debugTargetNames[guid] or (p and not p:isRemoved() and p:getName()) or nil
@@ -1436,6 +1483,31 @@ function BotSystem.executeReload(opts)
 					emit("debug stream + PIN enabled on '" .. nm .. "' — " .. tostring(r))
 				end
 			end
+			-- 8b. Engine-enforced isolation (#124), AFTER the pins so the targets are exempt.
+			-- Semantics of debug mode (decided for #124, documented in BOT_SYSTEM_DOCS.md):
+			--   * non-debug bots: despawned (true offline) and refused by every activate/wake
+			--     path while isolation is on; a 1 s engine sweep despawns any that slip back;
+			--   * pinned debug bots: no self-assigned tasks, no hibernation, no self-initiated
+			--     PvP (vigilante, random PK, PK re-engage, gang raids -- neither scouting nor
+			--     being conscripted), no idle-fallback teleport; they still DEFEND themselves
+			--     when attacked, and do whatever the operator commands (goto/hunt/pk/...).
+			emit("debug isolation: " .. tostring(Game.botCommand("_global", "debugisolate on")))
+		elseif next(BotDebugPinned or {}) ~= nil then
+			-- A plain `reload` while debug mode is active ENDS debug mode (#124 review). The fresh
+			-- engine already starts with no pins, isolation OFF and the scheduler ON; drop the Lua
+			-- pins to match, so the hibernation loop stops exempting bots the engine no longer
+			-- pins. (Re-pinning here was tried and rejected: BotPlayers can still be filling in
+			-- while materialization runs, so it could switch isolation on with nothing pinned.)
+			-- A plain reload stays the escape hatch out of debug mode; use `reload debug,<names>`
+			-- to start a new session.
+			local n = 0
+			for _ in pairs(BotDebugPinned) do n = n + 1 end
+			BotDebugPinned = {}
+			Game.botCommand("_global", "debugisolate off")
+			Game.botCommand("_global", "schedule on")
+			emit("debug mode ENDED by plain reload: " .. n .. " Lua pin(s) cleared, isolation OFF, scheduler ON."
+				.. " Bots despawned during debug mode are offline and are NOT reloaded by the scheduler"
+				.. " (BotStartup loads them only at server start): restart canary to repopulate.")
 		end
 
 		-- 9. Show git commit info so admin knows what version is running (talkaction-only — slow popen)
@@ -1520,10 +1592,10 @@ function BotSystem.pollGlobalCommandQueue()
 			local guid = player:getGuid()
 			local state = BotState[guid]
 			if state then
-				logger.info("[CavebotDebug:" .. botName .. "] Command from queue: " .. cmd)
+				logger.info("[CavebotDebug:{}] Command from queue: {}", botName, cmd)
 				local result = BotSystem.executeCavebotCommand(player, state, cmd)
 				if result then
-					logger.info("[CavebotDebug:" .. botName .. "] " .. result)
+					logger.info("[CavebotDebug:{}] {}", botName, result)
 					BotSystem.castDebug(player, state, "CMD result: " .. result)
 				end
 			end

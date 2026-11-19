@@ -141,6 +141,9 @@ out of the tick loop) and **wake** on demand.
 - Normal: ~50% fight back, ~50% flee.
 - Outleveling the attacker (bot ≥ 2× attacker level, or damage < 5% max HP):
   mostly ignore (~17% fight), often after a token hit, then resume.
+  The token hit (50% of ignores) is never lethal (#123): it takes
+  clamp(attacker level / bot level, 3%..50%) of the attacker's current HP, +-25%,
+  capped at half of it, once per engagement (`[PVP_IGNORE_HITBACK]` in the journal).
 
 **Vigilante** — on first sight of a player-killer, a per-PKer 5% chance the bot
 decides to attack them.
@@ -158,6 +161,10 @@ ambushes targets:
   bots (`botGangOddsVsBot`); higher value = lower chance.
 - `botGangWallChancePct`, `botGangParalyzeChancePct` add wall/paralyze tactics.
 - `botGangRequireObserver` only stages raids when someone can witness them.
+- Proportionality (#123): `botGangMinVictimLevel` (default 50) — no raid on a weaker
+  victim; `botGangMaxLevelRatio` (default 4) — no raid when the strongest seated
+  attacker is already that many times the victim's level (`[GANG] declined RAID ...
+  reason=outleveled`).
 
 **Force-logout on connection loss** (`forceLogoutOnConnectionLoss`) — a
 **server-wide** policy (applies to real players too, not just bots): when a
@@ -387,10 +394,14 @@ Bots talk using a large template corpus (`data/bot_chat/phrases.json`).
   or cast viewer is within view, and is throttled per nearby player so bots don't
   spam. `botChatCooldown*`, `botChatMasterChancePct`.
 - **Advertising** runs on the trade channel (`botAdvertisingInterval*`).
-- **Keyword replies** — a nearby/idle bot answers when a player says or PMs a
+- **Keyword replies** — a nearby bot answers when a player says or PMs a
   recognized phrase (price/trade/greeting), after a short "typing" delay; PMs work
-  even for hibernated bots. `botHibernatedChatEnabled` gates channel chat for
-  hibernated bots.
+  even for hibernated bots. Said out loud: the nearest eligible awake bot within
+  earshot (|dx|<=8, |dy|<=6, same floor), a standing (IDLE/DWELLING) bot first, else a WALKING traveller
+  (walk_to_boat / walk_from_boat / arrived, not mid floor-change) which answers from
+  the quick end of the delay; a reply whose speaker left the player's screen is
+  dropped. Every decision logs `[CHAT_REPLY] queued|said|skipped|dropped|none`
+  (always on; #122). `botHibernatedChatEnabled` gates channel chat for hibernated bots.
 - **Anti-repeat / throttle** is entirely in-memory (`botChatAntiRepeatRingSize` +
   time-windowed cross-bot dedup) — no two bots repeat the same line in a window.
 - `botChatVerboseLog` logs each emission to the journal (debugging).
@@ -612,10 +623,35 @@ spliced` line — both unconditional, no verbose mode needed.
 | `/cavebot proximity` | proximity-weighting telemetry |
 | `/cavebot schedule on\|off\|status` | enable/disable the time-of-day population scheduler, or show its current target |
 | `/cavebot reload` | hot-reload the engine (`.so` + data), keeping the current active set |
-| `/cavebot reload debug,<Bot Name>` | isolate ONE named bot — everything else stays hibernated with no tasks |
+| `/cavebot reload debug,<Bot Name>` | isolate ONE named bot — every other bot is despawned and kept out (see below) |
 | `/cavebot reload debug,<Name A>;<Name B>` | isolate several, **semicolon**-separated |
 | `/cavebot reload debug,N` | isolate N **arbitrary** bots (it picks — prefer the name form) |
 | `/cavebot reload debug off` | leave debug mode — see the warning below |
+| `/cavebot debugisolate on\|off\|status` | engine-enforced debug isolation (set by `reload debug,...` itself; `status` shows pinned/active/despawned/refused counts) |
+
+> **What debug mode guarantees (#124).** After `reload debug,<names>`:
+> * **Non-debug bots do not exist.** They are despawned (true offline), and while isolation is on the
+>   engine refuses every path that would bring one back — `activateBot`, `wakeBot`, party
+>   conscription — logging `[DEBUG_ISOLATE] refused <path> ...`. A 1 s engine sweep despawns any
+>   that slip through anyway (`[DEBUG_ISOLATE] despawned ...`; expected to stay at zero). The
+>   population scheduler is off.
+> * **Pinned debug bots take no self-initiated actions**: no activity reroll (no hunts/POIs/travel),
+>   no hibernation, no vigilante / random PK / PK re-engage, no gang raids (neither scouting one nor
+>   being conscripted into one), no 60 s idle-fallback teleport to the temple.
+> * **They still defend themselves.** A pinned bot that is attacked runs the normal self-defense
+>   decision (fight / flee / ignore). Watching the AI react to an attack is a common reason to debug
+>   a bot, and a bot that stands still while being killed would hide exactly that behaviour.
+> * They do whatever the operator commands (`goto`, `hunt`, `pk`, ...).
+> * A plain `/cavebot reload` while debug mode is active ENDS it: pins cleared, isolation off,
+>   scheduler on (it is the escape hatch; start a new session with `reload debug,<names>`). Bots
+>   despawned during the session stay offline until a server restart.
+> * Isolation never runs without a pinned bot: `debugisolate on` is refused while nothing is
+>   pinned, the sweep is a no-op then, and unpinning the last bot (`pin off` / `probe off`) turns
+>   isolation off with a `[DEBUG_ISOLATE] OFF (the last pinned bot was unpinned ...)` warning.
+>   Unpinning one of several pinned bots warns that the sweep will despawn it within 1 s.
+>   `probe on` pins before it wakes, so it works under isolation.
+> * Turning isolation off (command or last unpin) restarts the population scheduler only if
+>   `debugisolate on` was what stopped it; otherwise the line says "scheduler still OFF".
 
 > **`reload debug off` does not repopulate.** It clears the flag and re-activates whatever is still
 > registered, but `BotStartup` — the globalevent that loads bots from the DB — only runs at server
@@ -1014,9 +1050,24 @@ See `config.lua.dist` for inline comments and defaults on every key.
 - **Chat console logging:** `botChatVerboseLog = true` logs every chat line.
 - **DB telemetry:** `botTelemetryEnabled` (default **false**) gates best-effort
   writes to `bot_chat_emissions` (offline dup-rate measurement only — never read
-  by runtime logic). Leave off in production.
+  by runtime logic). Leave off in production. It has been off since 2026-06-22
+  (faaf0d585), which is why that table has no newer rows: config, not breakage.
+  Reply acceptance reads the always-on `[CHAT_REPLY]` journal lines instead.
 - **Perf telemetry:** set the environment variable `BOT_PERF_TELEMETRY=1` to log
   dispatcher/jitter timing. Off unless explicitly set.
+- **Walk desync (#144):** when a queued step fails (a creature on the next tile), the server
+  has already popped that direction and only cancels the walk for a real client. A bot has no
+  client, so its awake tick checks whether it stands where its consumed directions lead. If it
+  does not, but it still stands on the planned line, the same walk is queued again (a bump, no
+  search). This happens at most 3 times per blocked tile, so a creature that moves on is walked
+  past. After that, or when the bot is off the line, the rest of the queue is dropped and the
+  state handler re-plans from the real tile. A bot gets at most 2 such re-plans per 2 s window.
+  The window doubles, up to 16 s, while the re-plans keep happening on the same tile. Over that
+  budget, stock behavior applies. The FC
+  machine, an in-flight walk-pause and stock follow are left alone. Every 60 s the journal logs
+  `[WALK_DESYNC] 60s count= replans= bots= retried= cleared= cooldown= dropped= tracked=`. It also logs
+  up to 20 per-event `[WALK_DESYNC] <bot> at=… expected=…` lines per window. Only awake bots
+  are affected, because a hibernated bot has no walk queue.
 
 ---
 

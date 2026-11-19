@@ -2554,9 +2554,74 @@ inline uint64_t zNegHash(uint64_t srcKey, uint64_t tgtKey, bool forceGraph) {
 		^ (forceGraph ? 0x5bf03635ull : 0ull);
 }
 
+// ---- Aborted-plan backoff (#116) ----
+//
+// The negative cache above deliberately records nothing for an ABORTED plan: an abort means
+// "ran out of time", not "unreachable", and caching it as a failure would strand a reachable
+// destination. But nothing else remembered an abort either, so a pair whose search cannot finish
+// inside Z_PLAN_SEARCH_BUDGET_MS was simply re-planned on the caller's next attempt. Measured on
+// the 2026-11-18 baseline (botperf S2):
+//
+//   [ZPLAN_SLOW] ABORTED 84ms (32958,32076,7)->(32818,32029,7) hops=0 startFlood=89 targetFlood=0
+//
+// repeated every ~500 ms for one bot at 44-85 ms each -- the four worst ticks of the run. The
+// "the floods it computed stay cached, so the retry resumes cheaply" assumption does not hold
+// once the search touches more unlabelled portals than Z_REACH_CACHE_MAX (128) can keep: each
+// retry re-floods what the previous one evicted and aborts at the same depth.
+//
+// So repeated aborts arm a per-PAIR backoff (same quantized key as the negative cache: the cost is
+// a property of the geometry, not of which bot asks). While it is armed the planner answers
+// "backoff" in O(1) -- reported to the audit as its own result and, like a deferral, never as a
+// failure: it records no negative, counts as no plan failure and blacklists nothing, and callers
+// read it as "wait" (lastZPlanWasWait). The entry is forgotten as soon as one attempt for the pair
+// completes (ok or a genuine fail) or after Z_ABORT_FORGET_MS of silence.
+//
+// The FIRST abort never arms it, and neither do aborts that still computed new floods, up to
+// Z_ABORT_FREE_RETRIES in a row (#116 review): a cold plan routinely needs a few ~30 ms floods,
+// each abort leaves them in zReachCache_, and the retry then finishes cheaply. Backing that off
+// would turn a plan that used to succeed a tick later into a 2 s wait. What is backed off is the
+// pattern that never converges: an abort with no new cache entries, or a run of aborts past the
+// cap (cache thrash -- the baseline pair re-flooded what the previous attempt had evicted, every
+// time). The window then doubles, 2 s .. 60 s.
+//
+// An abort while the bot's own justUsed exclusion was active is keyed to that bot only: the
+// exclusion changes which portals the search may take, so its cost says nothing about the pair
+// for anyone else.
+// Consecutive aborts that may still get a free retry while each one keeps adding floods to the
+// cache (#116 review 3: a large cold first journey can need several rounds of floods). An abort
+// that added nothing arms the backoff at once from the second abort on, whatever this says.
+constexpr uint32_t Z_ABORT_FREE_RETRIES = 4;
+// Leg-pricer hard cut = search budget (15 ms) + this = 35 ms (#116 review round 2). The check runs
+// before each leg; the leg's own flood (<= Z_END_LEG_BUDGET cells, ~30 ms cold) is not interrupted,
+// because cutting a flood mid-way would cache a partial, wrong reachability set. Worst case is
+// therefore ~35 ms + one cold flood (~65 ms), against the 81-85 ms baseline ticks and the 3284 ms
+// runaway. A plan needing more cold floods than that completes on a free retry from the cached ones.
+constexpr int64_t Z_PLAN_LEG_EXTRA_BUDGET_MS = 20;
+constexpr int64_t Z_ABORT_BACKOFF_BASE_MS = 2000;
+constexpr int64_t Z_ABORT_BACKOFF_MAX_MS = 60000;
+constexpr int64_t Z_ABORT_FORGET_MS = 5 * 60 * 1000;
+constexpr size_t Z_ABORT_CACHE_MAX = 256;
+
+struct ZAbortEntry {
+	uint64_t srcKey = 0;   // stored so a hash collision is detected rather than acted on
+	uint64_t tgtKey = 0;
+	bool forceGraph = false;
+	uint32_t streak = 0;   // consecutive aborts for this pair
+	int64_t retryAtMs = 0; // OTSYS_TIME() before which the pair is not re-planned (0 = free retry)
+	int64_t lastAbortMs = 0;
+	uint32_t guid = 0;     // 0 = shared verdict; non-zero = this bot only (justUsed was active)
+	uint32_t armedCount = 0; // backoffs armed so far for this streak (drives the doubling)
+};
+
+std::unordered_map<uint64_t, ZAbortEntry> s_zAbortBackoff;
+uint64_t s_zAbortBackoffHits = 0;
+int64_t s_zAbortBackoffLastLogMs = 0;
+
 } // namespace
 
 bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std::vector<botnav::ZRouteHop>& hops, bool forceGraph, uint32_t forGuid) {
+	lastZPlanResult_ = ZPlanResult::NOT_READY;
+	lastZPlanBackoffArmed_ = false;
 	if (!zGraphReady_ || zGraph_.empty()) {
 		return false;
 	}
@@ -2605,6 +2670,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 	if (forGuid != 0 && s_tickBodyStartMs > 0
 	    && botMonoMs() - s_tickBodyStartMs > Z_PLAN_TICK_BUDGET_MS) {
 		audPath.result("deferred");
+		lastZPlanResult_ = ZPlanResult::DEFERRED;
 		s_zPlanDeferrals++;
 		auto& st = s_zPlanDeferStreak[forGuid];
 		st.count++;
@@ -2643,6 +2709,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		           && (e.guid == 0 || e.guid == forGuid)) {
 			// Verified match, not just a hash hit -- a collision must never strand a bot.
 			audPath.result("fail-cached");
+			lastZPlanResult_ = ZPlanResult::FAIL_CACHED;
 			s_zNegHits++;
 			if (negNow - s_zNegLastLogMs > 30000) {
 				s_zNegLastLogMs = negNow;
@@ -2656,11 +2723,56 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		}
 	}
 
+	// Aborted-plan backoff probe (#116). After the negative cache (a recorded "unreachable" is the
+	// stronger answer) and before the floods it exists to avoid. Admin calls (forGuid == 0) run
+	// without a deadline, so they can never abort and are never backed off.
+	if (forGuid != 0) {
+		for (const uint64_t abKey : { negHash, negHashBot }) {
+		auto ab = s_zAbortBackoff.find(abKey);
+		if (ab != s_zAbortBackoff.end()) {
+			const ZAbortEntry& e = ab->second;
+			if (e.srcKey != negSrc || e.tgtKey != negTgt || e.forceGraph != forceGraph
+			    || (e.guid != 0 && e.guid != forGuid)) {
+				// Hash collision, or another bot's private entry: not ours. Plan normally.
+			} else if (negNow - e.lastAbortMs > Z_ABORT_FORGET_MS) {
+				s_zAbortBackoff.erase(ab);
+			} else if (negNow < e.retryAtMs) {
+				audPath.result("backoff");
+				lastZPlanResult_ = ZPlanResult::BACKOFF;
+				s_zAbortBackoffHits++;
+				if (negNow - s_zAbortBackoffLastLogMs > 30000) {
+					s_zAbortBackoffLastLogMs = negNow;
+					g_logger().info("[ZPLAN_BACKOFF] {} re-plans suppressed, {} pair(s) backing off "
+						"(latest ({},{},{})->({},{},{}) streak={} retry in {}ms)",
+						s_zAbortBackoffHits, s_zAbortBackoff.size(), from.x, from.y, from.z,
+						target.x, target.y, target.z, e.streak, e.retryAtMs - negNow);
+				}
+				return false;
+			}
+		}
+		} // for abKey
+	}
+	// New floods this attempt computes (cache misses) = progress a retry will reuse. See below.
+	const uint64_t reachMissesBefore = zReachMisses_;
+
 	LocalReach startReach(from, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_,
 	                      &zReachMisses_, Z_REACH_TTL_MS, Z_REACH_CACHE_MAX);
 	LocalReach targetReach(target, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_,
 	                       &zReachMisses_, Z_REACH_TTL_MS, Z_REACH_CACHE_MAX);
+	// Declared before legCost so the leg pricer can honour the deadline too (#116). planZRoute
+	// checks its deadline only between batches of 64 settles, and one settle can price several
+	// unlabelled portals, each a fresh flood of up to Z_END_LEG_BUDGET cells -- which is how a
+	// 15 ms budget produced 84 ms aborts (and, before the search deadline existed, 3284 ms). The
+	// leg pricer's cut is a backstop at search budget + Z_PLAN_LEG_EXTRA_BUDGET_MS (35 ms total;
+	// see the constant for the worst case). The verdict a timed-out leg returns (-1) never
+	// escapes: planAborted is set, and every consumer below treats an aborted search as "no answer".
+	bool planAborted = false;
+	int64_t legDeadlineMs = 0; // 0 = no deadline (admin calls); set with pp.deadlineMonoMs below
 	auto legCost = [&, forceGraph](const Position& a, const Position& b) -> int32_t {
+		if (legDeadlineMs != 0 && (planAborted || botnav::zSteadyMs() > legDeadlineMs)) {
+			planAborted = true;
+			return -1;
+		}
 		if (forceGraph && a == from && b == target) {
 			return -1;
 		}
@@ -2772,13 +2884,21 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 	// An abort is not a failure. It leaves outAborted set, and everything below that records a
 	// verdict (both negative caches) or counts a failure is skipped, because the pair may be
 	// perfectly routable and we simply ran out of time. The floods it did compute stay in
-	// zReachCache_, so next tick's retry resumes cheaply instead of starting over.
-	bool planAborted = false;
+	// zReachCache_, so a retry can resume where it stopped -- unless the search outgrew the reach
+	// cache, which is what the abort backoff below exists for (#116).
 	if (forGuid != 0) {
 		pp.deadlineMonoMs = botnav::zSteadyMs() + Z_PLAN_SEARCH_BUDGET_MS;
 		pp.outAborted = &planAborted;
+		// The leg pricer's own cut is a BACKSTOP against the multi-flood runaway, set past the
+		// search budget (#116 review): the settle-cadence check above stays the main cut.
+		legDeadlineMs = pp.deadlineMonoMs + Z_PLAN_LEG_EXTRA_BUDGET_MS;
 	}
 	bool ok = botnav::planZRoute(zGraph_, from, target, hops, pp, legCost, exclude);
+	if (ok) {
+		// A route found from legs priced before the deadline is a real route even if the leg
+		// pricer timed out on some OTHER branch; keep it.
+		planAborted = false;
+	}
 	// A blacklisted portal must never make an otherwise-viable route UNPLANNABLE. Many routes are
 	// a unique chain of portals (proven live: (32345,32265,5)->(32350,32225,5) is the only way
 	// between two pockets of z=5, via z6->z7->z6), so excluding one link does not steer the bot
@@ -2798,10 +2918,59 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		if (botnav::planZRoute(zGraph_, from, target, hops2, pp, legCost, excludeJustUsedOnly)) {
 			hops = std::move(hops2);
 			ok = true;
+			planAborted = false; // see the note after the first pass
 			g_logger().warn("[ZPLAN_RECOVER] ({},{},{})->({},{},{}) routable only after ignoring {} "
 			                "blacklisted portal(s)",
 			                from.x, from.y, from.z, target.x, target.y, target.z,
 			                s_zPortalBlacklist.size());
+		}
+	}
+	// Aborted-plan backoff bookkeeping (#116). Any COMPLETED attempt (ok, or a genuine fail that
+	// the negative cache below records) clears the pair's streak; an abort extends it.
+	if (forGuid != 0) {
+		const uint64_t abKey = justUsed != 0 ? negHashBot : negHash;
+		const uint32_t abGuid = justUsed != 0 ? forGuid : 0;
+		if (planAborted) {
+			const int64_t nowMs = OTSYS_TIME();
+			if (s_zAbortBackoff.size() >= Z_ABORT_CACHE_MAX) {
+				std::erase_if(s_zAbortBackoff, [nowMs](const auto& kv) {
+					return nowMs - kv.second.lastAbortMs > Z_ABORT_FORGET_MS;
+				});
+				if (s_zAbortBackoff.size() >= Z_ABORT_CACHE_MAX) {
+					s_zAbortBackoff.clear(); // miss-cost structure only: losing it costs one search
+				}
+			}
+			auto& e = s_zAbortBackoff[abKey];
+			if (e.srcKey != negSrc || e.tgtKey != negTgt || e.forceGraph != forceGraph || e.guid != abGuid
+			    || nowMs - e.lastAbortMs > Z_ABORT_FORGET_MS) {
+				e = ZAbortEntry { negSrc, negTgt, forceGraph, 0, 0, 0, abGuid, 0 };
+			}
+			e.streak++;
+			e.lastAbortMs = nowMs;
+			const bool cacheProgress = zReachMisses_ > reachMissesBefore;
+			if (e.streak == 1 || (cacheProgress && e.streak <= Z_ABORT_FREE_RETRIES)) {
+				e.retryAtMs = 0; // free retry: the floods this attempt cached make the next one cheap
+			} else {
+				// 2,4,8,16,32,60 s from the first ARMED backoff, whatever streak armed it.
+				e.armedCount++;
+				const uint32_t shift = std::min<uint32_t>(e.armedCount - 1, 5);
+				const int64_t waitMs = std::min(Z_ABORT_BACKOFF_BASE_MS << shift, Z_ABORT_BACKOFF_MAX_MS);
+				e.retryAtMs = nowMs + waitMs;
+				lastZPlanBackoffArmed_ = true;
+				g_logger().info("[ZPLAN_BACKOFF] armed ({},{},{})->({},{},{}) streak={} progress={} "
+					"next attempt in {}ms guid={}{}",
+					from.x, from.y, from.z, target.x, target.y, target.z, e.streak, cacheProgress ? 1 : 0,
+					waitMs, forGuid, abGuid != 0 ? " (per-bot: justUsed)" : "");
+			}
+		} else if (!s_zAbortBackoff.empty()) {
+			for (const uint64_t k : { negHash, negHashBot }) {
+				if (auto ab = s_zAbortBackoff.find(k); ab != s_zAbortBackoff.end()
+				    && ab->second.srcKey == negSrc && ab->second.tgtKey == negTgt
+				    && ab->second.forceGraph == forceGraph
+				    && (ab->second.guid == 0 || ab->second.guid == forGuid)) {
+					s_zAbortBackoff.erase(ab);
+				}
+			}
 		}
 	}
 	// Record a confirmed-unreachable pair so the next tick does not pay for the same discovery.
@@ -2864,10 +3033,13 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 	}
 	if (ok) {
 		audPath.ok("zplan", hops.size());
+		lastZPlanResult_ = ZPlanResult::OK;
 	} else if (planAborted) {
 		audPath.result("abort");
+		lastZPlanResult_ = ZPlanResult::ABORTED;
 	} else {
 		audPath.result("fail");
+		lastZPlanResult_ = ZPlanResult::FAIL;
 	}
 	audPath.expanded = static_cast<int64_t>(startReach.cellsVisited() + targetReach.cellsVisited());
 	const int64_t planMs = botMonoMs() - planStart;
@@ -2885,7 +3057,11 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 bool BotEngine::zPlanNextHop(BotState& bot, const Position& target, ZPlannedHop& out, bool forceGraph) {
 	std::vector<botnav::ZRouteHop> hops;
 	if (!zPlanFullRoute(bot.currentPos, target, hops, forceGraph, bot.guid) || hops.empty()) {
-		s_zPlanFail++;
+		// The only caller (startFloorChange) falls back to the greedy transition scan either way,
+		// which charges no strike; just keep the [ZROUTE] failure count honest (#116 review).
+		if (!lastZPlanWasWait()) {
+			s_zPlanFail++;
+		}
 		return false;
 	}
 	s_zPlanOk++;

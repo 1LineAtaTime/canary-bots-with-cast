@@ -1106,9 +1106,13 @@ std::pair<Position, std::string> BotEngine::getTravelPosition(uint32_t townId) c
 // Forward declaration — defined alongside applyBotForgeTiers below; used by the
 // one-shot sanity dump at the end of loadEquipmentData.
 
-void BotEngine::equipBot(BotState& bot) {
+void BotEngine::equipBot(BotState& bot, bool preserveBackpack) {
 	auto player = bot.getPlayer();
 	if (!player) return;
+
+	// Reload reactivation keeps the bag the bot already carries (loot, produced runes, fish).
+	// Only a bot that HAS a backpack keeps it; a missing one is created as on first activation.
+	const bool keepBag = preserveBackpack && player->getInventoryItem(CONST_SLOT_BACKPACK) != nullptr;
 
 	auto voc = player->getVocation();
 	uint32_t baseVoc = voc ? voc->getBaseId() : 4; // default to paladin if unknown
@@ -1137,6 +1141,7 @@ void BotEngine::equipBot(BotState& bot) {
 	int updated = 0;
 	for (auto& s : slots) {
 		if (s.itemId == 0) continue;
+		if (keepBag && s.slot == CONST_SLOT_BACKPACK) continue; // replacing it destroys the contents
 		auto existing = player->getInventoryItem(s.slot);
 		if (existing && existing->getID() == s.itemId) continue; // already correct
 
@@ -1216,10 +1221,11 @@ void BotEngine::equipBot(BotState& bot) {
 	// purchases (set to 100000 in bot_players_setup.sql), so destroying the bag's
 	// gold/loot is fine. Runes re-seed immediately below (empty() guard now satisfied),
 	// exercise weapons re-seed at max 14400 charges via the per-id findItemOfType guard.
-	// Only fires from activateBot (line 2194) and the reload-reactivate path (line 4309).
+	// Only fires from activateBot. The reload-reactivate path passes preserveBackpack, so
+	// /cavebot reload no longer empties every bag (#48).
 	// NOT from wakeBot — hibernation preserves the Player object as-is via the
 	// hibernationPool_ fast-path, so the bag persists across proximity/teleport wakes.
-	{
+	if (!keepBag) {
 		auto bpExisting = player->getInventoryItem(CONST_SLOT_BACKPACK);
 		if (bpExisting) {
 			g_game().internalRemoveItem(bpExisting);  // destroys container + all sub-items
@@ -1305,8 +1311,9 @@ void BotEngine::equipBot(BotState& bot) {
 		//
 		// No idempotency guard by id: this whole block runs after the unconditional backpack
 		// wipe. Do NOT "fix" that with findItemOfType(player, 2854, ...) — it would match the
-		// OUTER backpack, since both are the same item.
-		if (bpContainer) {
+		// OUTER backpack, since both are the same item. A preserved bag (keepBag) already
+		// holds its supply bag from the activation that built it, so it is not re-added.
+		if (bpContainer && !keepBag) {
 			auto supplyBag = Item::CreateItem(2854, 1);
 			if (supplyBag && g_game().internalAddItem(bpContainer, supplyBag, INDEX_WHEREEVER) == RETURNVALUE_NOERROR) {
 				if (const auto& bag = supplyBag->getContainer()) {

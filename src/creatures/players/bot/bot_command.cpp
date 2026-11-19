@@ -36,13 +36,45 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 	}
 
 	// Global commands — don't need a specific bot
+	// An explicit operator choice wins over debug isolation's restore latch (#124 review 3): turning
+	// isolation off must not overturn a `schedule on|off` given while it was on.
 	if (command == "schedule on") {
 		schedulerEnabled_ = true;
+		debugIsolateStoppedScheduler_ = false;
 		return "Population scheduler enabled.";
 	}
 	if (command == "schedule off") {
 		schedulerEnabled_ = false;
+		debugIsolateStoppedScheduler_ = false;
 		return "Population scheduler disabled (manual control only).";
+	}
+	// Debug isolation (#124): only pinned bots may exist/act. `reload debug,...` issues `on` after
+	// pinning its targets; `reload debug off` issues `off`. See bot_engine_impl.hpp.
+	if (command == "debugisolate on") {
+		if (s_debugPinned.empty()) {
+			// #124 review: isolation with nothing pinned would refuse every bot and the sweep would
+			// empty the server, with no pinned bot left to recover through.
+			g_logger().warn("[DEBUG_ISOLATE] refused ON: no pinned bot");
+			return "[DEBUG_ISOLATE] refused: no bot is pinned (pin the debug bots first)";
+		}
+		if (!debugIsolate_) {
+			debugIsolateStoppedScheduler_ = schedulerEnabled_; // give it back on OFF (#124 review 2)
+		}
+		debugIsolate_ = true;
+		schedulerEnabled_ = false; // isolation implies manual control; the scheduler would only be refused
+		const uint32_t n = debugIsolateSweep("debugisolate on");
+		const std::string msg = fmt::format("[DEBUG_ISOLATE] ON: pinned={} despawned={} active={}",
+			s_debugPinned.size(), n, countActiveBots());
+		g_logger().info("{}", msg);
+		return msg;
+	}
+	if (command == "debugisolate off") {
+		return debugIsolateTurnOff("command");
+	}
+	if (command == "debugisolate status") {
+		return fmt::format("[DEBUG_ISOLATE] {} pinned={} active={} despawned_total={} refused_total={}",
+			debugIsolate_ ? "ON" : "OFF", s_debugPinned.size(), countActiveBots(),
+			debugIsolateDespawned_, debugIsolateRefused_);
 	}
 	if (command == "schedule status") {
 		time_t rawTime = std::time(nullptr);
@@ -517,7 +549,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			from.x, from.y, from.z, to.x, to.y, to.z,
 			planned ? fmt::format("{} hop(s)", hops.size()) : "NO Z-ROUTE (tracing direct leg only)",
 			mover->getName(),
-			wideMode ? "planner tier 2 (direct, 4096 nodes, dist<=200)" : "generic goTo (chunked, 512 nodes, dist<=50)");
+			wideMode ? "planner tier 2 (direct, 4096 nodes, dist<=200)" : "generic goTo as plain walk callers use it (direct-first at cheb 13-24, else chunked; 512 nodes, dist<=50)");
 
 		// Build the leg list exactly as the walker experiences it: current position to the first
 		// portal tile, each landing to the next portal tile, and the last landing to the target.
@@ -576,10 +608,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				const int32_t sdy = static_cast<int32_t>(L.b.y) - static_cast<int32_t>(L.a.y);
 				const int32_t d = std::max(std::abs(sdx), std::abs(sdy));
 				if (d > CHUNK_DIST) {
-					const double ratio = static_cast<double>(CHUNK_DIST) / d;
-					Position chunk = L.a;
-					chunk.x = L.a.x + static_cast<uint16_t>(sdx * ratio);
-					chunk.y = L.a.y + static_cast<uint16_t>(sdy * ratio);
+					const Position chunk = botnav::chunkTarget(L.a, L.b, CHUNK_DIST);
 					std::vector<Position> ct;
 					const bool chunkOk = botTraceLegPath(mover, L.a, chunk, 3, ct);
 					out += fmt::format("      cheb={} > CHUNK_DIST={} -> goTo() would aim at ({},{},{}) which is {}\n",
@@ -1258,6 +1287,9 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// These are the config.lua DEFAULTS; the live runtime values are in `/cavebot audit status`.
 		out += "[BOT_CFG] BOT_AUDIT keys (src/config/bot_config_keys.hpp; runtime: /cavebot audit status)\n";
 		BOT_AUDIT_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
+		// #123. Listed here in the SAME commit as the table (see the NOTE above).
+		out += "[BOT_CFG] BOT_PVP_SANITY keys (src/config/bot_config_keys.hpp)\n";
+		BOT_PVP_SANITY_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
 #undef BOT_CFG_DUMP_INT
 #undef BOT_CFG_DUMP_BOOL
 #undef BOT_CFG_DUMP_STR
@@ -2016,9 +2048,16 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			if (command == "probe on" || command == "probe watch on") {
 				s_forceWakeGuid = bot.guid;   // explicit admin wake: bypass the density gate
 				s_proximityWake = false;      // no off-screen relocation or login sparkle
+				// `probe on` pins the bot anyway (below); pin it BEFORE the wake so debug isolation
+				// (#124), which refuses to wake unpinned bots, lets this one through.
+				const bool pinForWake = command == "probe on" && s_debugPinned.insert(bot.guid).second;
 				if (!wakeBot(bot.guid)) {
-					return fmt::format("Bot '{}' could not be woken to act as a probe (DB load failed).",
-						botName);
+					if (pinForWake) {
+						s_debugPinned.erase(bot.guid);
+						debugIsolateAfterUnpin(bot.guid, "probe on wake failed");
+					}
+					return fmt::format("Bot '{}' could not be woken to act as a probe (DB load failed{}).",
+						botName, debugIsolate_ ? " or refused by debug isolation" : "");
 				}
 				break;
 			}
@@ -2027,6 +2066,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			if (command == "probe off") {
 				s_probeBots.erase(bot.guid);
 				s_debugPinned.erase(bot.guid);
+				debugIsolateAfterUnpin(bot.guid, "probe off");
 				if (auto pl = bot.getPlayer()) { pl->setSyntheticCastViewers(0); }
 				return fmt::format("Bot '{}' probe OFF (was hibernated).", botName);
 			}
@@ -2582,16 +2622,24 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			if (command == "probe off") {
 				s_probeBots.erase(bot.guid);
 				s_debugPinned.erase(bot.guid);
+				debugIsolateAfterUnpin(bot.guid, "probe off");
 				if (player) { player->setSyntheticCastViewers(0); }
 				return fmt::format("Bot '{}' probe OFF (unpinned).", botName);
 			}
 			// probe on. A hibernated bot has no live Player in the online map, so wake it first --
 			// otherwise the flag would land on nothing and the probe would be silently inert.
+			bool pinnedForWake = false;
 			if (bot.hibernated) {
+				// Pin before the wake: see the hibernated branch above.
+				pinnedForWake = s_debugPinned.insert(bot.guid).second;
 				wakeBot(bot.guid);
 				player = bot.getPlayer();
 			}
 			if (!player) {
+				if (pinnedForWake) {
+					s_debugPinned.erase(bot.guid);
+					debugIsolateAfterUnpin(bot.guid, "probe on wake failed");
+				}
 				return fmt::format("Bot '{}' has no Player — cannot arm as probe.", botName);
 			}
 			s_probeBots.insert(bot.guid);
@@ -2649,6 +2697,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			}
 			if (command == "pin off") {
 				s_debugPinned.erase(bot.guid);
+				debugIsolateAfterUnpin(bot.guid, "pin off");
 				return fmt::format("Bot '{}' unpinned — normal AI resumes.", botName);
 			}
 			return fmt::format("Bot '{}' pinned={} (total pinned={})",
@@ -2701,12 +2750,9 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				g_game().addPlayerMana(player);
 
 				player->setFightMode(FIGHTMODE_ATTACK);
-				player->setCastBroadcasting(true);
-				auto& db = Database::getInstance();
-				db.executeQuery(fmt::format(
-					"INSERT INTO `cast_broadcasters` (`player_id`, `player_name`) VALUES ({}, {}) "
-					"ON DUPLICATE KEY UPDATE `player_name` = {}",
-					bot.guid, db.escapeString(player->getName()), db.escapeString(player->getName())));
+				// Same switch as activate/wake/reload (#131 review); also moves the cast_broadcasters
+				// write off the dispatcher (it was a synchronous executeQuery here).
+				enableBotCastBroadcast(bot.guid, player);
 
 				g_logger().info("[BotEngine] Activated bot '{}' at ({},{},{}) via admin command",
 					player->getName(), x, y, z);
@@ -3169,6 +3215,10 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				// and self-clear on the very next tick (observed: target set 16:06:05.768, cleared
 				// 16:06:06.179 — 411ms). A newly issued walk always gets a fresh clock.
 				s_walkTargetTimer.erase(bot.guid);
+				// An operator goto is a new route: fresh walk-pause caps (#120). Pinned bots never
+				// reach doActivityReroll's reset while walking, and chained gotos never idle.
+				bot.pausesThisRoute = 0;
+				bot.pausesThisRouteObserved = 0;
 				return fmt::format("Bot '{}' walking to ({},{},{}).", botName, x, y, z);
 			}
 			return "Invalid goto format. Use: goto x,y,z";
@@ -3682,7 +3732,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			"Global (no botname): reload [debug,N|debug off], datadump <tag>, routewp|routeadd|routedel, huntwp|huntadd|huntdel, "
 			"hunttarget|targetadd|targetdel, poi|poiadd|poidel|poiupdate, whohunts [search], "
 			"perfstat, perfphases, perfreset, probe list|clear, hibernateall, "
-			"partyinfo, partystop <name>, schedule on|off|status, simulate route|hunt|poi.",
+			"partyinfo, partystop <name>, schedule on|off|status, debugisolate on|off|status, simulate route|hunt|poi.",
 			command);
 	}
 
@@ -3698,11 +3748,15 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 // Dispatcher::executeScheduledEvents, faulting inside guidToIndex_.find.
 //
 // stopEvent is a no-op for an id that already fired (the callback clears the field first).
+// A cancelled Task drops its std::function (the engine lambda) at once, but the Task itself
+// stays queued until its due time -- which is why it must be allocated by the executable
+// (botHostScheduleEvent, #50): its control block then points at a vtable that survives dlclose.
 //
-// !!! ANY new g_dispatcher() scheduling call in a bot_*.cpp TU MUST either register its event
-// !!! id here, or route through a core-binary trampoline like Game::restartBotTickLoop —
-// !!! otherwise it silently reopens this crash. That is exactly how the original bug happened:
-// !!! this drain loop existed and was correct, but the reload path never reached it.
+// !!! ANY new scheduling call in a bot_*.cpp TU MUST go through botHostScheduleEvent AND
+// !!! register its event id here (or route through a core-binary trampoline like
+// !!! Game::restartBotTickLoop) -- otherwise it silently reopens this crash. That is exactly how
+// !!! the original bug happened: this drain loop existed and was correct, but the reload path
+// !!! never reached it. The POST_BUILD gate rejects a direct Dispatcher scheduling call.
 void BotEngine::cancelPendingDispatcherEvents() {
 	uint32_t cancelled = 0;
 	for (auto& bot : bots_) {

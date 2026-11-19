@@ -112,7 +112,7 @@ void ProtocolStatus::sendStatusString() {
 	// (The prior IP-dedup-cap-5 anti-multiclient filter was dropped — it excluded
 	// awake bots, which have IP=0, causing the sidebar widget to undercount.)
 	size_t playerCount = g_game().getPlayersOnline();
-	if (g_configManager().getBoolean(BOT_PLAYERS_SHOW_AS_ONLINE)) {
+	if (g_configManager().getBoolean(BOT_PLAYERS_SHOW_AS_ONLINE) && isBotEngineReady()) {
 		playerCount += g_botEngine().getHibernatedBotCount();
 	}
 	players.append_attribute("online") = std::to_string(playerCount).c_str();
@@ -180,7 +180,7 @@ void ProtocolStatus::sendInfo(uint16_t requestedInfo, const std::string &charact
 	if (requestedInfo & REQUEST_PLAYERS_INFO) {
 		output->addByte(0x20);
 		size_t playerCount = g_game().getPlayersOnline();
-		if (g_configManager().getBoolean(BOT_PLAYERS_SHOW_AS_ONLINE)) {
+		if (g_configManager().getBoolean(BOT_PLAYERS_SHOW_AS_ONLINE) && isBotEngineReady()) {
 			playerCount += g_botEngine().getHibernatedBotCount();
 		}
 		output->add<uint32_t>(static_cast<uint32_t>(playerCount));

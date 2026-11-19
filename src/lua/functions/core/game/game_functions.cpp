@@ -114,6 +114,8 @@ void GameFunctions::init(lua_State* L) {
 	Lua::registerMethod(L, "Game", "botCountActive", GameFunctions::luaGameBotCountActive);
 	Lua::registerMethod(L, "Game", "botCommand", GameFunctions::luaGameBotCommand);
 	Lua::registerMethod(L, "Game", "botReload", GameFunctions::luaGameBotReload);
+	Lua::registerMethod(L, "Game", "botCheckLibrary", GameFunctions::luaGameBotCheckLibrary);
+	Lua::registerMethod(L, "Game", "botDiscardLibraryCheck", GameFunctions::luaGameBotDiscardLibraryCheck);
 	Lua::registerMethod(L, "Game", "botReregisterAll", GameFunctions::luaGameBotReregisterAll);
 	Lua::registerMethod(L, "Game", "botStartTickLoop", GameFunctions::luaGameBotStartTickLoop);
 	Lua::registerMethod(L, "Game", "botGetState", GameFunctions::luaGameBotGetState);
@@ -837,6 +839,10 @@ int GameFunctions::luaGameGetOfflinePlayer(lua_State* L) {
 
 int GameFunctions::luaGameLoadBotPlayer(lua_State* L) {
 	// Game.loadBotPlayer(name) — loads a player from DB, places in world with no client
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushnil(L);
+		return 1;
+	}
 	const std::string &name = Lua::getString(L, 1);
 	g_logger().info("[Game.loadBotPlayer] Loading bot player '{}'...", name);
 
@@ -930,6 +936,10 @@ int GameFunctions::luaGameLoadBotPlayer(lua_State* L) {
 
 int GameFunctions::luaGameBotActivate(lua_State* L) {
 	// Game.botActivate(guid) — returns true if bot was actually activated (was inactive)
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	bool result = g_botEngine().activateBot(guid);
 	lua_pushboolean(L, result);
@@ -938,6 +948,10 @@ int GameFunctions::luaGameBotActivate(lua_State* L) {
 
 int GameFunctions::luaGameBotDeactivate(lua_State* L) {
 	// Game.botDeactivate(guid) — returns true if bot was actually deactivated
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	bool result = g_botEngine().deactivateBot(guid);
 	lua_pushboolean(L, result);
@@ -946,6 +960,10 @@ int GameFunctions::luaGameBotDeactivate(lua_State* L) {
 
 int GameFunctions::luaGameBotForceDeactivate(lua_State* L) {
 	// Game.botForceDeactivate(guid) — unconditional deactivation (for death handling)
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	g_botEngine().forceDeactivateBot(guid);
 	lua_pushboolean(L, true);
@@ -954,6 +972,10 @@ int GameFunctions::luaGameBotForceDeactivate(lua_State* L) {
 
 int GameFunctions::luaGameBotForceDeactivateForReload(lua_State* L) {
 	// Game.botForceDeactivateForReload(guid) — deactivate without touching cast or position
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	g_botEngine().forceDeactivateBotForReload(guid);
 	lua_pushboolean(L, true);
@@ -962,6 +984,10 @@ int GameFunctions::luaGameBotForceDeactivateForReload(lua_State* L) {
 
 int GameFunctions::luaGameBotPauseForDeath(lua_State* L) {
 	// Game.botPauseForDeath(guid) — pause bot AI after death (10-180s), then resume
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	g_botEngine().pauseBotForDeath(guid);
 	lua_pushboolean(L, true);
@@ -970,6 +996,10 @@ int GameFunctions::luaGameBotPauseForDeath(lua_State* L) {
 
 int GameFunctions::luaGameBotSetAIPaused(lua_State* L) {
 	// Game.botSetAIPaused(nameOrGuid, paused) — gate the AI tick for one bot (CPU benchmarking)
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = 0;
 	if (lua_isnumber(L, 1)) {
 		guid = Lua::getNumber<uint32_t>(L, 1);
@@ -990,6 +1020,10 @@ int GameFunctions::luaGameBotSetAIPaused(lua_State* L) {
 
 int GameFunctions::luaGameBotSetAllAIPaused(lua_State* L) {
 	// Game.botSetAllAIPaused(paused) — gate the AI tick for every active bot (CPU benchmarking)
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	bool paused = Lua::getBoolean(L, 1);
 	g_botEngine().setAllBotsAIPaused(paused);
 	lua_pushboolean(L, true);
@@ -998,6 +1032,10 @@ int GameFunctions::luaGameBotSetAllAIPaused(lua_State* L) {
 
 int GameFunctions::luaGameBotHibernate(lua_State* L) {
 	// Game.botHibernate(guid) — despawn bot but preserve AI state. Returns true if hibernated.
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	bool result = g_botEngine().hibernateBot(guid);
 	lua_pushboolean(L, result);
@@ -1006,6 +1044,10 @@ int GameFunctions::luaGameBotHibernate(lua_State* L) {
 
 int GameFunctions::luaGameBotWake(lua_State* L) {
 	// Game.botWake(guid) — re-materialize Player from DB and resume AI from preserved state.
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	bool result = g_botEngine().wakeBot(guid);
 	lua_pushboolean(L, result);
@@ -1017,6 +1059,10 @@ int GameFunctions::luaGameBotRecoverOrphanForReload(lua_State* L) {
 	// orphaned Player object (Lua-held shared_ptr) to the new engine after botReload
 	// destroyed the old hibernationPool_. Used by executeReload to ensure all 200
 	// bots survive /cavebot reload.
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	auto player = Lua::getUserdataShared<Player>(L, 2, "Player");
 	if (!player) {
@@ -1032,6 +1078,10 @@ int GameFunctions::luaGameBotRecoverOrphanForReload(lua_State* L) {
 int GameFunctions::luaGameGetBotHibernationStates(lua_State* L) {
 	// Game.getBotHibernationStates() — returns array of {guid, name, hibernated, active, x, y, z}
 	// for every registered bot. Used by bot_hibernation.lua proximity loop.
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_newtable(L);
+		return 1;
+	}
 	lua_newtable(L);
 	int idx = 1;
 	uint32_t total = g_botEngine().countTotalBots();
@@ -1087,6 +1137,10 @@ int GameFunctions::luaGameGetBotHibernationStates(lua_State* L) {
 
 int GameFunctions::luaGameBotHibernateAllEligible(lua_State* L) {
 	// Game.botHibernateAllEligible() — bulk hibernate every active bot. Returns count.
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushnumber(L, 0);
+		return 1;
+	}
 	uint32_t count = g_botEngine().hibernateAllEligibleBots();
 	lua_pushnumber(L, count);
 	return 1;
@@ -1094,6 +1148,10 @@ int GameFunctions::luaGameBotHibernateAllEligible(lua_State* L) {
 
 int GameFunctions::luaGameBotWakeAllHibernated(lua_State* L) {
 	// Game.botWakeAllHibernated() — bulk wake every hibernated bot. Returns count.
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushnumber(L, 0);
+		return 1;
+	}
 	uint32_t count = g_botEngine().wakeAllHibernatedBots();
 	lua_pushnumber(L, count);
 	return 1;
@@ -1101,6 +1159,10 @@ int GameFunctions::luaGameBotWakeAllHibernated(lua_State* L) {
 
 int GameFunctions::luaGameBotReactivateForReload(lua_State* L) {
 	// Game.botReactivateForReload(guid) — reactivate without teleport or cast toggle
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	bool result = g_botEngine().reactivateBotForReload(guid);
 	lua_pushboolean(L, result);
@@ -1143,6 +1205,10 @@ int GameFunctions::luaGameBotCancelMarketOffer(lua_State* L) {
 
 int GameFunctions::luaGameBotCountActive(lua_State* L) {
 	// Game.botCountActive()
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushnumber(L, 0);
+		return 1;
+	}
 	lua_pushnumber(L, g_botEngine().countActiveBots());
 	return 1;
 }
@@ -1151,6 +1217,10 @@ int GameFunctions::luaGameBotCommand(lua_State* L) {
 	// Game.botCommand(botName, command[, source])
 	// `source` only labels the BOT_TEST_HARNESS `cmd` audit record ("talkaction", "cast-op",
 	// "queue", ...); it never changes what the command does. Default "lua".
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		Lua::pushString(L, "Bot engine not loaded.");
+		return 1;
+	}
 	const std::string &botName = Lua::getString(L, 1);
 	const std::string &command = Lua::getString(L, 2);
 	std::string result = g_botEngine().executeCommand(botName, command);
@@ -1174,28 +1244,69 @@ int GameFunctions::luaGameBotReload(lua_State* L) {
 	// Game.botReload() — hot-reload the bot engine shared library
 	auto& loader = BotEngineLoader::getInstance();
 	if (!loader.isLoaded()) {
-		Lua::pushString(L, "Bot engine not loaded.");
+		// #114: say what to do. reload() only REPLACES a running engine; after a startup refusal
+		// (or a failed reload) only a restart with a matching canary + .so brings bots back.
+		Lua::pushString(L, "Bot engine is not running (" + (loader.lastError().empty() ? std::string("not loaded at startup") : loader.lastError()) + "): restart required -- /cavebot reload cannot start it.");
 		return 1;
 	}
 
 	// Windows links the engine into the binary, so there is nothing to swap. Say so
 	// plainly -- falling through would report "bots are disabled", which is both
 	// wrong (they keep running) and alarming.
+	// The `/cavebot reload` flow never gets here on Windows (Game.botCheckLibrary() refuses
+	// first); this covers a direct Game.botReload() call. The second value (true = refused,
+	// engine kept) is the same contract as the #58 refusal below and is load-bearing for any
+	// caller that uses the reload flow's shape: the running engine still owns its hibernation
+	// pool, so hibernated bots must NOT be re-materialized from the DB (a second Player per guid).
+	// ASCII only: canary_core is not compiled with /utf-8.
 	if constexpr (!BotEngineLoader::supportsHotReload()) {
-		Lua::pushString(L, "Bot engine is statically linked (Windows build) — restart the server to apply code or data changes.");
-		return 1;
+		Lua::pushString(L, "Bot engine is statically linked (Windows build) -- restart the server to apply code or data changes.");
+		lua_pushboolean(L, true);
+		return 2;
 	}
 
 	bool success = loader.reload();
 	if (!success) {
-		Lua::pushString(L, "FAILED to reload bot engine .so! Bots are disabled.");
-		return 1;
+		if (loader.isLoaded()) {
+			// Refused before teardown (#58): the running engine is untouched. The second
+			// return value tells the Lua reload flow not to treat the pool as gone.
+			Lua::pushString(L, "REFUSED to reload bot engine .so (" + loader.lastError() + "); the running engine was kept.");
+			lua_pushboolean(L, true);
+			return 2;
+		}
+		Lua::pushString(L, "FAILED to reload bot engine .so (" + loader.lastError() + ")! Bots are disabled.");
+		lua_pushboolean(L, false);
+		return 2;
 	}
 
 	// Re-initialize hunt data from MySQL
 	loader.getEngine().loadHuntData();
 
 	Lua::pushString(L, "Bot engine reloaded successfully.");
+	return 1;
+}
+
+int GameFunctions::luaGameBotCheckLibrary(lua_State* L) {
+	// Game.botCheckLibrary() -> ok, detail. Reads the ABI marker out of libbot_engine.so
+	// (no dlopen) and compares it with this executable's tag (#58). `/cavebot reload` calls
+	// it before deactivating anything, so a mismatched .so is refused with zero residue.
+	// #114: it verifies the private copy the following Game.botReload() opens (one scan per
+	// reload), and refuses with "restart required" when no engine is running at all.
+	// Third value: whether this build can hot-reload at all (false on Windows, where the check
+	// always refuses) -- lets the Lua flow word the refusal correctly instead of as an ABI mismatch.
+	std::string detail;
+	const bool ok = BotEngineLoader::getInstance().checkLibrary(detail);
+	lua_pushboolean(L, ok);
+	Lua::pushString(L, detail);
+	lua_pushboolean(L, BotEngineLoader::supportsHotReload());
+	return 3;
+}
+
+int GameFunctions::luaGameBotDiscardLibraryCheck(lua_State* L) {
+	// Game.botDiscardLibraryCheck() -- #114 (review): a reload aborted after Game.botCheckLibrary()
+	// passed (CSV pre-flight, prefix error) deletes the private copy that check staged.
+	BotEngineLoader::getInstance().discardLibraryCheck();
+	lua_pushboolean(L, true);
 	return 1;
 }
 
@@ -1238,6 +1349,10 @@ int GameFunctions::luaGameBotStartTickLoop(lua_State* L) {
 
 int GameFunctions::luaGameBotGetState(lua_State* L) {
 	// Game.botGetState(guid) — returns bot AI state integer, or -1 if not found
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushnumber(L, -1);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	auto* botState = g_botEngine().getBotState(guid);
 	if (!botState) {
@@ -1250,6 +1365,10 @@ int GameFunctions::luaGameBotGetState(lua_State* L) {
 
 int GameFunctions::luaGameBotGetStatusText(lua_State* L) {
 	// Game.botGetStatusText(guid) — returns bot status detail string, or "" if not found
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		Lua::pushString(L, "");
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	std::string status = g_botEngine().getStatusText(guid);
 	Lua::pushString(L, status);
@@ -1258,6 +1377,10 @@ int GameFunctions::luaGameBotGetStatusText(lua_State* L) {
 
 int GameFunctions::luaGameBotInParty(lua_State* L) {
 	// Game.botInParty(guid) — returns true if bot is currently in a player party
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	auto* botState = g_botEngine().getBotState(guid);
 	if (!botState) {
@@ -1270,6 +1393,10 @@ int GameFunctions::luaGameBotInParty(lua_State* L) {
 
 int GameFunctions::luaGameBotIsActive(lua_State* L) {
 	// Game.botIsActive(guid) — returns true if the bot is currently active (in the world, AI ticking)
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	uint32_t guid = Lua::getNumber<uint32_t>(L, 1);
 	auto* botState = g_botEngine().getBotState(guid);
 	lua_pushboolean(L, botState && botState->active);
@@ -1278,6 +1405,10 @@ int GameFunctions::luaGameBotIsActive(lua_State* L) {
 
 int GameFunctions::luaGameBotSaveStates(lua_State* L) {
 	// Game.botSaveStates() — save all active bot states to DB (call from shutdown hook)
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	g_botEngine().saveAllStates();
 	lua_pushboolean(L, true);
 	return 1;
@@ -1285,6 +1416,10 @@ int GameFunctions::luaGameBotSaveStates(lua_State* L) {
 
 int GameFunctions::luaGameBotRestoreStates(lua_State* L) {
 	// Game.botRestoreStates() — restore bot states from DB (call after all bots loaded)
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	g_botEngine().restoreAllStates();
 	lua_pushboolean(L, true);
 	return 1;
@@ -1292,6 +1427,10 @@ int GameFunctions::luaGameBotRestoreStates(lua_State* L) {
 
 int GameFunctions::luaGameBotClearPersistedStates(lua_State* L) {
 	// Game.botClearPersistedStates() — delete all rows from bot_state_persistence
+	if (!isBotEngineReady()) { // no engine: before Game::start, mid-reload, or a failed load (#59)
+		lua_pushboolean(L, false);
+		return 1;
+	}
 	g_botEngine().clearPersistedStates();
 	lua_pushboolean(L, true);
 	return 1;

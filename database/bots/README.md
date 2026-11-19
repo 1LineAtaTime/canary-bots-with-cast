@@ -44,6 +44,9 @@ Run the files in this exact order (foreign-key / dependency order):
 | 11 | `11_bot_market_item_prices.sql` | market price reference (see header) |
 | 14 | `14_houses.sql` | house ownership + metadata (bots own 794 of 993 houses) |
 | 15 | `15_tile_store.sql` | house furniture/items (per-house serialized tile blobs) |
+| 16 | `16_runtime_compatibility.sql` | runtime tables the engine/Lua write (`bot_state_persistence`, `bot_startup_config`, `bot_nav_events`, `bot_test_commands`) + widens `players.onlinetime` and the `player_charms` counters on databases created from an older `schema.sql`. Safe to re-run. |
+| 23 | `23_bot_onlinetime_reset.sql` | zeroes the bot account's garbage `onlinetime` (#44). Run with canary stopped. |
+| 24 | `24_bot_state_persistence_saved_at.sql` | adds `bot_state_persistence.saved_at` (#47 review); the engine restores only tasks saved within 24 h. Idempotent. **Must run before** an engine built with it starts. |
 
 The numbering has gaps because the files that filled them seeded the old
 hunt/route/equipment tables. Those are CSV now, and the tables are gone.

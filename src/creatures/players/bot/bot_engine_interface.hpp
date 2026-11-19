@@ -318,7 +318,7 @@ struct BotState {
 
 	// Mid-walk pause hard cap. Reset at the start of every new route to prevent
 	// the 2%/step probability from clustering into N>3 pauses per route. The
-	// pause itself is scheduled via g_dispatcher().scheduleEvent and gated against
+	// pause itself is scheduled via botHostScheduleEvent (#50) and gated against
 	// combat/FC/hunt-target states.
 	uint8_t pausesThisRoute = 0;
 	// Observed-tier mid-walk pause counter (separate budget from pausesThisRoute so a
@@ -331,7 +331,7 @@ struct BotState {
 	bool walkObservedCache = false;
 	int64_t walkObservedCacheMs = 0;
 	// Dispatcher event id of an in-flight scheduled mid-walk pause (0 = none). Stored so
-	// deactivateAll() can stopEvent() it before the engine is destroyed + the .so is
+	// ~BotEngine (cancelPendingDispatcherEvents) can stopEvent() it before the .so is
 	// dlclose()d on /cavebot reload — otherwise the callback would fire into unloaded
 	// code. Cleared when the pause fires or is cancelled.
 	uint64_t pendingWalkPauseEventId = 0;

@@ -1145,6 +1145,9 @@ botGangOddsVsBot         = 400    -- 1-in-N per eligible scan vs a bot (~0.25%)
 botGangWallChancePct     = 80     -- chance to magic-wall a claimed open escape tile
 botGangParalyzeChancePct = 75     -- chance an ED paralyzes a moving victim
 botGangVictimCooldownSec = 86400  -- seconds before the SAME victim can be jumped again (default 1 day)
+-- #123 proportionality: no gang raid over a trivially weak victim.
+botGangMinVictimLevel    = 50     -- a victim below this level never draws a raid (0 = no floor)
+botGangMaxLevelRatio     = 4      -- no raid if the strongest attacker is >= this x the victim's level (0 = off)
 -- ---- PZ-blocked roaming ----
 -- While genuinely pz-locked (60s after a PvP hit) a bot cannot enter depot/temple/boat PZ. It
 -- stops rolling HUNT/TRAVEL and mills around non-PZ tiles until the lock clears.

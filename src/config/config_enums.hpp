@@ -456,5 +456,7 @@ enum ConfigKey_t : uint16_t {
 	// key above: nothing before this point shifts. See BOT_AUDIT_CONFIG_KEYS.
 #define BOT_CFG_ENUMERATOR(enumKey, luaKey, defaultValue) enumKey,
 	BOT_AUDIT_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	// #123 PvP sanity keys. Appended after the audit keys for the same reason: nothing shifts.
+	BOT_PVP_SANITY_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
 #undef BOT_CFG_ENUMERATOR
 };

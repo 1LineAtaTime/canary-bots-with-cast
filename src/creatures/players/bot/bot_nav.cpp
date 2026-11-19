@@ -345,17 +345,21 @@ bool BotEngine::botTraceLegWalk(const std::shared_ptr<Player>& mover, const Posi
 		const int32_t sdy = static_cast<int32_t>(to.y) - static_cast<int32_t>(at.y);
 		const int32_t dist = std::max(std::abs(sdx), std::abs(sdy));
 
-		Position pathTarget = to;
-		int32_t pathArrival = arrivalDist;
-		if (dist > CHUNK_DIST) {
-			const double ratio = static_cast<double>(CHUNK_DIST) / dist;
-			pathTarget.x = at.x + static_cast<uint16_t>(sdx * ratio);
-			pathTarget.y = at.y + static_cast<uint16_t>(sdy * ratio);
-			pathTarget.z = at.z;
-			pathArrival = 3;
-		}
-
 		std::vector<Position> seg;
+		// #119: goTo()'s direct-first attempt, same band (botnav::directFirstBand), as the plain walk
+		// callers that opt in (GoToDirectFirstScope) get it. No limiter here: a trace runs each leg
+		// once. Traced with the stock pathfinder; the live attempt uses the jitter kernel instead when
+		// botNavJitterMask > 0.
+		if (botnav::directFirstBand(dist) && botTraceLegPath(mover, at, to, arrivalDist, seg) && !seg.empty()) {
+			outTiles.insert(outTiles.end(), seg.begin(), seg.end());
+			at = seg.back();
+			continue;
+		}
+		seg.clear();
+
+		const Position pathTarget = botnav::chunkTarget(at, to, CHUNK_DIST);
+		const int32_t pathArrival = pathTarget == to ? arrivalDist : 3;
+
 		// NO wide-search auto-escalation. It used to sit here to mirror goTo()'s escalation; goTo
 		// no longer has one, so escalating would make this diagnostic OVER-report reachability —
 		// the exact diagnostic-vs-live divergence the command exists to eliminate, just inverted.
@@ -400,6 +404,14 @@ bool BotEngine::botTraceLegWalk(const std::shared_ptr<Player>& mover, const Posi
 // ============================================================================
 // Navigation helpers (Phase 1+2)
 // ============================================================================
+
+// #119 direct-first limiter: guid -> time before which this bot makes NO direct-first attempt,
+// whatever the target. Per bot, not per target (review): a per-target memo is defeated by any
+// caller whose target changes between calls. Read and written only by goTo() in this TU.
+namespace {
+	constexpr int64_t DIRECT_FIRST_MISS_MS = 3000;
+	std::unordered_map<uint32_t, int64_t> s_directFirstSuppressUntil;
+}
 
 bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	auto player = bot.getPlayer();
@@ -448,19 +460,6 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	int32_t sdy = static_cast<int32_t>(target.y) - static_cast<int32_t>(bot.currentPos.y);
 	int32_t dist = std::max(std::abs(sdx), std::abs(sdy));
 
-	// Chunk long paths into sub-paths for reliability through obstacles.
-	// 12 tiles keeps each A* sub-problem within the server's 512-node budget.
-	// (CHUNK_DIST now lives on BotEngine so `/cavebot route` reports the same chunk target.)
-	Position pathTarget = target;
-	int32_t pathArrivalDist = arrivalDist;
-	if (dist > CHUNK_DIST) {
-		double ratio = static_cast<double>(CHUNK_DIST) / dist;
-		pathTarget.x = bot.currentPos.x + static_cast<uint16_t>(sdx * ratio);
-		pathTarget.y = bot.currentPos.y + static_cast<uint16_t>(sdy * ratio);
-		pathTarget.z = bot.currentPos.z;
-		pathArrivalDist = 3; // intermediate waypoint, don't need exact arrival
-	}
-
 	FindPathParams fpp;
 	fpp.fullPathSearch = true;
 	fpp.clearSight = false;
@@ -468,15 +467,59 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	fpp.keepDistance = false;
 	fpp.maxSearchDist = PATH_MAX_DIST;
 	fpp.minTargetDist = 0;
-	fpp.maxTargetDist = pathArrivalDist;
 
 	std::vector<Direction> dirList;
+	const int32_t navJitterMask = botNavJitterMaskClamped();
+
+	// #119: direct-first. Inside botnav::directFirstBand (CHUNK_DIST < cheb <= 2*CHUNK_DIST) ask
+	// ONE ordinary 512-node search for the whole route to the true target before chunking. The
+	// chunk target is a straight-line interpolation; on the near side of a wall it lands in a
+	// dead-end pocket, the chunk walk "succeeds" into it, and the next search has to walk back out:
+	// baseline B5 temple -> ammo-shop stairs = 88 tiles with 10 revisited for a 65-tile route.
+	// botnavsim walkcheck (Thais z7, 600 pairs in the band): 0 walks lost, revisits 724 -> 42,
+	// tiles -10 %, searches per walk 2.16 -> 1.26 (a direct hit replaces several chunk searches).
+	// The cost is one extra failed 512-node search when the target is NOT reachable in budget.
+	// Bounded three ways (review): only plain walk callers opt in (GoToDirectFirstScope -- never
+	// chase/flee/combat or the NODE candidate probe); the attempt is ONE search (the jitter
+	// kernel when botNavJitterMask > 0, else the stock pathfinder -- not both); and after any
+	// miss the bot makes no direct attempt for DIRECT_FIRST_MISS_MS (3 s), for ANY target.
+	// Worst case: one extra 512-node search per bot per 3 s. Live cost: "[DIRECT_FIRST] 60s".
+	if (s_goToDirectFirstOptIn && botnav::directFirstBand(dist)) {
+		const int64_t nowMs = OTSYS_TIME();
+		auto& suppressUntil = s_directFirstSuppressUntil[bot.guid];
+		if (nowMs < suppressUntil) {
+			s_directFirstSuppressed60s++;
+		} else {
+			fpp.maxTargetDist = arrivalDist;
+			const bool found = navJitterMask > 0
+				? botJitterPath(player, bot.currentPos, target, fpp, botNavSeed(bot.guid), navJitterMask, dirList)
+				: g_game().map.getPathMatchingCond(player, target, dirList, FrozenPathingConditionCall(target), fpp);
+			if (found) {
+				s_directFirstHit60s++;
+				if (allowFc) player->clearBotAllowFcPos();
+				audPath.ok("astar-direct", dirList.size());
+				botStartAutoWalk(bot, player, dirList);
+				return true;
+			}
+			s_directFirstMiss60s++;
+			suppressUntil = nowMs + DIRECT_FIRST_MISS_MS;
+			dirList.clear();
+		}
+	}
+
+	// Chunk long paths into sub-paths for reliability through obstacles.
+	// 12 tiles keeps each A* sub-problem within the server's 512-node budget.
+	// (CHUNK_DIST now lives on BotEngine so `/cavebot route` reports the same chunk target;
+	// the arithmetic lives in botnav::chunkTarget, shared with botTraceLegWalk and botnavsim.)
+	const Position pathTarget = botnav::chunkTarget(bot.currentPos, target, CHUNK_DIST);
+	const int32_t pathArrivalDist = pathTarget == target ? arrivalDist : 3; // a chunk needs no exact arrival
+	fpp.maxTargetDist = pathArrivalDist;
+
 	// BOT_NAV_REALISM Phase 4a: when botNavJitterMask > 0, route through the pathcore
 	// kernel with per-bot cost jitter so two bots don't take the identical shortest path.
 	// Falls through to the stock server pathfinder if the kernel returns no path, so jitter
 	// never reduces robustness. At mask == 0 (default) this branch is skipped entirely and
 	// behavior is bit-identical to before.
-	const int32_t navJitterMask = botNavJitterMaskClamped();
 	if (navJitterMask > 0
 		&& botJitterPath(player, bot.currentPos, pathTarget, fpp, botNavSeed(bot.guid), navJitterMask, dirList)) {
 		if (allowFc) player->clearBotAllowFcPos();
@@ -503,8 +546,11 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	// server-wide freeze felt in game. A 15s per-bot cooldown brought it back to ~18s blocked
 	// but the cost was still on the hot path for all ~500 bots.
 	//
-	// The wide search now lives in planScopedWalk() tier 2, reachable only from `/cavebot goto`
-	// and the NPC visit — callers rare enough that no rate limit is needed at all.
+	// The wide search does not come back here. It lives in goToWide(), reached only from planner
+	// legs via followWaypoints' cfg.wideSearchOnFail -- PLEG, planScopedWalk's ZLEG and (#130) the FC
+	// machine's planned-hop ZLEG, which any cross-floor goTo with a landed z-plan walks -- plus
+	// planScopedWalk's door-budget tier. Because that last ZLEG is not a rare caller, goToWide
+	// bounds itself: a per-bot cooldown and a global per-tick cap ("[WIDE] 60s").
 
 	// Retry with random offsets — skip when exact-tile arrival is required (maxDist=0)
 	// to avoid sending the bot to wrong positions and defeating pathfail counters
@@ -622,7 +668,8 @@ static int64_t plannerWpStuckMs(const Position& from, const Position& to) {
 	return std::clamp<int64_t>(15000 + d * 400, 15000, 90000);
 }
 
-// One unchunked wide search (4096 nodes, PATH_WIDE_DIST box) to `target`, rate-limited per bot.
+// One unchunked wide search (4096 nodes, PATH_WIDE_DIST box) to `target`, rate-limited per bot AND
+// per tick.
 //
 // This is the capability the chunked walker lacks: goTo() interpolates a straight-line point every
 // CHUNK_DIST tiles, and when the true route doglegs around a building that point lands INSIDE the
@@ -630,29 +677,57 @@ static int64_t plannerWpStuckMs(const Position& from, const Position& to) {
 // for house visits — it is the common case, and it is the same failure the direct-search tier of
 // planScopedWalk was written to fix.
 //
-// THE COOLDOWN IS LOAD-BEARING, not defensive tidiness. A wide search that FAILS is not
+// Callers (followWaypoints' cfg.wideSearchOnFail, plus planScopedWalk's door-budget tier): PLEG and
+// planScopedWalk's ZLEG -- the two rare planner callers -- and, since #130, the FC machine's
+// planned-hop ZLEG. That last one is NOT rare: any cross-floor goTo whose z-plan landed
+// (s_plannedFc) walks it. So "only planner walks reach this" no longer bounds WHICH bots pay; the
+// two limits below bound the cost on their own.
+//
+// THE LIMITS ARE LOAD-BEARING, not defensive tidiness. A wide search that FAILS is not
 // self-limiting: the bot retries it every tick for the whole per-waypoint stuck window (15-90s,
 // i.e. 150-900 ticks). That is the exact shape that produced the measured incident behind commit
 // 0f97ea5b9 — at 500 bots, PROCBOT_SLOW went 1630 events / 28ms avg / 107ms max to 2188 / 63ms /
-// 5733ms max, one bot holding the dispatcher 5.7 seconds. Being reachable only from planner legs
-// bounds WHICH bots pay; the cooldown bounds HOW OFTEN each one pays. Both are needed — they are
-// different guarantees.
-//
-// Mirrors that commit's mechanism exactly: one attempt per bot per WIDE_SEARCH_COOLDOWN_MS, and a
-// success clears the cooldown so the next genuine failure may escalate immediately.
-bool BotEngine::goToWide(BotState& bot, const Position& target, int32_t maxDist) {
+// 5733ms max, one bot holding the dispatcher 5.7 seconds.
+//   - per bot: one search per WIDE_SEARCH_COOLDOWN_MS after a miss, and at least
+//     WIDE_SEARCH_SUCCESS_GAP_MS after a hit (#130 review). A hit used to clear the cooldown, so a
+//     walk that keeps getting cancelled (hit -> walk dropped -> goTo fails -> hit ...) could run a
+//     wide search every tick;
+//   - per tick: at most WIDE_SEARCHES_PER_TICK across ALL bots. The rest are deferred -- no search,
+//     no cooldown charged, retried by the caller on a later tick -- so N bots dead-ending on the same
+//     leg in the same tick cost two searches, not N.
+// Always-on cost line: "[WIDE] 60s ..." from the tick loop's 60 s block.
+bool BotEngine::goToWide(BotState& bot, const Position& target, int32_t maxDist, const char* site) {
+	lastWideDeferred_ = false;
 	auto player = bot.getPlayer();
 	if (!player || bot.currentPos.z != target.z) {
 		return false;
 	}
 	static std::unordered_map<uint32_t, int64_t> s_wideSearchNextAllowed;
 	static constexpr int64_t WIDE_SEARCH_COOLDOWN_MS = 15000;
+	static constexpr int64_t WIDE_SEARCH_SUCCESS_GAP_MS = 2000;
+	static constexpr uint32_t WIDE_SEARCHES_PER_TICK = 2;
 	const int64_t now = OTSYS_TIME();
 	auto& nextAllowed = s_wideSearchNextAllowed[bot.guid];
 	if (now < nextAllowed) {
+		s_wide60sCooldownSkips++;
 		return false; // cooldown: no search ran, so no `path` record either
 	}
+	if (s_wideTickStamp != s_tickBodyStartMs) {
+		s_wideTickStamp = s_tickBodyStartMs;
+		s_wideThisTick = 0;
+	}
+	if (s_wideThisTick >= WIDE_SEARCHES_PER_TICK) {
+		s_wide60sDeferred++;
+		lastWideDeferred_ = true; // R2-1: callers must not read this as a failed search
+		return false; // deferred: nothing ran, nothing charged -- the caller retries on a later tick
+	}
+	s_wideThisTick++;
+	s_wide60sMaxPerTick = std::max(s_wide60sMaxPerTick, s_wideThisTick);
 	nextAllowed = now + WIDE_SEARCH_COOLDOWN_MS;
+	// Which leg asked. The FC machine's planned-hop ZLEG and planScopedWalk's ZLEG share the "ZLEG"
+	// prefix; only the former runs with the FC machine engaged.
+	const bool fcLeg = bot.fcState != FloorChangeState::NONE;
+	const char* label = fcLeg ? "FC-ZLEG" : (site ? site : "?");
 	BotAudPathScope audPath(&bot, "wide", bot.currentPos, target, maxDist);
 
 	FindPathParams fpp;
@@ -667,18 +742,31 @@ bool BotEngine::goToWide(BotState& bot, const Position& target, int32_t maxDist)
 	const bool allowFc = (maxDist == 0 && isWalkOnFcTile(target));
 	if (allowFc) player->setBotAllowFcPos(target);
 	std::vector<Direction> dirList;
+	const auto t0 = std::chrono::steady_clock::now();
 	const bool ok = botGetPathMatchingCond(player, target, dirList,
 		FrozenPathingConditionCall(target), fpp, BotAStarNodes::BOT_MAX_NODES);
+	const int64_t us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count();
 	if (allowFc) player->clearBotAllowFcPos();
+	s_wide60sRuns++;
+	s_wide60sUsMax = std::max(s_wide60sUsMax, us);
+	if (s_wide60sUs.size() < 4096) {
+		s_wide60sUs.push_back(static_cast<uint32_t>(std::min<int64_t>(us, 0xFFFFFFFF)));
+	}
+	if (fcLeg) {
+		s_wide60sFcLeg++;
+	}
 	if (!ok) {
+		s_legWideFail++; // #130: [ZROUTE] legWide=ok/run
 		audPath.result("fail");
 		return false;
 	}
+	s_legWideOk++;
+	s_wide60sOk++;
 	audPath.ok("wide", dirList.size());
-	nextAllowed = 0; // found a route — the next genuine failure may escalate at once
+	nextAllowed = now + WIDE_SEARCH_SUCCESS_GAP_MS;
 	botStartAutoWalk(bot, player, dirList);
-	castLog(bot, fmt::format("PLEG: wide search rescued the leg to ({},{},{}) — {} steps",
-		target.x, target.y, target.z, dirList.size()));
+	castLog(bot, fmt::format("{}: wide search rescued the leg to ({},{},{}) — {} steps",
+		label, target.x, target.y, target.z, dirList.size()));
 	return true;
 }
 
@@ -927,7 +1015,7 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 			if (doorBudgetExhausted) {
 				castLog(bot, fmt::format("PLAN: door search budget exhausted for ({},{},{}) — trying bounded direct path",
 					target.x, target.y, target.z));
-				if (goToWide(bot, target, maxDist)) return true;
+				if (goToWide(bot, target, maxDist, "PLAN")) return true;
 			} else {
 				castLog(bot, fmt::format("PLAN: ({},{},{}) not reachable within door-search bounds on z={} — planning floor hops",
 					target.x, target.y, target.z, bot.currentPos.z));
@@ -1004,7 +1092,53 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 		// leg unwalkable, so the planner must search the graph rather than answering "same floor,
 		// no hop needed".
 		if (!zPlanFullRoute(bot.currentPos, target, hops, /*forceGraph=*/true, bot.guid) || hops.empty()) {
-			s_zPlanFail++;
+			// #116 review: a SHORT cold-cache deferral or a free-retry abort means "not yet", not
+			// "unreachable": returning false would charge doIdle's pathFailCount (3 strikes -> give
+			// up) for a plan that succeeds on the next, cheap attempt. So report "started" and wait
+			// -- but bounded (review round 2): a pair whose backoff got ARMED has stopped
+			// converging, and any wait for one target past Z_PLAN_WAIT_MAX_MS is no longer "cold
+			// cache"; both fall through to the normal give-up, like before this fix. Without the
+			// bound a non-converging pair kept the bot motionless for up to the 240 s stale-target
+			// guard.
+			// #130: cross-floor waits the same bounded way. Its greedy hand-off below picks the
+			// NEAREST transition in the right direction, blind to the target, so taking it on a
+			// "not yet" answer is a guess the planner had not made -- and after a planned portal is
+			// quarantined the replan (which has to prove the detour) aborts, so the guess fires
+			// exactly then: B5 G3 climbed the ladder at (32383,32231,7) into an 11-tile z6 pocket
+			// whose only exit was that ladder, and stranded there. Waiting re-plans toward the
+			// ORIGINAL goal every tick, so a converging plan (or its blacklist-free [ZPLAN_RECOVER]
+			// pass, which brings back the only stair) is taken instead. Bounds (review F3): the wait
+			// is Z_PLAN_WAIT_MAX_MS PER HOP, not per walk -- a landed plan erases s_zPlanWait, so a
+			// later hop of the same journey can wait again; the walk as a whole stays bounded by the
+			// planner-walk stale-target guard (240 s) and by the abort backoff, which ends any wait
+			// as soon as it arms. An armed backoff, an expired wait and its tombstone still end in
+			// the greedy hand-off, as before. Making the proof cheap is the nav-precompute epic
+			// (#134, C').
+			const bool shortWait = (lastZPlanResult_ == ZPlanResult::DEFERRED
+				|| (lastZPlanResult_ == ZPlanResult::ABORTED && !lastZPlanBackoffArmed_));
+			if (shortWait) {
+				const int64_t nowMs = OTSYS_TIME();
+				auto& w = s_zPlanWait[bot.guid];
+				if (w.startMs == 0 || w.target != target) {
+					w = ZPlanWait { target, nowMs, 0, false };
+				}
+				if (!w.gaveUp && nowMs - w.startMs <= Z_PLAN_WAIT_MAX_MS) {
+					w.untilMs = nowMs + 1500;
+					return true;
+				}
+				if (!w.gaveUp) {
+					castLog(bot, fmt::format("PLAN: waited {}ms on a deferred plan to ({},{},{}) -- giving up",
+						nowMs - w.startMs, target.x, target.y, target.z));
+					w.gaveUp = true; // tombstone: no second wait for this target
+					w.untilMs = 0;
+				}
+			} else if (auto wit = s_zPlanWait.find(bot.guid); wit != s_zPlanWait.end()
+			           && !(wit->second.gaveUp && wit->second.target == target)) {
+				s_zPlanWait.erase(wit); // keep only a same-target tombstone
+			}
+			if (!lastZPlanWasWait()) {
+				s_zPlanFail++;
+			}
 			// No graph route. For a cross-floor target the legacy greedy hand-off is still worth a
 			// try — it is what every other caller gets, and the graph can be incomplete. For a
 			// same-floor target there is nothing left: give up cleanly, NO retry loop. Either way
@@ -1012,6 +1146,7 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 			return sameFloor ? false : goToClosest(bot, target, maxDist);
 		}
 		s_zPlanOk++;
+		s_zPlanWait.erase(bot.guid); // the plan landed: any wait for it is over
 		PlannerHop ph;
 		ph.hop.portal = hops.front().portal;
 		ph.hop.plannedAt = OTSYS_TIME();
@@ -1160,9 +1295,19 @@ bool BotEngine::isPlannerWalk(const BotState& bot) const {
 
 void BotEngine::clearPlannerWalk(uint32_t guid) {
 	s_plannerWalk.erase(guid);
+	// Close the route clocks with the walk that owned them (#118). The planner's legs (PLEG/ZLEG)
+	// are the only followWaypoints routes a planner walk drives, and a walk that ends on arrival
+	// via the FC machine never passes followWaypoints' "Completed all waypoints" cleanup — so the
+	// clocks outlived it and the NEXT goto read the time since that arrival as a stall. Gated on a
+	// leg actually existing, so a bot following some other route keeps its clocks.
+	if (s_plannerLeg.count(guid) > 0 || s_zLegPlan.count(guid) > 0 || s_plannedHop.count(guid) > 0) {
+		s_routeWpTimer.erase(guid);
+		s_routeProgress.erase(guid);
+	}
 	s_plannerLeg.erase(guid);
 	s_plannerLegRebuilds.erase(guid); // new walk == fresh rebuild budget
 	s_navStartedButIdle.erase(guid);
+	s_zPlanWait.erase(guid); // #116
 	s_plannerStuck.erase(guid);
 	s_plannerForceFresh.erase(guid);
 	if (s_plannedHop.erase(guid) > 0) {
@@ -1238,7 +1383,12 @@ BotEngine::ZLegPlan& BotEngine::ensureZLegPlan(BotState& bot, const Position& fr
 	}
 	plan = ZLegPlan {};
 	plan.forPortalPos = hop.pos;
-	s_routeProgress.erase(bot.guid); // fresh leg, fresh no-progress clock — see planScopedWalk
+	// Fresh leg, fresh clocks — both of them (#118). s_routeProgress (the global no-progress
+	// timer) was already reset here; s_routeWpTimer (the per-waypoint skip timer) was not, so a
+	// leg built for a portal at the same index and position as an earlier, never-closed leg
+	// inherited that leg's age and skipped its terminal waypoint on the first call.
+	s_routeProgress.erase(bot.guid);
+	s_routeWpTimer.erase(bot.guid);
 
 	// Doors ON the route, in walking order — one path reconstruction, not a chain of
 	// nearest-door searches.

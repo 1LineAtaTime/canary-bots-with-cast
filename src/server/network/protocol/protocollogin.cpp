@@ -63,8 +63,10 @@ void ProtocolLogin::getCharacterList(const std::string &accountDescriptor, const
 			// `bot.active` is set at registerBot and never cleared until unregisterBot,
 			// so this is stable across hibernate/wake transitions — avoids the cast list
 			// flicker observed during user testing.
-			for (auto &name : g_botEngine().getActiveBotNames()) {
-				casters.push_back(name);
+			if (isBotEngineReady()) {
+				for (auto &name : g_botEngine().getActiveBotNames()) {
+					casters.push_back(name);
+				}
 			}
 			// Plus any non-bot real players who voluntarily enabled broadcasting.
 			for (const auto &[id, p] : g_game().getPlayers()) {

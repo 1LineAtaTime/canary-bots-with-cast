@@ -893,9 +893,13 @@ void botAudNoteLog(uint32_t guid, const std::string& msg) {
 	w.lastLogMs = botAudEpochMs();
 }
 
-void botAudWalkPause(const BotState& bot, bool observed, int32_t ms, uint8_t walkBias, uint32_t nThisRoute, size_t steps) {
+void botAudWalkPause(const BotState& bot, bool observed, int32_t ms, uint8_t walkBias, uint32_t nThisRoute, size_t steps,
+                     const char* at) {
 	botAudBegin("walkpause", &bot);
 	botAudStr("tier", observed ? "observed" : "unobserved");
+	// #120: "issue" = decided when the walk was issued; "midwalk" = decided on the first tick an
+	// already-running walk became observed (the walk was stopped in place and resumes after it).
+	botAudStr("at", at ? at : "issue");
 	botAudInt("ms", ms);
 	botAudInt("walkBias", walkBias);
 	botAudInt("nThisRoute", nThisRoute);
@@ -1033,10 +1037,15 @@ void BotEngine::auditRefreshCache(uint32_t gen) {
 	s_aud.watch.clear();
 	if (mask == 0) {
 		s_audBot.clear();
+		s_audFirstActPending = 0;
 		return;
 	}
 	auditResolveWatch(botAudEpochMs());
 	std::erase_if(s_audBot, [](const auto& kv) { return !s_aud.watchAll && !s_aud.watch.contains(kv.first); });
+	s_audFirstActPending = 0;
+	for (const auto& [g, ab] : s_audBot) {
+		if (ab.wakeAtMs != 0) s_audFirstActPending++;
+	}
 	s_audLastCensusMs = 0; // first census right after (re)enabling
 	// Settings marker: tells a reader exactly when a window started and what it was recording.
 	botAudBegin("audit", nullptr);
@@ -1262,6 +1271,7 @@ void BotEngine::auditWakeFirstAct(BotState& bot) {
 	}
 	const int64_t dt = botAudEpochMs() - it->second.wakeAtMs;
 	it->second.wakeAtMs = 0;
+	if (s_audFirstActPending > 0) s_audFirstActPending--;
 	if (!audFor(AUD_WAKE, bot.guid)) {
 		return;
 	}
@@ -1375,6 +1385,7 @@ void BotEngine::auditCensus(int64_t /*nowMs*/) {
 	botAudInt("wakeTried60s", wakeTried60s_);
 	botAudInt("wakeGated60s", wakeGated60s_);
 	botAudInt("wakeGranted60s", wakeGranted60s_);
+	botAudInt("wakeDeferred60s", wakeDeferred60s_);
 	botAudEnd();
 }
 

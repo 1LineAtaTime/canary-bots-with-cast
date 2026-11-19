@@ -252,6 +252,11 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 						trackNavEvent("tp_dup_stand_skipped", bot, bot.huntScriptId,
 							getHuntScriptName(bot, huntScripts_), bot.townId, config.logPrefix,
 							fmt::format("wp={} pos={},{},{}", waypointIdx + 1, wp.x, wp.y, wp.z));
+						// The skipped stand is deliberately treated as satisfied by the teleport,
+						// so record it as reached: the cursor moves past two waypoints here, and
+						// a lastReachedIndex left on the teleport would read as "terminal waypoint
+						// never reached" (#53) when the stand is the last one.
+						result.lastReachedIndex = waypointIdx;
 						waypointIdx++;
 					}
 				}
@@ -557,7 +562,11 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 					sameZTarget.x, sameZTarget.y, sameZTarget.z, hasFc ? 1 : 0));
 				if (hasFc) {
 					if (goTo(bot, sameZTarget, 0)) {
-						bot.pathFailCount = 0;
+						// A planner "wait" is not progress (#116 review). goTo itself never reaches
+						// zPlanFullRoute's wait path (only planScopedWalk does), so this is defensive.
+						if (!zPlanWaiting(bot.guid)) {
+							bot.pathFailCount = 0;
+						}
 					} else {
 						// goTo failed (FC tile unreachable from current position).
 						// Count failures so we eventually skip this waypoint and let the
@@ -600,8 +609,14 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 		if (player->listWalkDir.empty() || config.trackMovementProgress) {
 			auto& wpTimer = s_routeWpTimer[bot.guid];
 			const int32_t distance = Position::getDiagonalDistance(bot.currentPos, wp);
-			if (wpTimer.second == 0 || wpTimer.first != waypointIdx
-			    || (config.trackMovementProgress && wpTimer.target != wp)) {
+			// The target test applies to EVERY route, not only progress-tracking ones (#118).
+			// s_routeWpTimer is keyed by guid alone, so a clock left behind by a route that never
+			// reached "Completed all waypoints" (a ZLEG handed to the FC machine, a jitter reroll,
+			// a too-far abort) used to be inherited by the next route whose current waypoint had
+			// the same INDEX -- and a one-waypoint ZLEG is always at index 0. The new route then
+			// skipped its first waypoint instantly with the old route's age: the baseline's
+			// `pathout stuck reason=wp-skip-timeout val=120849`, logged right before `arrived`.
+			if (wpTimer.second == 0 || wpTimer.first != waypointIdx || wpTimer.target != wp) {
 				wpTimer = {static_cast<uint32_t>(waypointIdx), OTSYS_TIME(), wp, distance};
 				castLog(bot, fmt::format("{}: Walking to {} wp {}/{} at ({},{},{})",
 					config.logPrefix, waypointTypeName(waypoint.type), waypointIdx + 1, waypoints.size(),
@@ -786,20 +801,30 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 				}
 			}
 		} else {
+			GoToDirectFirstScope directFirst; // #119: plain waypoint walk -- opt in
 			navOk = goTo(bot, wp, maxDist);
 		}
 
 		if (!navOk && config.wideSearchOnFail) {
-			// Planner legs only. The chunked walker cannot solve a dogleg — it aims at a
-			// straight-line point that lands inside the obstacle — and a leg's first waypoint is
-			// normally a DOOR, so that is the common case here rather than an edge case. One
-			// cooldown-gated wide search per bot; see goToWide.
-			navOk = goToWide(bot, wp, maxDist);
+			// Planner legs (PLEG, both ZLEGs). The chunked walker cannot solve a dogleg — it aims
+			// at a straight-line point that lands inside the obstacle — and a leg's first waypoint
+			// is normally a DOOR, so that is the common case here rather than an edge case. Bounded
+			// per bot (cooldown) and per tick (global cap); see goToWide.
+			navOk = goToWide(bot, wp, maxDist, config.logPrefix.c_str());
+			if (!navOk && lastWideDeferred_) {
+				// R2-1 (the #116 lesson: "not yet" is not "unreachable"). The per-tick cap deferred
+				// the search, so nothing was learned about this waypoint: do NOT open doors, attack a
+				// "blocker", or charge pathFailCount/skipCount -- 3 such strikes would skip or
+				// abandon a leg the wide search may well solve next tick. The per-waypoint stuck
+				// timer still bounds a waypoint that never gets a search.
+				return result;
+			}
 		}
 		if (!navOk) {
 			// Try opening a door in the way (once), then retry pathfinding
 			if (waypoint.type != WaypointType::NODE) {
 				if (tryOpenDoors(bot, player, wp)) {
+					GoToDirectFirstScope directFirst; // #119: same plain walk, after a door
 					navOk = goTo(bot, wp, maxDist);
 				}
 				if (!navOk) {

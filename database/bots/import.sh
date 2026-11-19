@@ -47,6 +47,9 @@ FILES=(
   11_bot_market_item_prices.sql
   14_houses.sql
   15_tile_store.sql
+  16_runtime_compatibility.sql
+  23_bot_onlinetime_reset.sql
+  24_bot_state_persistence_saved_at.sql
 )
 
 for f in "${FILES[@]}"; do run "$f"; done

@@ -17,6 +17,7 @@
 -- Idea and shape from dandpb/canary-bots-with-cast 9e37f3032e (initializeBotQuestAccess).
 local botQuestStorages
 local questAccessCount = 0
+local questAccessFailures = 0
 local function initializeBotQuestAccess(player)
 	if not botQuestStorages then
 		botQuestStorages = {
@@ -393,8 +394,16 @@ function botStartup.onStartup()
 
 				-- Register death handler
 				player:registerEvent("BotDeath")
-				-- Before anything can hibernate it (#57).
-				initializeBotQuestAccess(player)
+				-- Before anything can hibernate it (#57). Protected: this callback also carries the
+				-- last slot's end-of-load work (players_online sync, state restore), and an error
+				-- here (e.g. a renamed Storage constant) would skip it -- and repeat for every bot.
+				local qaOk, qaErr = pcall(initializeBotQuestAccess, player)
+				if not qaOk then
+					questAccessFailures = questAccessFailures + 1
+					if questAccessFailures <= 3 then
+						logger.error("[BotManager] initializeBotQuestAccess failed for '{}': {}", name, tostring(qaErr))
+					end
+				end
 
 				-- Log every 10th bot
 				if i % 10 == 0 or i == #botNames then
@@ -437,6 +446,9 @@ function botStartup.onStartup()
 					-- Set quest storages so bots can use wagons, shrines, levers, teleports
 					-- Quest/access storages are now set per bot right after its load (#57).
 					logger.info("[BotManager] Set quest/access storages on {} bots (wagons, shrines, quests)", questAccessCount)
+					if questAccessFailures > 0 then
+						logger.error("[BotManager] initializeBotQuestAccess FAILED on {} bot(s) (first 3 errors logged above)", questAccessFailures)
+					end
 					logger.info("[BotManager] All " .. #botNames .. " bots loaded as INACTIVE.")
 					logger.info("[BotManager] Use '/cavebot <name> active' to activate a bot at your position.")
 
@@ -519,7 +531,8 @@ function botManager.onThink(interval)
 			else
 				-- 3rd arg labels the BOT_TEST_HARNESS `cmd` audit record only.
 				resultText = Game.botCommand(botName, cmd, "queue") or ""
-				logger.info("[BotManager] Command '" .. cmd .. "' for '" .. botName .. "': " .. resultText)
+				-- Reply text is data, not a format string: JSON replies carry braces.
+				logger.info("[BotManager] Command '{}' for '{}': {}", cmd, botName, resultText)
 			end
 
 			-- Persist result + timestamp (mark processed in same statement)

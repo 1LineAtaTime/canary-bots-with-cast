@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS bot_state_persistence (
   hunt_phase TINYINT UNSIGNED DEFAULT NULL,
   waypoint_idx INT UNSIGNED DEFAULT NULL,
   kill_count INT UNSIGNED DEFAULT NULL,
-  travel_dest_town_id INT UNSIGNED DEFAULT NULL
+  travel_dest_town_id INT UNSIGNED DEFAULT NULL,
+  saved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP -- #47 review; existing tables: 24_*.sql
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 -- Seeded characters may exceed the signed SMALLINT range during migrations.
 ALTER TABLE player_charms
@@ -34,3 +35,15 @@ CREATE TABLE IF NOT EXISTS bot_nav_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 -- Seeded bot online counters can already equal INT_MAX before the next save.
 ALTER TABLE players MODIFY onlinetime BIGINT UNSIGNED NOT NULL DEFAULT 0;
+-- Command queue of the CPU-benchmark poller (data/scripts/globalevents/bot_test_commands.lua,
+-- disabled by default via POLLER_ENABLED). DDL derived from that script's queries (#46).
+-- inserted_at matches production (SHOW CREATE TABLE, 2026-11-18): INT UNSIGNED NOT NULL DEFAULT 0;
+-- the poller reads only id, command, executed and executed_at, so the name is not load-bearing.
+CREATE TABLE IF NOT EXISTS bot_test_commands (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  command VARCHAR(64) NOT NULL,
+  executed TINYINT(1) NOT NULL DEFAULT 0,
+  inserted_at INT UNSIGNED NOT NULL DEFAULT 0,
+  executed_at INT UNSIGNED DEFAULT NULL,
+  KEY idx_executed_id (executed, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;

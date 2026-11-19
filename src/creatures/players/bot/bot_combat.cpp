@@ -203,6 +203,77 @@ bool BotEngine::getRetreatStep(BotState& bot, const Position& threatPos, Directi
 // Self-defense scan (Phase 3)
 // ============================================================================
 
+// The "ignore" decision's one hit-back (#123). An outlevelled attacker (bot >= 2x its level) gets
+// a slap, not an execution:
+//   damage = attacker's CURRENT hp * clamp(attackerLevel / botLevel, 3%, 50%) * U(0.75, 1.25),
+//   capped at (hp - 1) / 2, at least 1.
+// So a level-8 poking a level-500 bot loses ~3% of its health (a visible token), a level-200 poking a
+// level-400 loses up to half -- and nobody ever dies of it: the cap keeps the target alive even if a
+// damage modifier doubled the value, and the hit happens once per engagement (ignoredHitBack).
+// Applied with combatChangeHealth(nullptr, ...), the same no-PvP-check route the engine uses for
+// bot damage (see luaCreatureAddHealth): the bot is the defender here, so no skull is owed, and a
+// non-lethal hit needs no kill attribution. Same PZ / floor / LOS / range gates as castSpell.
+void BotEngine::ignoreHitBack(BotState& bot, const std::shared_ptr<Player>& player, const std::shared_ptr<Creature>& attacker) {
+	if (!player || !attacker) return;
+	// What Combat::canDoCombat would refuse anyway (#123 review): a raw combatChangeHealth skips
+	// those checks, so never touch staff, a ghost, or anyone flagged unattackable.
+	if (attacker->isInGhostMode()) return;
+	if (auto atkPlayer = attacker->getPlayer()) {
+		if ((atkPlayer->getGroup() && atkPlayer->getGroup()->access)
+		    || atkPlayer->hasFlag(PlayerFlags_t::CannotBeAttacked)) {
+			return;
+		}
+	}
+	const Position from = player->getPosition();
+	const Position to = attacker->getPosition();
+	if (from.z != to.z) return;
+	{
+		auto selfTile = g_game().map.getTile(from);
+		auto tgtTile = g_game().map.getTile(to);
+		if ((selfTile && selfTile->hasFlag(TILESTATE_PROTECTIONZONE))
+		    || (tgtTile && tgtTile->hasFlag(TILESTATE_PROTECTIONZONE))) {
+			return;
+		}
+	}
+	const int32_t dist = std::max(std::abs(static_cast<int32_t>(from.x) - static_cast<int32_t>(to.x)),
+	                              std::abs(static_cast<int32_t>(from.y) - static_cast<int32_t>(to.y)));
+	if (dist > RUNE_RANGE || !g_game().map.isSightClear(from, to, true)) return;
+
+	const int32_t hp = attacker->getHealth();
+	if (hp <= 2) return; // nothing non-lethal left to take
+	const int32_t botLevel = std::max<int32_t>(1, player->getLevel());
+	auto ap = attacker->getPlayer();
+	const int32_t atkLevel = ap ? std::max<int32_t>(1, ap->getLevel()) : botLevel / 2;
+	double frac = std::clamp(static_cast<double>(atkLevel) / static_cast<double>(botLevel), 0.03, 0.5);
+	frac *= static_cast<double>(uniform_random(75, 125)) / 100.0;
+	const int32_t cap = (hp - 1) / 2;
+	const int32_t dmg = std::clamp(static_cast<int32_t>(static_cast<double>(hp) * frac), 1, std::max(1, cap));
+
+	// Look like the vocation's ordinary attack: a bolt from a mage, an arrow from a paladin, a plain
+	// hit from a knight (who only lands it from melee range).
+	const uint8_t baseVoc = getBaseVocation(bot.vocationId);
+	CombatType_t type = COMBAT_PHYSICALDAMAGE;
+	if (baseVoc == 4) {
+		if (dist > 1) return;
+	} else if (baseVoc == 3) {
+		g_game().addDistanceEffect(from, to, CONST_ANI_ARROW);
+	} else {
+		g_game().addDistanceEffect(from, to, CONST_ANI_ENERGY);
+		type = COMBAT_ENERGYDAMAGE;
+	}
+	g_game().internalCreatureTurn(player, getDirectionTo(from, to));
+
+	CombatDamage damage;
+	damage.primary.type = type;
+	damage.primary.value = -dmg;
+	g_game().combatChangeHealth(nullptr, attacker, damage);
+	bot.lastAttackTime = OTSYS_TIME();
+	castLog(bot, fmt::format("IGNORE: hit back {} for {} ({}% of {} hp, lv{} vs lv{})",
+		attacker->getName(), dmg, static_cast<int>(frac * 100.0), hp, botLevel, atkLevel));
+	g_logger().info("[PVP_IGNORE_HITBACK] bot='{}' lv{} -> '{}' lv{} dmg={} hp={}->{}",
+		player->getName(), botLevel, attacker->getName(), atkLevel, dmg, hp, attacker->getHealth());
+}
+
 void BotEngine::doSelfDefense(BotState& bot) {
 	auto player = bot.getPlayer();
 	if (!player) return;
@@ -219,11 +290,15 @@ void BotEngine::doSelfDefense(BotState& bot) {
 			bot.ignoredAttackerId = 0;
 			return;
 		}
-		// Hit back once (50% chance)
+		// Hit back once (50% chance) -- the spec's percentages are unchanged. The HIT is not a real
+		// attack spell any more (#123): castSpell picks the bot's best damage option, and an
+		// "ignoring" level-500 bot one-shot the level-8 baseline character 3 times out of 6
+		// deaths, which made "ignore" the deadliest branch. ignoreHitBack scales the damage to
+		// the level gap and can never kill.
 		if (!bot.ignoredHitBack) {
 			bot.ignoredHitBack = true;
 			if (uniform_random(1, 2) == 1) {
-				castSpell(bot, ignored);
+				ignoreHitBack(bot, player, ignored);
 			}
 		}
 		return;
@@ -2925,6 +3000,8 @@ bool BotEngine::pvpPlaceWallAt(BotState& bot, const Position& tile) {
 void BotEngine::checkGangJump(BotState& bot) {
 	if (!g_configManager().getBoolean(BOT_GANG_ENABLE)) return;
 	if (bot.state != BotAIState::IDLE) return;
+	// Debug-pinned bots take no self-initiated actions (#124): no raid scouting either.
+	if (s_debugPinned.count(bot.guid) > 0) return;
 	if (s_gangByGuid.count(bot.guid)) return;
 	auto player = bot.getPlayer();
 	if (!player) return;
@@ -2983,12 +3060,15 @@ void BotEngine::checkGangJump(BotState& bot) {
 	const bool targetPlayers = g_configManager().getBoolean(BOT_GANG_TARGET_PLAYERS)
 		&& g_game().getWorldType() != WORLD_TYPE_NO_PVP;
 	const int32_t victimBand = static_cast<int32_t>(g_configManager().getNumber(BOT_GANG_VICTIM_BAND));
+	// #123: a trivially weak victim never draws a raid (baseline: 5 bots on a level-8 character).
+	const int32_t minVictimLevel = static_cast<int32_t>(g_configManager().getNumber(BOT_GANG_MIN_VICTIM_LEVEL));
 	auto victimEligible = [&](const std::shared_ptr<Creature>& c) -> bool {
 		if (!c || c->getID() == player->getID()) return false;
 		if (c->isRemoved() || c->getHealth() <= 0) return false;
 		auto vp = c->getPlayer();
 		if (!vp) return false;
 		if (vp->getGroup() && vp->getGroup()->access) return false;
+		if (minVictimLevel > 0 && static_cast<int32_t>(vp->getLevel()) < minVictimLevel) return false;
 		if (gangVictimAlreadyTargeted(c->getID())) return false; // one raid per victim at a time
 		if (gangVictimOnCooldown(vp->getGUID())) return false;   // already jumped recently (cooldown)
 		// Never raid a bot that belongs to somebody's PARTY. Observed live: a five-bot raid formed
@@ -3083,6 +3163,7 @@ void BotEngine::checkGangJump(BotState& bot) {
 		if (!b.active || b.hibernated) continue;
 		if (b.partyHuntId != 0) continue;
 		if (s_gangByGuid.count(b.guid)) continue;
+		if (s_debugPinned.count(b.guid)) continue; // never conscript a debug-pinned bot (#124)
 		if (b.townId != bot.townId) continue; // same town as the initiator
 		if (b.currentPos.z != V.z) continue;  // same floor (walk-in, no cross-z pathing)
 		if (b.state == BotAIState::COMBAT || b.state == BotAIState::PK_ATTACK
@@ -3108,6 +3189,33 @@ void BotEngine::checkGangJump(BotState& bot) {
 		memberGuids.push_back(c.guid);
 	}
 	if (static_cast<int32_t>(memberGuids.size()) < minSize) return; // not enough attackers in range
+
+	// #123: no raid when the victim is no threat. If the strongest chosen attacker already
+	// outlevels the victim by botGangMaxLevelRatio, any one of them could settle it alone (the
+	// Combat Decision spec calls 2x "outleveling"), so a coordinated 5-bot burst is not a fight.
+	// Checked as soon as the members are known -- before the seat search -- and a declined victim
+	// goes on a short cooldown, so later scans neither redo this work nor re-roll for it.
+	if (const int32_t maxRatio = static_cast<int32_t>(g_configManager().getNumber(BOT_GANG_MAX_LEVEL_RATIO));
+	    maxRatio > 0 && victimLevel > 0) {
+		int32_t strongest = 0;
+		for (uint32_t mg : memberGuids) {
+			if (auto mit = guidToIndex_.find(mg); mit != guidToIndex_.end()) {
+				const auto& mb = bots_[mit->second];
+				auto mp = mb.getPlayer();
+				strongest = std::max(strongest, mp ? static_cast<int32_t>(mp->getLevel()) : static_cast<int32_t>(mb.cachedLevel));
+			}
+		}
+		if (strongest >= victimLevel * maxRatio) {
+			constexpr int64_t GANG_DECLINE_COOLDOWN_MS = 5 * 60 * 1000;
+			auto& cd = s_gangVictimCooldown[victim->getPlayer()->getGUID()];
+			cd = std::max(cd, now + GANG_DECLINE_COOLDOWN_MS); // never shortens a real raid cooldown
+			g_logger().info("[GANG] declined RAID victim='{}' lv{} reason=outleveled strongest=lv{} ratio>={} "
+				"size={} (victim skipped for {}s)",
+				victim->getName(), victimLevel, strongest, maxRatio, memberGuids.size(),
+				GANG_DECLINE_COOLDOWN_MS / 1000);
+			return;
+		}
+	}
 
 	const int32_t plannedUnjust = victimSkulled ? 0 : static_cast<int32_t>(memberGuids.size());
 	if (active > 0 && static_cast<int32_t>(skulled + s_gangPlannedUnjustified + plannedUnjust) * 100 > static_cast<int32_t>(active) * 5) {
@@ -3551,8 +3659,11 @@ void BotEngine::doHealing(BotState& bot) {
 			bot.lastHealTime = now;
 			player->saySpell(TALKTYPE_SAY, words, false);
 			const char* mode = dispelOnly ? " (paralysis cure)" : (emergency ? " (emergency)" : "");
-			castLog(bot, fmt::format("HEAL: {} ({}/{}){}", words,
-				player->getHealth(), player->getMaxHealth(), mode));
+			// #125: log the HP the ladder DECIDED on, then the result. The old line printed only
+			// the post-cast HP, so every successful heal read "exura vita (1585/1585)" -- a heal
+			// "at full HP" that was really cast at <= HEAL_THRESHOLD_PCT (75 %) and topped the bot up.
+			castLog(bot, fmt::format("HEAL: {} hp {}->{}/{} (decided at {}%){}", words,
+				hp, player->getHealth(), player->getMaxHealth(), hpPct, mode));
 			return;
 		}
 	}
@@ -3707,6 +3818,10 @@ void BotEngine::exitPK(BotState& bot) {
 }
 
 void BotEngine::checkVigilante(BotState& bot) {
+	// Debug-pinned bots take no self-initiated PvP (#124). Baseline: a pinned debug bot went
+	// IDLE -> PK_ATTACK mid-observation. A pinned bot that is ATTACKED still defends itself —
+	// doSelfDefense runs for every awake state and is deliberately not gated.
+	if (s_debugPinned.count(bot.guid) > 0) return;
 	auto player = bot.getPlayer();
 	if (!player) return;
 
@@ -3838,6 +3953,7 @@ void BotEngine::checkVigilante(BotState& bot) {
 // ============================================================================
 
 void BotEngine::checkRandomPK(BotState& bot) {
+	if (s_debugPinned.count(bot.guid) > 0) return; // pinned: no self-initiated PvP (#124)
 	auto player = bot.getPlayer();
 	if (!player || bot.state != BotAIState::IDLE) return;
 

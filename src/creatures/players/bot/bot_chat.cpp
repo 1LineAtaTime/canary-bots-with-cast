@@ -667,6 +667,41 @@ std::string BotEngine::classifyReplyTrigger(const std::string& text, bool isPm) 
 	return isPm ? "generic" : "";
 }
 
+// #122: who may answer a keyword said out loud. Baseline B7 (runs/bl_b7, bl_b7b): 0 of 15 local
+// keywords answered at the Thais depot, because only IDLE/DWELLING bots were eligible and the bots
+// actually standing near a player there are mostly TRAVELING -- walking to or from the boat.
+// A real player walking past answers "hi" without stopping, so a traveller that is WALKING
+// (walk_to_boat / walk_from_boat / arrived) and not mid floor-change may answer too. Never: a bot
+// at the boat NPC or in the ride itself (at_boat / teleported -- it is about to vanish), a
+// hibernated bot (it has no body to say anything with), a paused one, or any other state
+// (combat, hunting, party, PvP).
+namespace {
+	enum class ReplyEligibility { Stationary, Walking, No };
+
+	ReplyEligibility localReplyEligibility(const BotState& bot) {
+		if (!bot.active || bot.hibernated || bot.aiPaused) return ReplyEligibility::No;
+		if (bot.state == BotAIState::IDLE || bot.state == BotAIState::DWELLING) return ReplyEligibility::Stationary;
+		if (bot.state == BotAIState::TRAVELING && bot.fcState == FloorChangeState::NONE
+		    && (bot.travelPhase == "walk_to_boat" || bot.travelPhase == "walk_from_boat" || bot.travelPhase == "arrived")) {
+			return ReplyEligibility::Walking;
+		}
+		return ReplyEligibility::No;
+	}
+
+	// [CHAT_REPLY] lines are rate-limited per kind (1/s each): a player spamming keywords must not
+	// turn them into a journal flood. said/dropped follow a queued line, so they are bounded too.
+	int64_t s_lastNoResponderLogMs = 0;
+	int64_t s_lastSkippedLogMs = 0;
+	int64_t s_lastQueuedLogMs = 0;
+
+	// #122 (review): ONE earshot predicate, used both to pick a responder and at fire time. A say is
+	// seen on the speaker's screen: |dx| <= 8, |dy| <= 6, same floor.
+	bool inSayEarshot(const Position& a, const Position& b) {
+		return a.z == b.z && std::abs(static_cast<int32_t>(a.x) - static_cast<int32_t>(b.x)) <= 8
+			&& std::abs(static_cast<int32_t>(a.y) - static_cast<int32_t>(b.y)) <= 6;
+	}
+}
+
 void BotEngine::onPlayerSayNearBots(uint32_t playerId, const Position& pos, const std::string& text) {
 	if (replyCatalog_.empty() || chatCfg_.replyChancePct <= 0) return;
 	const std::string group = classifyReplyTrigger(text, /*isPm=*/false);
@@ -679,31 +714,59 @@ void BotEngine::onPlayerSayNearBots(uint32_t playerId, const Position& pos, cons
 		if (pending.playerId == playerId) return;
 	}
 
-	// Pick the NEAREST eligible idle bot on screen (most natural responder).
+	// Pick the NEAREST eligible bot within earshot (most natural responder). A bot that is standing
+	// still (IDLE/DWELLING) is preferred over a walking traveller at any distance: it will still
+	// be there when the reply fires. A traveller is the fallback, not a giving-up point.
 	BotState* chosen = nullptr;
-	int32_t bestDist = INT32_MAX;
+	int32_t bestRank = INT32_MAX;
+	bool chosenWalking = false;
+	uint32_t inRange = 0, ineligible = 0, cooling = 0;
 	for (auto& bot : bots_) {
-		if (!bot.active || bot.hibernated || bot.aiPaused) continue;
-		if (bot.state != BotAIState::IDLE && bot.state != BotAIState::DWELLING) continue;
-		if (bot.currentPos.z != pos.z) continue;
+		if (!bot.active || !inSayEarshot(bot.currentPos, pos)) continue;
 		const int32_t dist = std::max(
 			std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(pos.x)),
 			std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(pos.y)));
-		if (dist > 7) continue;
-		if (now - bot.lastReplyTimeMs < chatCfg_.replyCooldownPerBotMs) continue;
-		if (dist < bestDist) {
-			bestDist = dist;
+		inRange++;
+		const ReplyEligibility e = localReplyEligibility(bot);
+		if (e == ReplyEligibility::No) { ineligible++; continue; }
+		if (now - bot.lastReplyTimeMs < chatCfg_.replyCooldownPerBotMs) { cooling++; continue; }
+		const int32_t rank = dist + (e == ReplyEligibility::Walking ? 100 : 0);
+		if (rank < bestRank) {
+			bestRank = rank;
 			chosen = &bot;
+			chosenWalking = e == ReplyEligibility::Walking;
 		}
 	}
-	if (!chosen) return;
-	if (uniform_random(1, 100) > chatCfg_.replyChancePct) return;
+	if (!chosen) {
+		if (now - s_lastNoResponderLogMs >= 1000) {
+			s_lastNoResponderLogMs = now;
+			g_logger().info("[CHAT_REPLY] none group={} at=({},{},{}) bots_in_range={} ineligible={} cooling={}",
+				group, pos.x, pos.y, pos.z, inRange, ineligible, cooling);
+		}
+		return;
+	}
+	if (uniform_random(1, 100) > chatCfg_.replyChancePct) {
+		if (now - s_lastSkippedLogMs >= 1000) {
+			s_lastSkippedLogMs = now;
+			g_logger().info("[CHAT_REPLY] skipped bot='{}' group={} reason=chance({}%)", chosen->name, group, chatCfg_.replyChancePct);
+		}
+		return;
+	}
 
+	// A walker answers from the quick end of the typing delay: it keeps walking while it types, and
+	// a 5 s pause would carry it out of earshot.
+	const int32_t delayMax = std::max(chatCfg_.replyDelayMinMs, chatCfg_.replyDelayMaxMs);
+	const int32_t delay = chosenWalking
+		? uniform_random(chatCfg_.replyDelayMinMs, std::min(delayMax, chatCfg_.replyDelayMinMs + 1000))
+		: uniform_random(chatCfg_.replyDelayMinMs, delayMax);
 	chosen->lastReplyTimeMs = now;  // reserve immediately so the next say can't double-book
-	pendingReplies_.push_back({
-		now + uniform_random(chatCfg_.replyDelayMinMs,
-			std::max(chatCfg_.replyDelayMinMs, chatCfg_.replyDelayMaxMs)),
-		chosen->guid, playerId, /*isPm=*/false, group });
+	pendingReplies_.push_back({ now + delay, chosen->guid, playerId, /*isPm=*/false, group });
+	if (now - s_lastQueuedLogMs >= 1000) {
+		s_lastQueuedLogMs = now;
+		g_logger().info("[CHAT_REPLY] queued bot='{}' st={} dist={} group={} delayMs={}",
+			chosen->name, chosenWalking ? "TRAVELING" : (chosen->state == BotAIState::IDLE ? "IDLE" : "DWELLING"),
+			bestRank % 100, group, delay);
+	}
 }
 
 void BotEngine::onPlayerPmToBot(uint32_t botGuid, uint32_t playerId, const std::string& text) {
@@ -757,9 +820,23 @@ void BotEngine::processPendingReplies(int64_t now) {
 		if (reply.isPm) {
 			targetPlayer->sendPrivateMessage(botPlayer, TALKTYPE_PRIVATE_FROM, line);
 		} else {
-			if (botPlayer->isRemoved()) continue;  // hibernated mid-delay — can't local-say
+			if (botPlayer->isRemoved()) {  // hibernated mid-delay — can't local-say
+				g_logger().info("[CHAT_REPLY] dropped guid={} group={} reason=hibernated", reply.botGuid, reply.group);
+				continue;
+			}
+			// #122: a walking responder may have moved on during the typing delay. A say is heard
+			// on the speaker's screen (8 x 6 tiles); past that the player would never see it, so
+			// do not pretend it was an answer.
+			if (!inSayEarshot(botPlayer->getPosition(), targetPlayer->getPosition())) {
+				g_logger().info("[CHAT_REPLY] dropped guid={} group={} reason=out-of-earshot", reply.botGuid, reply.group);
+				continue;
+			}
 			g_game().internalCreatureSay(botPlayer, TALKTYPE_SAY, line, /*ghostMode=*/false);
 		}
+		// #122: always-on server truth for replies (they are rare: one per player say at most).
+		// bot_chat_emissions has been dark since 2026-06-22 by design -- botTelemetryEnabled
+		// defaults false (faaf0d585, public-distribution prep) -- so acceptance reads this line.
+		g_logger().info("[CHAT_REPLY] said bot='{}' pm={} group={}", botPlayer->getName(), reply.isPm ? 1 : 0, reply.group);
 
 		if (BotState* botState = getBotState(reply.botGuid)) {
 			botState->lastChatTimeMs = now;  // a reply counts as chat for ambient pacing

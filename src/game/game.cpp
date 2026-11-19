@@ -2967,7 +2967,7 @@ ReturnValue Game::internalTeleport(const std::shared_ptr<Thing> &thing, const Po
 		// 300ms-cadence hibernation monitor catches up). Combined with BotState::wakeQuietTicks
 		// stagger, the AI burst spreads across multiple dispatcher windows. The !isBotPlayer
 		// guard prevents recursion (wakeBot itself calls internalTeleport for the bot creature).
-		if (auto p = creature->getPlayer(); p && !p->isBotPlayer()) {
+		if (auto p = creature->getPlayer(); p && !p->isBotPlayer() && isBotEngineReady()) {
 			g_botEngine().wakeBotsInRadius(newPos, 100);
 		}
 
@@ -6499,7 +6499,7 @@ void Game::playerSay(uint32_t playerId, uint16_t channelId, SpeakClasses type, c
 			// BOT_CHAT_LIVENESS_V2 Phase F: a real player spoke in local chat —
 			// let the bot engine keyword-match it and maybe schedule one nearby
 			// idle bot to answer (delayed, throttled). Bots never react to bots.
-			if (!player->isBotPlayer()) {
+			if (!player->isBotPlayer() && isBotEngineReady()) {
 				g_botEngine().onPlayerSayNearBots(player->getID(), player->getPosition(), text);
 			}
 			break;
@@ -6609,7 +6609,7 @@ bool Game::playerSpeakTo(const std::shared_ptr<Player> &player, SpeakClasses typ
 		// before declaring not-online so PMs route to the bot's onCreatureSay handler.
 		// exiva is intentionally left alone — hibernated bots remain spatially absent,
 		// matching the Edron Library "ignore exiva" social pattern.
-		uint32_t hibGuid = g_botEngine().getHibernatedBotGuidByName(receiver);
+		uint32_t hibGuid = isBotEngineReady() ? g_botEngine().getHibernatedBotGuidByName(receiver) : 0;
 		if (hibGuid != 0) {
 			toPlayer = g_botEngine().getHibernatedBotPlayer(hibGuid);
 		}
@@ -6634,7 +6634,7 @@ bool Game::playerSpeakTo(const std::shared_ptr<Player> &player, SpeakClasses typ
 	// Ghost-mode guard: the sender is about to be told "not online" below — a
 	// bot reply seconds later would contradict that. (Bots are never ghosted in
 	// practice; this is belt-and-braces.)
-	if (toPlayer->isBotPlayer() && !player->isBotPlayer() && !toPlayer->isInGhostMode()) {
+	if (toPlayer->isBotPlayer() && !player->isBotPlayer() && !toPlayer->isInGhostMode() && isBotEngineReady()) {
 		g_botEngine().onPlayerPmToBot(toPlayer->getGUID(), player->getID(), text);
 	}
 

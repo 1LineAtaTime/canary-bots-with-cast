@@ -56,6 +56,39 @@ namespace botnav {
 inline constexpr int_fast32_t PC_NORMAL_COST = 10;
 inline constexpr int_fast32_t PC_DIAGONAL_COST = 25;
 inline constexpr int_fast32_t PC_DEFAULT_MAX_NODES = 512; // server AStarNodes budget
+// goTo()'s chunk length (BotEngine::CHUNK_DIST is this value). A walk farther than this searches
+// to an intermediate chunk target instead of the true one, so each search fits the 512-node budget.
+inline constexpr int32_t PC_CHUNK_DIST = 12;
+
+// The chunk target goTo() aims at when the true target is more than `chunkDist` away: the point
+// `chunkDist` tiles along the straight line, same floor. Shared by goTo, `/cavebot route`
+// (botTraceLegWalk) and botnavsim `walk`, so the diagnostic and the simulator cannot drift from
+// the walker. Signed arithmetic: the engine's old inline copy cast a negative double offset to
+// uint16_t, which is undefined behaviour that only worked by wraparound.
+inline Position chunkTarget(const Position& from, const Position& to, int32_t chunkDist) {
+	const int32_t sdx = static_cast<int32_t>(to.x) - static_cast<int32_t>(from.x);
+	const int32_t sdy = static_cast<int32_t>(to.y) - static_cast<int32_t>(from.y);
+	const int32_t dist = std::max(std::abs(sdx), std::abs(sdy));
+	if (dist <= chunkDist) {
+		return to;
+	}
+	const double ratio = static_cast<double>(chunkDist) / dist;
+	Position p = from;
+	p.x = static_cast<uint16_t>(static_cast<int32_t>(from.x) + static_cast<int32_t>(sdx * ratio));
+	p.y = static_cast<uint16_t>(static_cast<int32_t>(from.y) + static_cast<int32_t>(sdy * ratio));
+	return p;
+}
+
+// #119: the distances at which goTo() first asks for the WHOLE route to the true target, before it
+// falls back to the straight-line chunk. Below the band there is no chunk to replace. Inside it, one
+// 512-node search usually solves the walk outright -- and a straight-line chunk target is exactly
+// what walks a bot into a dead-end pocket on the near side of a wall (temple -> ammo shop stairs:
+// chunked 88 tiles with 10 revisits, the direct route is ~65). Above it a single 512-node search
+// rarely completes, so the extra attempt would mostly be a wasted search: the chunk alone runs there.
+inline constexpr int32_t PC_DIRECT_FIRST_MAX = 2 * PC_CHUNK_DIST;
+inline bool directFirstBand(int32_t chebDist) {
+	return chebDist > PC_CHUNK_DIST && chebDist <= PC_DIRECT_FIRST_MAX;
+}
 
 // Subset of FindPathParams the kernel needs. Field names/semantics match
 // creatures_definitions.hpp FindPathParams so the adapter is a trivial copy.

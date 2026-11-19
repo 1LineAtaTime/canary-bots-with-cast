@@ -97,10 +97,17 @@ void BotEngine::doTraveling(BotState& bot) {
 		castLog(bot, "PZROAM: pz-locked mid-travel — aborting travel, going IDLE");
 		s_travelStartTime.erase(bot.guid); s_travelDestPOI.erase(bot.guid); s_travelSrcPOI.erase(bot.guid); s_travelArriveTarget.erase(bot.guid);
 		s_lastRouteEndPos.erase(bot.guid); s_routeProgress.erase(bot.guid); s_travelFcRecoveryCount.erase(bot.guid);
-		if (bot.huntScriptId > 0) {
-			activeHunts_.erase(bot.huntScriptId);
+		if (bot.huntScriptId > 0) { // owner-checked, like the timeout below (#121 review)
+			if (auto h = activeHunts_.find(bot.huntScriptId); h != activeHunts_.end() && h->second == bot.guid) {
+				activeHunts_.erase(h);
+			}
 			for (auto& s : huntScripts_) {
-				if (s.id == bot.huntScriptId && !s.spawnGroup.empty()) { activeSpawnGroups_.erase(s.spawnGroup); break; }
+				if (s.id == bot.huntScriptId && !s.spawnGroup.empty()) {
+					if (auto g = activeSpawnGroups_.find(s.spawnGroup); g != activeSpawnGroups_.end() && g->second == bot.guid) {
+						activeSpawnGroups_.erase(g);
+					}
+					break;
+				}
 			}
 			bot.huntScriptId = 0;
 			bot.pendingHuntAfterTravel = false;
@@ -129,12 +136,17 @@ void BotEngine::doTraveling(BotState& bot) {
 		s_travelArriveTarget.erase(bot.guid);
 		s_routeProgress.erase(bot.guid);
 		s_travelFcRecoveryCount.erase(bot.guid);
-		// Release hunt reservation if this travel was for a pending hunt
+		// Release hunt reservation if this travel was for a pending hunt -- only if THIS bot holds
+		// it (#121 review): another bot may have been granted the script or spawn group since.
 		if (bot.huntScriptId > 0) {
-			activeHunts_.erase(bot.huntScriptId);
+			if (auto h = activeHunts_.find(bot.huntScriptId); h != activeHunts_.end() && h->second == bot.guid) {
+				activeHunts_.erase(h);
+			}
 			for (auto& s : huntScripts_) {
 				if (s.id == bot.huntScriptId && !s.spawnGroup.empty()) {
-					activeSpawnGroups_.erase(s.spawnGroup);
+					if (auto g = activeSpawnGroups_.find(s.spawnGroup); g != activeSpawnGroups_.end() && g->second == bot.guid) {
+						activeSpawnGroups_.erase(g);
+					}
 					break;
 				}
 			}

@@ -712,3 +712,24 @@
 	INT (BOT_AUDIT_PROBE_MS,               "botAuditProbeMs",               500)      \
 	/* Whole-population aggregate cadence (all bots, hibernated included). */         \
 	INT (BOT_AUDIT_CENSUS_SEC,             "botAuditCensusSec",             10)
+
+// ============================================================================
+// BOT_PVP_SANITY (#123) — keep bot PvP proportionate to the threat.
+//
+// Expanded at the very END of ConfigKey_t (after BOT_AUDIT_CONFIG_KEYS), so no existing ordinal
+// moves — neither a BOT_* key the .so reads nor a core key. Like BOT_AUDIT these ordinals are past
+// MAGIC_ENUM_RANGE_MAX, so the keys are C++-only (not in Lua configKeys). Needs a FULL rebuild.
+//
+// The gang raid ("[GANG] formed RAID") summons botGangMinSize attackers onto one exposed victim.
+// The 2026-11-18 baseline saw a 5-bot raid form on a LEVEL-8 white-skulled harness character.
+// Two independent gates, both checked before anything is committed:
+// ============================================================================
+#define BOT_PVP_SANITY_CONFIG_KEYS(INT, BOOL, STR)                                   \
+	/* A victim below this level never draws a raid (0 = no floor). Checked in      \
+	   victim selection, before the odds roll, so it costs nothing. */               \
+	INT (BOT_GANG_MIN_VICTIM_LEVEL,        "botGangMinVictimLevel",         50)       \
+	/* No raid when the strongest seated attacker already outlevels the victim by    \
+	   this factor or more (0 = off). One such bot alone is the Combat Decision      \
+	   spec's "outleveling" case, so five of them is not a fight. Logged as          \
+	   "[GANG] declined RAID ... reason=outleveled". */                              \
+	INT (BOT_GANG_MAX_LEVEL_RATIO,         "botGangMaxLevelRatio",          4)

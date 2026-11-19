@@ -18,6 +18,7 @@
 // ============================================================================
 
 #include "creatures/players/bot/bot_engine_impl.hpp"
+#include "creatures/players/bot/bot_walksync.hpp"
 
 #pragma GCC diagnostic ignored "-Wunused-function"
 
@@ -53,8 +54,9 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 		// !!! It IS the unwrapping target; recursing back into the wrapper causes an
 		// !!! infinite loop (commit cd7c3e94e). If a future edit needs to convert
 		// !!! `player->startAutoWalk(` -> `botStartAutoWalk(`, skip THIS line and the
-		// !!! one near the bottom of this function.
-		if (player) player->startAutoWalk(dirs);
+		// !!! one near the bottom of this function. (#144: issueAutoWalk is a thin
+		// !!! player->startAutoWalk + desync-tracker arm; it never calls back in here.)
+		if (player) issueAutoWalk(bot, player, dirs);
 		return;
 	}
 
@@ -74,8 +76,9 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 			bot.pendingWalkPauseEventId = 0;
 			walkPauseInfo_.erase(bot.guid);
 		}
+		s_walkObsPending.erase(bot.guid); // not a leisurely walk: no mid-walk roll either (#120)
 		// !!! DO NOT REPLACE with botStartAutoWalk(...) — see top-of-function comment.
-		player->startAutoWalk(dirs);
+		issueAutoWalk(bot, player, dirs);
 		return;
 	}
 
@@ -85,24 +88,36 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 
 	const auto& cfg = livenessCfg_;
 
-	// Decide a pause duration (-1 = no pause). Observed tier is tried first; its cheap
-	// gates (personality, cap, chance roll) short-circuit BEFORE the spectator scan so
-	// we don't scan on every walk step at scale.
+	// Decide a pause duration (-1 = no pause). Observed tier first.
+	//
+	// #120: the observed check now runs BEFORE the chance roll for an eligible bot (it used to be
+	// skipped whenever the roll failed). Knowing whether this walk starts watched is what lets the
+	// roll happen exactly ONCE per walk: either here (walk issued on-screen) or, for a walk issued
+	// off-screen -- the common case, since a bot is handed its path before it walks into view -- on
+	// the first tick it becomes watched (maybeObservedMidWalkPause). The scan is botWalkObserved's
+	// 500 ms per-bot cache, and it returns at once when no real player or cast viewer exists.
 	int32_t pauseMs = -1;
-	const char* pauseTier = "obs";  // which tier produced pauseMs (for cast-chat debug line)
+	bool observedTier = true;  // which tier produced pauseMs
 
 	const uint8_t wb = bot.walkBias();  // 0-15 personality "pausiness"
 	const int32_t obsChanceBase = cfg.walkPauseObservedChancePct;
-	if (obsChanceBase > 0 && wb > 3
-	    && static_cast<int32_t>(bot.pausesThisRouteObserved) < cfg.walkPauseObservedMaxPerRoute) {
+	const bool obsEligible = obsChanceBase > 0 && wb > 3
+		&& static_cast<int32_t>(bot.pausesThisRouteObserved) < cfg.walkPauseObservedMaxPerRoute;
+	bool obsRolled = false;
+	if (obsEligible && botWalkObserved(bot, player)) {
+		obsRolled = true;
 		const int32_t obsChance = obsChanceBase * static_cast<int32_t>(wb) / 15;
-		if (obsChance > 0 && uniform_random(1, 100) <= obsChance
-		    && botWalkObserved(bot, player)) {
+		if (obsChance > 0 && uniform_random(1, 100) <= obsChance) {
 			const int32_t minMs = cfg.walkPauseObservedMinMs;
 			const int32_t maxMs = cfg.walkPauseObservedMaxMs;
 			pauseMs = uniform_random(std::max(1, minMs), std::max(minMs, maxMs));
 			bot.pausesThisRouteObserved++;
 		}
+	}
+	if (obsEligible && !obsRolled) {
+		s_walkObsPending.insert(bot.guid);
+	} else {
+		s_walkObsPending.erase(bot.guid);
 	}
 
 	// Unobserved tier (also the fallback when an observed pause didn't roll). Unchanged
@@ -116,52 +131,296 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 			const int32_t maxMs = cfg.walkPauseMaxMs;
 			pauseMs = uniform_random(std::max(1, minMs), std::max(minMs, maxMs));
 			bot.pausesThisRoute++;
-			pauseTier = "unobs";
+			observedTier = false;
 		}
 	}
 
 	if (pauseMs > 0) {
-		const uint32_t guid = bot.guid;
-		// Record start+duration for the admin-look status line (buildStatusDetail) and
-		// emit a one-shot debug line into Cast Chat (verboseLog-gated). Erased everywhere
-		// pendingWalkPauseEventId returns to 0.
-		walkPauseInfo_[guid] = { OTSYS_TIME(), pauseMs };
-		castLog(bot, fmt::format("PAUSE {} {:.1f}s mid-route (wb={})",
-			pauseTier, pauseMs / 1000.0, wb));
-		// BOT_TEST_HARNESS: `walkpause` record (B1 acceptance) for a WATCHED bot.
-		if (audFor(AUD_WALKPAUSE, guid)) [[unlikely]] {
-			const bool observedTier = pauseTier[0] == 'o';
-			botAudWalkPause(bot, observedTier, pauseMs, wb,
-				observedTier ? bot.pausesThisRouteObserved : bot.pausesThisRoute, dirs.size());
-		}
-		const Position capturedPos = bot.currentPos;
-		const BotAIState capturedState = bot.state;
-		auto dirsCopy = dirs;
-		const uint64_t evId = g_dispatcher().scheduleEvent(pauseMs,
-			[this, guid, capturedPos, capturedState, dirsCopy = std::move(dirsCopy)]() {
-				auto it = guidToIndex_.find(guid);
-				if (it == guidToIndex_.end()) return;
-				BotState& b = bots_[it->second];
-				b.pendingWalkPauseEventId = 0;  // fired — no longer cancellable
-				walkPauseInfo_.erase(guid);    // pause window over (walk-issued or stale-dropped)
-				if (b.hibernated) return;
-				auto p = b.getPlayer();
-				if (!p) return;
-				// Drop the (now possibly stale) replay if combat began, the bot left a
-				// pause-eligible state, or it moved during the pause. The think loop will
-				// issue a fresh path next tick.
-				if (b.attackerId != 0 || b.huntTargetId != 0
-				    || b.state != capturedState
-				    || b.currentPos != capturedPos) return;
-				p->startAutoWalk(dirsCopy);
-			}, "botStartAutoWalk_pause");
-		bot.pendingWalkPauseEventId = evId;
+		scheduleWalkPause(bot, dirs, pauseMs, observedTier, wb, "issue");
 		return;
 	}
 	// !!! DO NOT REPLACE this player->startAutoWalk(dirs) with botStartAutoWalk(...).
 	// !!! See the matching comment at the top of this function. Recursing here pegged
 	// !!! the dispatcher at 100% CPU (commit cd7c3e94e).
+	issueAutoWalk(bot, player, dirs);
+}
+
+// Schedule `dirs` to be (re)issued after `pauseMs`. Shared by the issue-time decision above and
+// the mid-walk observed roll below. Only one pause per bot is ever in flight
+// (pendingWalkPauseEventId), and the replay is dropped if anything changed meanwhile.
+void BotEngine::scheduleWalkPause(BotState& bot, std::vector<Direction> dirs, int32_t pauseMs, bool observedTier,
+                                  uint8_t wb, const char* where) {
+	const uint32_t guid = bot.guid;
+	// Record start+duration for the admin-look status line (buildStatusDetail) and
+	// emit a one-shot debug line into Cast Chat (verboseLog-gated). Erased everywhere
+	// pendingWalkPauseEventId returns to 0.
+	walkPauseInfo_[guid] = { OTSYS_TIME(), pauseMs };
+	castLog(bot, fmt::format("PAUSE {} {:.1f}s mid-route at={} (wb={})",
+		observedTier ? "obs" : "unobs", pauseMs / 1000.0, where, wb));
+	// BOT_TEST_HARNESS: `walkpause` record (B1 acceptance) for a WATCHED bot.
+	if (audFor(AUD_WALKPAUSE, guid)) [[unlikely]] {
+		botAudWalkPause(bot, observedTier, pauseMs, wb,
+			observedTier ? bot.pausesThisRouteObserved : bot.pausesThisRoute, dirs.size(), where);
+	}
+	const Position capturedPos = bot.currentPos;
+	const BotAIState capturedState = bot.state;
+	// #50: botHostScheduleEvent, never g_dispatcher().scheduleEvent. The inline overload would
+	// allocate the Task here, giving its control block a vptr into this library; the cancelled
+	// Task stays queued until its due time, and releasing it after dlclose crashed the server.
+	const uint64_t evId = botHostScheduleEvent(static_cast<uint32_t>(pauseMs),
+		[this, guid, capturedPos, capturedState, dirsCopy = std::move(dirs)]() {
+			auto it = guidToIndex_.find(guid);
+			if (it == guidToIndex_.end()) return;
+			BotState& b = bots_[it->second];
+			b.pendingWalkPauseEventId = 0;  // fired — no longer cancellable
+			walkPauseInfo_.erase(guid);    // pause window over (walk-issued or stale-dropped)
+			if (b.hibernated) return;
+			auto p = b.getPlayer();
+			if (!p) return;
+			// Drop the (now possibly stale) replay if combat began, the bot left a
+			// pause-eligible state, or it moved during the pause. The think loop will
+			// issue a fresh path next tick.
+			if (b.attackerId != 0 || b.huntTargetId != 0
+			    || b.state != capturedState
+			    || b.currentPos != capturedPos) return;
+			issueAutoWalk(b, p, dirsCopy);
+		}, "botStartAutoWalk_pause");
+	bot.pendingWalkPauseEventId = evId;
+}
+
+// ============================================================================
+// #144: walk-desync detector (declaration + rationale: bot_engine_impl.hpp, WalkTrack)
+// ============================================================================
+namespace {
+	// Forced re-plan budget per bot: WALK_DESYNC_BURST drops per window. Movement arbitration is
+	// first-come-first-served, so in a crowd a fresh path can lose its first step again; over budget
+	// a further desync is left to stock (the queue keeps running, as before this fix) and only
+	// re-baselined, so the detector can never drive more than BURST extra searches per window.
+	// The window doubles (up to 16 s) while drops keep landing on the same tile: a bot that is
+	// persistently blocked costs at most 2 searches per 16 s, not 1 per 2 s (review round 1).
+	// Retries (WALK_DESYNC_RETRIES, below) come first and cost no search: they cover a creature that
+	// moves on and the PZ walk-through rule (Player::canWalkthrough refuses the first TWO bumps into a
+	// player -- lastWalkthroughAttempt, then lastWalkthroughPosition -- and lets the third through,
+	// while A* in a PZ paths through creatures for bots, Map::canWalkTo).
+	constexpr int64_t WALK_DESYNC_WINDOW_MS = 2000;
+	// Bumps retried as issued (no search) before a block costs a re-plan; reset by any step that goes
+	// through. Chosen with botnavsim desynccheck (creature leaving after 1..6 blocked attempts, Thais
+	// z6/7/8, 300 walks each): at 0 the fix detours around creatures that are about to move on and on
+	// z6 walks 449 extra steps vs stock's 127; at 3 it walks fewer extra steps than stock on every floor
+	// (z7 837 vs 1262, z6 119 vs 127, z8 186 vs 840) with 0 walks lost. A standing blocker then costs
+	// ~3 step-times of bumping (~0.75 s) before the detour.
+	constexpr uint8_t WALK_DESYNC_RETRIES = 3;
+	constexpr uint8_t WALK_DESYNC_BURST = 2;
+	constexpr uint8_t WALK_DESYNC_MAX_DOUBLINGS = 3;  // 2 s -> 16 s
+	// A dropped queue counts as re-planned only if a new walk is issued this soon after the drop.
+	constexpr int64_t WALK_DESYNC_REPLAN_WINDOW_MS = 2000;
+	// Per-event journal lines per 60 s window (the 60 s summary line is always logged).
+	constexpr uint32_t WALK_DESYNC_LOG_CAP = 20;
+}
+
+// The single hand-off of a walk queue to the server. A thin wrapper by design: it must NEVER call
+// botStartAutoWalk (that wrapper calls this; recursing pegged the dispatcher, cd7c3e94e).
+void BotEngine::issueAutoWalk(BotState& bot, const std::shared_ptr<Player>& player,
+                              const std::vector<Direction>& dirs) {
 	player->startAutoWalk(dirs);
+	// Arm from what the server actually queued (startAutoWalk refuses while rooted/feared, and
+	// may already have taken a first step), and from where the bot stands NOW -- not
+	// bot.currentPos, which is the tick-start snapshot.
+	const auto& q = player->listWalkDir;
+	if (q.empty()) {
+		walkTrack_.erase(bot.guid);
+	} else {
+		WalkTrack& t = walkTrack_[bot.guid];
+		t.dirs.assign(q.begin(), q.end());
+		t.basePos = player->getPosition();
+	}
+	if (!walkDesyncAwaitReplan_.empty()) {
+		if (auto it = walkDesyncAwaitReplan_.find(bot.guid); it != walkDesyncAwaitReplan_.end()) {
+			if (!q.empty() && OTSYS_TIME() - it->second <= WALK_DESYNC_REPLAN_WINDOW_MS) {
+				walkDesync60sReplans_++;
+			}
+			walkDesyncAwaitReplan_.erase(it);
+		}
+	}
+}
+
+// Once per awake-bot tick (processBot, after the teleport / z-change handling and before the FC
+// machine and the state handler, so a dropped queue is re-planned by THIS tick's handler).
+//
+// Stock pops a direction whether or not the step succeeds, and a successful step moves the bot
+// synchronously inside the same dispatcher task, so between tasks "queue length" and "position"
+// are always consistent for a walk that has only succeeded: the bot stands exactly where the
+// consumed directions lead from where it stood. Any failed step (and any push) breaks that, and
+// it stays broken for the rest of the queue -- which is the bug.
+void BotEngine::checkWalkDesync(BotState& bot, const std::shared_ptr<Player>& player) {
+	if (walkTrack_.empty()) return;
+	auto it = walkTrack_.find(bot.guid);
+	if (it == walkTrack_.end()) return;
+	const auto& q = player->listWalkDir;
+	if (q.empty()) { // walk over: drained, cleared or stopped
+		walkTrack_.erase(it);
+		return;
+	}
+	// Owners that must not be second-guessed: the FC machine (steps stairs itself and re-issues),
+	// a walk-pause in flight (#120: its replay re-issues the walk and is dropped if the bot moved),
+	// and stock follow/chase (Creature::goToFollowCreature re-paths on its own after a failed step).
+	if (bot.fcState != FloorChangeState::NONE || bot.pendingWalkPauseEventId != 0 || player->getFollowCreature()) {
+		walkTrack_.erase(it);
+		return;
+	}
+	WalkTrack& t = it->second;
+	const Position cur = player->getPosition();
+	const size_t qn = q.size();
+	// Shared with botnavsim (bot_walksync.hpp): Unchanged / InSync / Foreign / Jump / Desync.
+	const botnav::WalkSyncResult ws = botnav::classifyWalkSync(t.dirs, t.basePos, q, cur);
+	switch (ws.kind) {
+		case botnav::WalkSync::Unchanged:
+			return;
+		case botnav::WalkSync::InSync: // re-baseline (truncation, no allocation)
+			t.dirs.resize(qn);
+			t.basePos = cur;
+			t.retries = 0; // a step went through: the next block is a new episode
+			return;
+		case botnav::WalkSync::Foreign: // Lua / a stock path / another site rewrote listWalkDir
+		case botnav::WalkSync::Jump:    // floor change or teleport: processBot's jump / z-change handling owns it
+			walkDesync60sDropped_++;
+			walkTrack_.erase(it);
+			return;
+		case botnav::WalkSync::Desync:
+			break;
+	}
+	const Position& expect = ws.expected;
+	const size_t consumed = ws.consumed;
+
+	walkDesync60sCount_++;
+	walkDesync60sBots_.insert(bot.guid);
+
+	// 1) Still on the planned line (the usual case: one step short of the tile it could not enter)?
+	// Bump again, as issued -- what a client's re-request amounts to, and no search at all. A
+	// creature passing through (the Rat in f119_cam1) is simply walked past once it moves on, and
+	// the PZ walk-through rule (Player::canWalkthrough lets the third bump into a player through) is
+	// honoured. Only a block that outlasts WALK_DESYNC_RETRIES bumps costs a re-plan (2 below).
+	if (ws.onLineAt >= 0 && t.retries < WALK_DESYNC_RETRIES) {
+		const uint8_t retries = static_cast<uint8_t>(t.retries + 1);
+		// Write the queue in place rather than through startAutoWalk: the walk event is still live (stock
+		// keeps re-scheduling it while listWalkDir is non-empty, and Creature::setSpeed restarts it if a
+		// speed drop to 0 paused it), so the next pop is the retried step. startAutoWalk would also
+		// reset cancelNextWalk (addEventWalk) and so swallow a stopWalk() issued since the last walk event.
+		player->listWalkDir = botnav::retryQueue(t.dirs, ws.onLineAt);
+		walkDesync60sRetried_++;
+		if (walkDesync60sLogged_ < WALK_DESYNC_LOG_CAP) {
+			walkDesync60sLogged_++;
+			g_logger().info("[WALK_DESYNC] {} at=({},{},{}) expected=({},{},{}) consumed={} left={} state={} -> retry as issued ({}/{})",
+				player->getName(), cur.x, cur.y, cur.z, expect.x, expect.y, expect.z, consumed, qn,
+				botStateName(bot.state), retries, WALK_DESYNC_RETRIES);
+		}
+		t.dirs.assign(player->listWalkDir.begin(), player->listWalkDir.end());
+		t.basePos = cur;
+		t.retries = retries;
+		return;
+	}
+
+	// 2) Off the line, or still blocked after the retries: drop the queue so the handler re-plans.
+	const int64_t now = OTSYS_TIME();
+	WalkDesyncLimit& lim = walkDesyncLimit_[bot.guid];
+	const int64_t windowMs = WALK_DESYNC_WINDOW_MS << std::min<uint8_t>(lim.sameTileStreak, WALK_DESYNC_MAX_DOUBLINGS);
+	if (now - lim.windowStartMs >= windowMs) {
+		lim.windowStartMs = now;
+		lim.dropsInWindow = 0;
+	}
+	const bool overBudget = lim.dropsInWindow >= WALK_DESYNC_BURST;
+	if (walkDesync60sLogged_ < WALK_DESYNC_LOG_CAP) {
+		walkDesync60sLogged_++;
+		g_logger().info("[WALK_DESYNC] {} at=({},{},{}) expected=({},{},{}) consumed={} left={} state={} -> {}",
+			player->getName(), cur.x, cur.y, cur.z, expect.x, expect.y, expect.z, consumed, qn,
+			botStateName(bot.state), overBudget ? "over budget (left to stock)" : "queue dropped, re-plan");
+	}
+	if (overBudget) {
+		walkDesync60sCooldown_++;
+		t.dirs.resize(qn); // accept the new line so this one desync is not re-counted every tick
+		t.basePos = cur;
+		return;
+	}
+	lim.dropsInWindow++;
+	// "Same tile" = within one tile of the last drop (review round 2): a bot ping-ponging between two
+	// neighbouring tiles against the same blocker must back off too.
+	const bool sameSpot = lim.lastDropPos.z == cur.z
+		&& std::abs(static_cast<int32_t>(lim.lastDropPos.x) - static_cast<int32_t>(cur.x)) <= 1
+		&& std::abs(static_cast<int32_t>(lim.lastDropPos.y) - static_cast<int32_t>(cur.y)) <= 1;
+	lim.sameTileStreak = sameSpot ? static_cast<uint8_t>(std::min<int>(lim.sameTileStreak + 1, 255)) : 0;
+	lim.lastDropPos = cur;
+	walkDesync60sCleared_++;
+	walkDesyncAwaitReplan_[bot.guid] = now;
+	castLog(bot, fmt::format("WALK_DESYNC: at ({},{},{}) expected ({},{},{}), dropped {} queued steps, re-planning",
+		cur.x, cur.y, cur.z, expect.x, expect.y, expect.z, qn));
+	walkTrack_.erase(it);
+	player->listWalkDir.clear();
+	player->stopEventWalk();
+}
+
+void BotEngine::clearWalkDesync(uint32_t guid) {
+	walkTrack_.erase(guid);
+	walkDesyncLimit_.erase(guid);
+	walkDesyncAwaitReplan_.erase(guid);
+}
+
+// #120: the observed-tier roll for a walk that was issued while nobody watched. Called once per
+// awake-bot tick from processBot. O(1) for any bot not in s_walkObsPending; a pending bot is only
+// scanned while within a few tiles of an anchor, and then at most once a second.
+void BotEngine::maybeObservedMidWalkPause(BotState& bot, const std::shared_ptr<Player>& player) {
+	if (s_walkObsPending.empty()) return;
+	auto it = s_walkObsPending.find(bot.guid);
+	if (it == s_walkObsPending.end()) return;
+	if (!player || player->listWalkDir.empty()) {
+		s_walkObsPending.erase(it); // walk over without ever being watched
+		return;
+	}
+	if (bot.pendingWalkPauseEventId != 0) return; // a pause is already in flight
+	const bool stateAllowsPause = (bot.state == BotAIState::IDLE
+	                               || bot.state == BotAIState::DWELLING
+	                               || bot.state == BotAIState::TRAVELING);
+	if (!stateAllowsPause || bot.attackerId != 0 || bot.huntTargetId != 0
+	    || bot.fcState != FloorChangeState::NONE) {
+		s_walkObsPending.erase(it);
+		return;
+	}
+	const auto& cfg = livenessCfg_;
+	const uint8_t wb = bot.walkBias();
+	const int32_t obsChanceBase = cfg.walkPauseObservedChancePct;
+	if (obsChanceBase <= 0 || wb <= 3
+	    || static_cast<int32_t>(bot.pausesThisRouteObserved) >= cfg.walkPauseObservedMaxPerRoute) {
+		s_walkObsPending.erase(it);
+		return;
+	}
+	// Two steps or fewer left: the walk is ending anyway, a pause now would read as "arrived".
+	if (player->listWalkDir.size() <= 2) return;
+	// Scan budget (#120 review): with many off-screen walkers the 500 ms botWalkObserved cache
+	// alone allowed ~2 viewport scans/s per walker. Two cheap gates first: a pending bot more than
+	// WALK_OBS_ANCHOR_TILES (Chebyshev, any floor) from every anchor -- real player or cast-watched
+	// bot, the same set botWalkObserved looks for -- cannot be on anyone's screen (the viewport is
+	// +-8 x +-6), so it is not scanned at all; and a bot near one is re-checked at most once a second.
+	constexpr int32_t WALK_OBS_ANCHOR_TILES = 9;
+	constexpr int64_t WALK_OBS_RECHECK_MS = 1000;
+	const int32_t anchorCheb = minChebToAnchor(bot.currentPos);
+	if (anchorCheb < 0 || anchorCheb > WALK_OBS_ANCHOR_TILES) return;
+	const int64_t nowMs = OTSYS_TIME();
+	auto& nextCheck = s_walkObsNextCheckMs[bot.guid];
+	if (nowMs < nextCheck) return;
+	nextCheck = nowMs + WALK_OBS_RECHECK_MS;
+	if (!botWalkObserved(bot, player)) return; // still unwatched: keep waiting
+	s_walkObsPending.erase(it); // this walk has had its one observed roll
+	const int32_t obsChance = obsChanceBase * static_cast<int32_t>(wb) / 15;
+	if (obsChance <= 0 || uniform_random(1, 100) > obsChance) return;
+	const int32_t minMs = cfg.walkPauseObservedMinMs;
+	const int32_t maxMs = cfg.walkPauseObservedMaxMs;
+	const int32_t pauseMs = uniform_random(std::max(1, minMs), std::max(minMs, maxMs));
+	bot.pausesThisRouteObserved++;
+	// Stop where we stand and resume the SAME remaining path afterwards. listWalkDir is consumed
+	// from the back and startAutoWalk copies it as-is, so a straight copy replays it in order.
+	std::vector<Direction> rest = player->listWalkDir;
+	player->listWalkDir.clear();
+	player->stopEventWalk();
+	scheduleWalkPause(bot, std::move(rest), pauseMs, true, wb, "midwalk");
 }
 
 // Observed-tier gate for the mid-walk pause. Mirrors the chat observer gate: cheap

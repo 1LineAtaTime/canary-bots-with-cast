@@ -897,6 +897,16 @@ void BotEngine::virtualAdvanceDwelling(BotState &bot, int64_t /*elapsed_ms*/) {
 	}
 }
 
+// #121 telemetry for the virtual travel ceiling below. Read and written only in this TU, so a
+// TU-local is correct here (nothing to share across engine TUs).
+namespace {
+	uint64_t s_vtravelTimeoutCount = 0;
+	int64_t s_vtravelTimeoutLastLogMs = 0;
+	// guid -> (the journey's s_travelStartTime, SIMULATED ms advanced in it). See the ceiling below.
+	std::unordered_map<uint32_t, std::pair<int64_t, int64_t>> s_vtravelSimMs;
+	constexpr int64_t VTRAVEL_MAX_STEP_MS = 5000; // one advance counts at most this much
+}
+
 void BotEngine::virtualAdvanceTraveling(BotState &bot, int64_t elapsed_ms) {
 	// Per-tick city-route walking. Capture status so per-phase handlers can
 	// distinguish "route just completed" (transition phase) from "no route loaded yet"
@@ -910,6 +920,74 @@ void BotEngine::virtualAdvanceTraveling(BotState &bot, int64_t elapsed_ms) {
 		bot.currentPos = target;
 		return true; // always "arrived" in one tick
 	};
+
+	// #121: the twin of doTraveling's global travel timeout. The live handler gives up after
+	// 5 min (temple + IDLE); the virtual sim had no ceiling at all, so ANY phase that could not
+	// complete held a hibernated bot in TRAVELING forever -- which is how Yalahar came to hold
+	// 110 travelling bots (23-29 % of the population). The ceiling is 4x the live one because a
+	// virtual leg walks at 1 waypoint / 5 s and a stitched multi-hop route can be long; it is a
+	// backstop, not a pacing rule. On expiry the bot stays in the town it is in (no free trip
+	// across the map), standing at that town's temple, IDLE -- the live outcome minus the
+	// teleport home, which needs a Player the hibernated bot does not have.
+	//
+	// Review: the ceiling counts SIMULATED time, not wall clock. virtualTick defers the whole sim
+	// under load (budget 0); counting wall clock, a long deferral would expire every travelling bot
+	// at once when load clears, although none of them had advanced. Each advance adds its elapsed
+	// time capped at VTRAVEL_MAX_STEP_MS (5 s, the first-visit fallback), so a deferred period adds
+	// at most 5 s per bot, while in steady state (visits every ~0.1-0.6 s) simulated == wall time.
+	{
+		static constexpr int64_t VIRTUAL_TRAVEL_TIMEOUT_MS = 4 * 300000; // 20 min of simulated travel
+		const int64_t now = OTSYS_TIME();
+		auto &travelStart = s_travelStartTime[bot.guid];
+		if (travelStart == 0) travelStart = now;
+		auto &sim = s_vtravelSimMs[bot.guid];
+		if (sim.first != travelStart) sim = { travelStart, 0 }; // a new journey
+		sim.second += std::clamp<int64_t>(elapsed_ms, 0, VTRAVEL_MAX_STEP_MS);
+		if (sim.second > VIRTUAL_TRAVEL_TIMEOUT_MS) {
+			s_vtravelTimeoutCount++;
+			if (now - s_vtravelTimeoutLastLogMs >= 10000) {
+				s_vtravelTimeoutLastLogMs = now;
+				g_logger().warn("[VTRAVEL_TIMEOUT] bot='{}' town={} phase='{}' dest={} pos=({},{},{}) after {}s simulated ({}s wall) -- virtual travel abandoned (total={})",
+					bot.name, bot.townId, bot.travelPhase, bot.travelDestTownId,
+					bot.currentPos.x, bot.currentPos.y, bot.currentPos.z,
+					sim.second / 1000, (now - travelStart) / 1000, s_vtravelTimeoutCount);
+			}
+			s_vtravelSimMs.erase(bot.guid);
+			s_travelStartTime.erase(bot.guid); s_travelDestPOI.erase(bot.guid); s_travelSrcPOI.erase(bot.guid);
+			s_lastRouteEndPos.erase(bot.guid); s_travelArriveTarget.erase(bot.guid);
+			s_routeProgress.erase(bot.guid); s_travelFcRecoveryCount.erase(bot.guid);
+			if (bot.huntScriptId > 0) { // release the reservation, as the live timeout does
+				// Review: only if THIS bot holds it -- another bot may own the script/group now.
+				if (auto h = activeHunts_.find(bot.huntScriptId); h != activeHunts_.end() && h->second == bot.guid) {
+					activeHunts_.erase(h);
+				}
+				for (const auto &s : huntScripts_) {
+					if (s.id == bot.huntScriptId && !s.spawnGroup.empty()) {
+						if (auto g = activeSpawnGroups_.find(s.spawnGroup); g != activeSpawnGroups_.end() && g->second == bot.guid) {
+							activeSpawnGroups_.erase(g);
+						}
+						break;
+					}
+				}
+				bot.huntScriptId = 0;
+			}
+			bot.pendingHuntAfterTravel = false;
+			auto poiIt = cityPOIs_.find(bot.townId);
+			if (poiIt != cityPOIs_.end()) {
+				for (const auto &poi : poiIt->second) {
+					if (poi.type == POIType::TEMPLE) { bot.currentPos = poi.pos; break; }
+				}
+			}
+			bot.travelDestTownId = 0;
+			bot.travelPhase.clear();
+			bot.followingCityRoute = false;
+			bot.cityRouteWps.clear();
+			bot.cityRouteIdx = 0;
+			bot.state = BotAIState::IDLE;
+			bot.nextRerollTime = now + uniform_random(10, 30) * 1000LL;
+			return;
+		}
+	}
 
 	if (bot.travelPhase == "walk_to_boat") {
 		// No source boat = nothing to walk to (matches today's behavior).
@@ -933,10 +1011,23 @@ void BotEngine::virtualAdvanceTraveling(BotState &bot, int64_t elapsed_ms) {
 			// dist <= 3 to the actual boat NPC. If route ends farther away (e.g.
 			// "temple" fallback route ends at temple, not boat), DON'T transition;
 			// next virtualTick will retry with a different route source.
+			//
+			// #121: "the boat NPC" is where the authored route to the boat/carpet POI ENDS,
+			// not travelSrcBoatPos. travel_positions holds where a boat DROPS you, which is
+			// usually beside the captain but not always: in Yalahar you arrive on the z6 dock
+			// (32816,31272,6) while Karith stands up the ladder at (32818,31278,5), and all 13
+			// Yalahar `*~boat` routes end at (32815,31278,5) -- Chebyshev 6 and one floor away.
+			// The live handler already measures against the route's last waypoint
+			// (s_lastRouteEndPos, bot_travel.cpp); this twin did not, so no hibernated bot
+			// could ever board in Yalahar. It walked every *~boat route, then the temple
+			// fallback (which resets the tried-source set), then the boat routes again --
+			// forever, with nothing to time it out.
+			const std::string boatPOI = s_travelSrcPOI.count(bot.guid) ? s_travelSrcPOI[bot.guid] : "boat";
+			const bool walkedBoatRoute = bot.lastRouteDestination == boatPOI;
 			int32_t dist = std::max(
 				std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(bot.travelSrcBoatPos.x)),
 				std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(bot.travelSrcBoatPos.y)));
-			if (dist <= 3 && bot.currentPos.z == bot.travelSrcBoatPos.z) {
+			if (walkedBoatRoute || (dist <= 3 && bot.currentPos.z == bot.travelSrcBoatPos.z)) {
 				bot.travelPhase = "at_boat";
 				bot.travelWaitUntil = OTSYS_TIME() + uniform_random(3, 10) * 1000LL;
 			}
@@ -1040,6 +1131,10 @@ void BotEngine::virtualAdvanceTraveling(BotState &bot, int64_t elapsed_ms) {
 		}
 		bot.travelDestTownId = 0;
 		bot.travelPhase.clear();
+		// #121: close this journey's clock, as the live "arrived" does; a later TRAVELING entry
+		// that bypasses startTravel must not inherit it and hit the virtual ceiling at once.
+		s_travelStartTime.erase(bot.guid);
+		s_vtravelSimMs.erase(bot.guid);
 		bot.pendingHuntAfterTravel = false; // can't kick off hunt here; live AI or virtual reroll handles
 		bot.state = BotAIState::IDLE;
 		bot.nextRerollTime = OTSYS_TIME() + uniform_random(5, 15) * 1000LL;
@@ -2098,6 +2193,7 @@ void BotEngine::materializeCanaryParty(uint32_t partyHuntId) {
 void BotEngine::forceDeactivateBot(uint32_t guid) {
 	auto it = guidToIndex_.find(guid);
 	if (it == guidToIndex_.end()) return;
+	audClearFirstActPending(guid); // #125 review
 
 	auto& bot = bots_[it->second];
 
@@ -2148,6 +2244,10 @@ void BotEngine::forceDeactivateBot(uint32_t guid) {
 	s_travelSrcPOI.erase(guid);
 	s_lastRouteEndPos.erase(guid);
 	walkPauseInfo_.erase(guid);
+	s_walkObsPending.erase(guid); // #120
+	clearWalkDesync(guid);        // #144
+	s_walkObsNextCheckMs.erase(guid);
+	s_zPlanWait.erase(guid); // #116
 	clearDepotBlacklist(guid);
 
 	// Cleanup party hunt state if bot was in autonomous party hunt
@@ -2253,6 +2353,7 @@ void BotEngine::forceDeactivateBot(uint32_t guid) {
 }
 
 void BotEngine::forceDeactivateBotForReload(uint32_t guid) {
+	audClearFirstActPending(guid); // #125 review
 	auto it = guidToIndex_.find(guid);
 	if (it == guidToIndex_.end()) return;
 
@@ -2504,7 +2605,15 @@ bool BotEngine::reactivateBotForReload(uint32_t guid) {
 			teleportToTemple(bot);
 		}
 	}
-	// NOTE: Do NOT touch cast — broadcast is still active with viewers connected
+	// Cast (#131). A bot that was AWAKE at reload kept its Player, so its broadcast is still on and
+	// any viewer stays connected -- the re-assert below changes nothing for it (no disconnect, the
+	// flag is already true). A bot that was HIBERNATED at reload is a different Player: executeReload
+	// re-materialized it from the DB (Game.loadBotPlayer), or recoverOrphanForReload re-attached the
+	// pooled one, and hibernateBot had switched that one off. Either way it is now awake and in the
+	// cast list (getActiveBotNames), but castViewerLogin only wakes a bot it cannot find in g_game, so
+	// a camera got "This player is not broadcasting" until something hibernated and woke the bot.
+	// Bring it back to the state startup leaves it in, exactly as activateBot and wakeBot do.
+	const bool castWasOn = enableBotCastBroadcast(guid, player);
 	// NOTE: Do NOT reset HP/mana — bot was never killed
 
 	// Clear all AI state so bot starts fresh in the new engine
@@ -2566,8 +2675,9 @@ bool BotEngine::reactivateBotForReload(uint32_t guid) {
 
 	player->setFightMode(FIGHTMODE_ATTACK);
 
-	// Re-equip gear (weapon may have decayed or been lost)
-	equipBot(bot);
+	// Re-equip gear (weapon may have decayed or been lost), but keep the backpack and what
+	// the bot carries: the reload is an engine swap, not a fresh login (#48).
+	equipBot(bot, /*preserveBackpack=*/true);
 
 	// Mount roll, mirroring activateBot. Note this always re-rolls rather than hitting the
 	// throttle: /cavebot reload destroys the BotEngine (destroyBotEngine before dlclose) and
@@ -2578,8 +2688,10 @@ bool BotEngine::reactivateBotForReload(uint32_t guid) {
 
 	bot.postActivationReroll = true;
 
-	g_logger().info("[BotEngine] Reactivated bot '{}' for reload (guid={}, pos=({},{},{}))",
-		player->getName(), guid, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z);
+	// cast=kept: was already broadcasting (awake at reload); cast=restored: #131's case.
+	g_logger().info("[BotEngine] Reactivated bot '{}' for reload (guid={}, pos=({},{},{})) cast={}",
+		player->getName(), guid, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z,
+		castWasOn ? "kept" : "restored");
 	return true;
 }
 
@@ -3127,6 +3239,15 @@ void BotEngine::doActivityReroll(BotState& bot) {
 		}
 	}
 	if (bot.stopCooldownUntil > OTSYS_TIME()) return;
+	// BOT_LIVENESS_PACK Phase C.5: new activity == new route, so reset BOTH per-route mid-walk
+	// pause counters (unobserved + observed). Hard caps are enforced again from scratch for the
+	// upcoming walk. This sits ABOVE the pin check on purpose (#120): a pinned bot never gets
+	// past it, so with the reset below it every pinned bot exhausted its caps once (8 observed +
+	// 3 unobserved pauses) and then never paused again for the whole debug session. Reaching
+	// this point means the bot is idle with no walk, route or task -- the previous route is over
+	// for pinned and unpinned bots alike.
+	bot.pausesThisRoute = 0;
+	bot.pausesThisRouteObserved = 0;
 	// Debug-pinned bots never self-assign work. Debug mode exists to observe ONE bot doing
 	// exactly what the operator asked; an activity reroll mid-observation silently replaces
 	// the thing under test (a manual `goto` would be overwritten by a hunt/POI pick).
@@ -3144,11 +3265,7 @@ void BotEngine::doActivityReroll(BotState& bot) {
 	bot.nextRerollTime = OTSYS_TIME() + g_configManager().getNumber(BOT_ACTIVITY_REROLL_COOLDOWN_SEC) * 1000;
 	s_rerollTotal++;
 
-	// BOT_LIVENESS_PACK Phase C.5: new activity == new route, so reset BOTH
-	// per-route mid-walk pause counters (unobserved + observed). Hard caps are
-	// enforced again from scratch for the upcoming POI/hunt/travel walk.
-	bot.pausesThisRoute = 0;
-	bot.pausesThisRouteObserved = 0;
+	// (The per-route walk-pause counters were reset above the pin check -- see there.)
 
 	// ==== BOT_ACTIVITY_PCT: TABLE A ====
 	// Five real percentages summing to 100. Every bin is TESTED -- there is no residual
@@ -3634,6 +3751,16 @@ void BotEngine::tick() {
 	{
 		BotPhaseTimer _pt(botPerf_.phase[7], perf_phaseUs[7]);
 		doPopulationManagement();
+		// Debug isolation (#124): backstop for any path that brings a non-pinned bot back
+		// without passing the activate/wake gates. Expected to find nothing after the
+		// `debugisolate on` sweep; every hit is logged as [DEBUG_ISOLATE] despawned.
+		if (debugIsolate_) {
+			const int64_t nowMs = OTSYS_TIME();
+			if (nowMs >= debugIsolateNextSweepMs_) {
+				debugIsolateNextSweepMs_ = nowMs + 1000;
+				debugIsolateSweep("tick sweep");
+			}
+		}
 	}
 
 	// PERF_INVESTIGATION_2026-05-24 Phase B (2026-06-01): keep the density-cap anchor
@@ -3698,6 +3825,66 @@ void BotEngine::tick() {
 		wakeTried60s_ = 0;
 		wakeGated60s_ = 0;
 		wakeGranted60s_ = 0;
+		wakeDeferred60s_ = 0;
+		// #119 (review): the live cost of goTo's direct-first attempt. missPerAwakeBot is the
+		// figure that matters: the per-bot limiter caps it at 20/min; healthy is far below.
+		{
+			uint32_t awakeBots = 0;
+			for (const auto& b : bots_) {
+				if (b.active && !b.hibernated) awakeBots++;
+			}
+			g_logger().info("[DIRECT_FIRST] 60s hit={} miss={} suppressed={} awake={} missPerAwakeBot={:.1f}",
+				s_directFirstHit60s, s_directFirstMiss60s, s_directFirstSuppressed60s, awakeBots,
+				awakeBots ? static_cast<double>(s_directFirstMiss60s) / awakeBots : 0.0);
+			s_directFirstHit60s = 0;
+			s_directFirstMiss60s = 0;
+			s_directFirstSuppressed60s = 0;
+		}
+		// #130 (review): goToWide's live cost. Always logged (zeros included), so its absence means
+		// an old build, not "no searches". Healthy: maxPerTick <= 2 (the cap), msMax well under 50.
+		{
+			uint32_t p50Us = 0;
+			if (!s_wide60sUs.empty()) {
+				auto mid = s_wide60sUs.begin() + static_cast<std::ptrdiff_t>(s_wide60sUs.size() / 2);
+				std::nth_element(s_wide60sUs.begin(), mid, s_wide60sUs.end());
+				p50Us = *mid;
+			}
+			g_logger().info("[WIDE] 60s runs={} ok={} fcLeg={} msP50={:.2f} msMax={:.2f} maxPerTick={} deferred={} cooldownSkips={}",
+				s_wide60sRuns, s_wide60sOk, s_wide60sFcLeg, p50Us / 1000.0, s_wide60sUsMax / 1000.0,
+				s_wide60sMaxPerTick, s_wide60sDeferred, s_wide60sCooldownSkips);
+			s_wide60sRuns = 0;
+			s_wide60sOk = 0;
+			s_wide60sFcLeg = 0;
+			s_wide60sDeferred = 0;
+			s_wide60sCooldownSkips = 0;
+			s_wide60sMaxPerTick = 0;
+			s_wide60sUsMax = 0;
+			s_wide60sUs.clear();
+		}
+		// #144: walk desyncs (a failed step left the bot off its queue's line). Always logged, zeros
+		// included. count = desyncs seen, retried = still on the line, the same walk re-queued (no
+		// search; at most 3 bumps per blocking episode), cleared = queues dropped for a re-plan (at most 2 per bot per
+		// 2 s window, the window doubling to 16 s at the same tile), replans = a fresh walk issued within
+		// 2 s of a drop; cooldown = over that budget, left to stock; dropped = tracking abandoned (floor
+		// change / teleport / foreign queue).
+		{
+			g_logger().info("[WALK_DESYNC] 60s count={} replans={} bots={} retried={} cleared={} cooldown={} dropped={} tracked={}",
+				walkDesync60sCount_, walkDesync60sReplans_, walkDesync60sBots_.size(), walkDesync60sRetried_,
+				walkDesync60sCleared_, walkDesync60sCooldown_, walkDesync60sDropped_, walkTrack_.size());
+			walkDesync60sCount_ = 0;
+			walkDesync60sRetried_ = 0;
+			walkDesync60sReplans_ = 0;
+			walkDesync60sCleared_ = 0;
+			walkDesync60sCooldown_ = 0;
+			walkDesync60sDropped_ = 0;
+			walkDesync60sLogged_ = 0;
+			walkDesync60sBots_.clear();
+			// Bounded housekeeping: a dropped queue that never got a new walk (the bot was already
+			// within arrival range) and expired cooldowns.
+			const int64_t nowMs = OTSYS_TIME();
+			std::erase_if(walkDesyncAwaitReplan_, [nowMs](const auto& kv) { return nowMs - kv.second > 2000; });
+			std::erase_if(walkDesyncLimit_, [nowMs](const auto& kv) { return nowMs - kv.second.windowStartMs > 60000; });
+		}
 		wakeStatsWindowStartMs_ = OTSYS_TIME();
 	}
 
@@ -3744,6 +3931,21 @@ void BotEngine::tick() {
 		s_lastPopulationLog = OTSYS_TIME();
 		std::string report = buildPopulationReport();
 		g_logger().info("{}", report);
+		// #121: the multi-line report above has no tag on its continuation lines, so nothing
+		// downstream (journal greps, the harness's [TAG] parser) can see per-town TRAVEL. One
+		// tagged line with the travelling bots per town (top 6) + the virtual-travel ceiling's
+		// running total makes a travel sink a one-line check.
+		std::unordered_map<uint32_t, uint32_t> travelByTown;
+		for (const auto &b : bots_) {
+			if (b.active && b.state == BotAIState::TRAVELING) travelByTown[b.townId]++;
+		}
+		std::vector<std::pair<uint32_t, uint32_t>> tv(travelByTown.begin(), travelByTown.end());
+		std::sort(tv.begin(), tv.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
+		std::string tvs;
+		for (size_t i = 0; i < tv.size() && i < 6; i++) {
+			tvs += fmt::format(" t{}={}", tv[i].first, tv[i].second);
+		}
+		g_logger().info("[POPULATION] travel_by_town(top6){} vtravelTimeouts={}", tvs, s_vtravelTimeoutCount);
 		// In-game chat broadcast intentionally disabled: was spamming the admin
 		// console every 5 min. Pull on demand via "/cavebot population". Journal
 		// log above retained for server-side triage.
@@ -3825,9 +4027,12 @@ void BotEngine::tick() {
 		// TRUE MULTI-FLOOR: z-route planner engagement + hop outcomes. planFail
 		// counts fallbacks to the legacy greedy scan (graph had no route);
 		// hopFail counts blacklist events (bad edge quarantined + replanned).
-		if (s_zPlanOk > 0 || s_zPlanFail > 0 || s_zHopOk > 0 || s_zHopFail > 0) {
-			g_logger().info("[ZROUTE] planOk={} planFail={} hopOk={} hopFail={} legWalks={} portals={} blacklisted={} (per 5min)",
-				s_zPlanOk, s_zPlanFail, s_zHopOk, s_zHopFail, s_zLegWalks, zGraph_.size(), s_zPortalBlacklist.size());
+		if (s_zPlanOk > 0 || s_zPlanFail > 0 || s_zHopOk > 0 || s_zHopFail > 0 || s_legWideOk > 0 || s_legWideFail > 0) {
+			g_logger().info("[ZROUTE] planOk={} planFail={} hopOk={} hopFail={} legWalks={} legWide={}/{} portals={} blacklisted={} (per 5min)",
+				s_zPlanOk, s_zPlanFail, s_zHopOk, s_zHopFail, s_zLegWalks, s_legWideOk, s_legWideOk + s_legWideFail,
+				zGraph_.size(), s_zPortalBlacklist.size());
+			s_legWideOk = 0;
+			s_legWideFail = 0;
 			s_zPlanOk = 0;
 			s_zPlanFail = 0;
 			s_zHopOk = 0;
@@ -4167,6 +4372,10 @@ void BotEngine::tick() {
 			processBot(bot);
 			s_audBot[bot.guid].tickUs = static_cast<int64_t>(botMonoUs() - audT0);
 		} else {
+			// #125: first_act for `watch *` wakes (named watches take the branch above).
+			if (s_audFirstActPending > 0) [[unlikely]] {
+				auditWakeFirstAct(bot);
+			}
 			processBot(bot);
 		}
 		if (wasBotActive && !bot.active) {
@@ -4758,6 +4967,12 @@ void BotEngine::processBot(BotState& bot) {
 		}
 	}
 
+	// #144: a failed step (creature on the next tile) pops its direction anyway and the rest of the
+	// queue runs one tile off the planned line. Drop it here so this tick's handler re-plans from
+	// the tile the bot is really on. After the teleport / z-change handling above (they clear the
+	// queue themselves) and before the FC machine and the state handler.
+	checkWalkDesync(bot, player);
+
 	// Push blocking items on the next walk tile (same as monsters with canPushItems)
 	if (!player->listWalkDir.empty()) {
 		Direction nextDir = player->listWalkDir.back();
@@ -4836,6 +5051,10 @@ void BotEngine::processBot(BotState& bot) {
 	}
 
 	// Dispatch by state
+	// #120: give a walk that was issued off-screen its observed-tier pause roll on the first tick
+	// it is watched. Before the state handler so a pause it starts is seen by this tick's logic.
+	maybeObservedMidWalkPause(bot, player);
+
 	switch (bot.state) {
 		case BotAIState::IDLE:
 			doIdle(bot);
@@ -4894,6 +5113,12 @@ void BotEngine::doIdle(BotState& bot) {
 
 	// 1-min post-activation fallback: if bot is stuck IDLE with no active task after activation,
 	// teleport to its town temple. Guards: hasWalkTarget/followingCityRoute mean bot IS making progress.
+	if (bot.activatedAt > 0 && s_debugPinned.count(bot.guid) > 0) {
+		// A pinned bot standing still is doing exactly what the operator asked; never teleport it
+		// away on its own (#124). doActivityReroll, which normally clears activatedAt, returns
+		// before reaching that line for a pinned bot, so clear it here.
+		bot.activatedAt = 0;
+	}
 	if (bot.activatedAt > 0 && OTSYS_TIME() - bot.activatedAt > 60000
 	    && !bot.hasWalkTarget && !bot.followingCityRoute) {
 		bot.activatedAt = 0;
@@ -4907,6 +5132,12 @@ void BotEngine::doIdle(BotState& bot) {
 	// PK re-engage: if recently-fought target reappears within 7 tiles, resume fight
 	// Window: 60s OR while bot still has PZ-lock (whichever is longer)
 	auto reIt = s_reengageTarget.find(bot.guid);
+	if (reIt != s_reengageTarget.end() && s_debugPinned.count(bot.guid) > 0) {
+		// Debug-pinned: resuming an old fight is self-initiated PvP (#124). Drop the memory.
+		s_reengageTarget.erase(reIt);
+		s_reengageUntil.erase(bot.guid);
+		reIt = s_reengageTarget.end();
+	}
 	if (reIt != s_reengageTarget.end()) {
 		bool timerExpired = OTSYS_TIME() > s_reengageUntil[bot.guid];
 		bool stillPzLocked = player->isPzLocked();
@@ -5231,6 +5462,7 @@ void BotEngine::doIdle(BotState& bot) {
 			s_depotLockerRerollTime[bot.guid] = OTSYS_TIME() + waitSecs * 1000LL;
 			castLog(bot, fmt::format("DEPOT: Arrived at locker, waiting {}s before reroll", waitSecs));
 		} else {
+			GoToDirectFirstScope directFirst; // #119: depot walk -- opt in
 			if (!goTo(bot, bot.idleDepotTarget, 1)) {
 				bot.hasDepotTarget = false; // Can't reach — give up
 			}
@@ -5565,7 +5797,10 @@ void BotEngine::doIdle(BotState& bot) {
 		const bool navStarted = isPlannerWalk(bot)
 			? planScopedWalk(bot, bot.walkTarget,
 				(isHouseVisiting(bot.guid) || isShrineVisiting(bot.guid)) ? 0 : 3)
-			: goToClosest(bot, bot.walkTarget);
+			: [&] {
+				GoToDirectFirstScope directFirst; // #119: idle/POI walk -- opt in
+				return goToClosest(bot, bot.walkTarget);
+			}();
 		if (bot.verboseLog) {
 			// goToClosest returning true only means a walk/plan was STARTED. A bot that reports
 			// success every tick while its position never changes is the signature of a nav that
@@ -5584,7 +5819,8 @@ void BotEngine::doIdle(BotState& bot) {
 		// non-empty queue) ever engages. Deliberately NOT gated behind verboseLog and
 		// deliberately at error level — the whole value is catching bots nobody is watching.
 		// pendingWalkPauseEventId is excluded because a deferred walk is a real, intended pause.
-		if (navStarted && player->listWalkDir.empty() && bot.pendingWalkPauseEventId == 0) {
+		if (navStarted && player->listWalkDir.empty() && bot.pendingWalkPauseEventId == 0
+		    && !zPlanWaiting(bot.guid)) { // waiting on a deferred z-plan is not a wedged walk (#116)
 			noteNavStartedButIdle(bot);
 		} else {
 			s_navStartedButIdle.erase(bot.guid);
@@ -5841,6 +6077,7 @@ void BotEngine::doDwelling(BotState& bot) {
 			castLog(bot, fmt::format("DEPOT: Arrived at locker, waiting {}s before reroll", waitSecs));
 		} else {
 			// Walk to tile adjacent to locker (maxDist=1 means stop adjacent)
+			GoToDirectFirstScope directFirst; // #119: depot walk -- opt in
 			if (!goTo(bot, bot.idleDepotTarget, 1)) {
 				bot.hasDepotTarget = false; // Can't reach — give up
 			}
@@ -6523,7 +6760,12 @@ void BotEngine::handleFloorChange(BotState& bot) {
 					// here would never match and we would fall through to the legacy scan on the
 					// wrong floor. VERIFYING is the only place success is judged.
 					if (bot.currentPos.z != hop.pos.z) {
+						// The leg is done: close it AND its clocks (#118). Erasing only the leg
+						// left s_routeWpTimer/s_routeProgress behind, and the next route at the
+						// same waypoint index inherited them as an instant "stuck" skip.
 						s_zLegPlan.erase(bot.guid);
+						s_routeWpTimer.erase(bot.guid);
+						s_routeProgress.erase(bot.guid);
 						bot.fcState = FloorChangeState::VERIFYING;
 						return;
 					}
@@ -6534,7 +6776,33 @@ void BotEngine::handleFloorChange(BotState& bot) {
 					cfg.logPrefix = "ZLEG";
 					cfg.globalTimeoutMs = 60000;
 					cfg.perWpStuckMs = 15000;
+					// Measure the 15 s as time WITHOUT getting closer, like planScopedWalk's approach
+					// config does (#117). This is the same leg (ensureZLegPlan reuses it), and its
+					// clock was last stamped when the approach path was queued: neither doIdle nor
+					// this state calls followWaypoints while a walk is queued. A long queued approach
+					// (baseline B5: a 73-step detour to a stair 13 tiles away) therefore arrived here
+					// with 27 s already on the clock and skipped the portal on the first call --
+					// a false `pathout stuck reason=wp-skip-timeout val=27406`, and since #42 a
+					// spurious strike toward the 3-strike portal quarantine. With progress tracking
+					// the drain tick sees the bot closer than the best distance and re-arms the clock;
+					// a bot that genuinely stops moving still times out after 15 s.
+					cfg.trackMovementProgress = true;
 					cfg.zChangeGraceMs = 500;
+					// A planned-hop leg is a planner leg (#130), the same leg planScopedWalk's ZLEG
+					// walks while the portal is still far: escalate a failed waypoint walk to ONE
+					// bounded wide search (goToWide: 4096 nodes, PATH_WIDE_DIST, 1 per bot per 15 s,
+					// only after the 512-node chunked goTo failed). Without it the chunk walker's
+					// straight-line target dead-ends against a dogleg the planner already priced as
+					// walkable -- B5 G3: (32390,32223,7) -> stairs (32350,32246,7) is a 91-tile route
+					// south around the block; every chunk search failed for 3 x 15 s, the stair was
+					// quarantined and the greedy fallback climbed a ladder into a z6 pocket. Offline
+					// (botnavsim widecheck, legs the planner's LocalReach gate accepts, to walk-on portals): z7
+					// 105/400 chunk dead ends -> 0, z6 13 -> 0, z8 14 -> 0, no walk lost or changed.
+					// Not goTo's per-tick path, but NOT a rare caller either: every cross-floor goTo
+					// whose z-plan landed walks this leg. So the cost is bounded by goToWide itself:
+					// one search per bot per 15 s after a miss (2 s after a hit) and at most 2 per
+					// tick across all bots, the rest deferred. Live cost: "[WIDE] 60s".
+					cfg.wideSearchOnFail = true;
 					auto res = followWaypoints(bot, leg.wps, leg.idx, leg.skipCount, cfg);
 					if (leg.idx >= leg.wps.size()
 					    && (leg.wps.empty() || !res.lastReachedIndex || *res.lastReachedIndex != leg.wps.size() - 1)) {
@@ -6560,6 +6828,11 @@ void BotEngine::handleFloorChange(BotState& bot) {
 								trans.pos.x, trans.pos.y, trans.pos.z));
 							// The helper retains retry state or performs the final reset.
 							// Resetting here would erase its counter on the first retry.
+							// Restart the 60s FC budget like the timeout branch does: without the
+							// resetFloorChange this branch used to run, the budget kept running across
+							// retries, and its expiry charged a further strike to the same counter, so
+							// a transient blocker could quarantine the portal after ~75s.
+							bot.fcStartTime = OTSYS_TIME();
 							return;
 						}
 						zBlacklistPortal(hop.pos, "zleg");
@@ -6573,6 +6846,8 @@ void BotEngine::handleFloorChange(BotState& bot) {
 					// followWaypoints returns early on the action tick with inProgress still true.
 					if (leg.idx >= leg.wps.size()) {
 						s_zLegPlan.erase(bot.guid);
+						s_routeWpTimer.erase(bot.guid); // leg closed with its clocks (#118)
+						s_routeProgress.erase(bot.guid);
 						bot.fcState = FloorChangeState::VERIFYING;
 					}
 					return;
