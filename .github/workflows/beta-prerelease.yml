@@ -1,0 +1,709 @@
+name: beta pre-release
+
+# Rolling pre-release "ci-beta": an untested development build of the `beta` branch.
+#
+#   linux     canary + libbot_engine.so, Ubuntu 22.04 / GCC 13 (glibc 2.35, the servers'
+#             toolchain), portable -march, symbol gate, ABI tag checked in both files
+#   windows   canary.exe (bot engine linked in statically), MSVC v143, /MT, PII path scan
+#   database  MySQL 8: a fresh install (schema.sql + database/bots in import.sh order) and
+#             an upgrade (the v2026.09.01 release database + the SQL files added since),
+#             proven identical; the fresh dump, the SQL sources zip, the runtime tarball
+#   smoke     boots the Linux build against the fresh database with the real map:
+#             Lua migrations, the bot engine .so and the bot startup must all come up
+#   publish   replaces the ci-beta assets and notes, then moves the tag LAST, so a failed
+#             run never half-publishes. Always a pre-release, never "Latest".
+#
+# Once a day (and on a manual run) the check job compares the head of `beta` with the commit
+# the ci-beta tag points at. Equal: nothing new, no build. Different, or a manual run with
+# "force": every job builds that one commit, and the tag moves last. Scheduled workflows only
+# run from the DEFAULT branch, so this file lives on `main` and builds the `beta` branch; the
+# copy on `beta` is identical and never fires by itself.
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Build and publish even if beta has no new commits"
+        type: boolean
+        default: false
+      baseline:
+        description: "Release tag whose runtime tarball is the upgrade starting point"
+        type: string
+        default: "v2026.09.01"
+      publish:
+        description: "Publish the pre-release (off: build and verify only)"
+        type: boolean
+        default: true
+
+permissions: {}
+
+# Runs queue instead of overlapping: a queued run sees the tag the previous one moved.
+concurrency:
+  group: beta-prerelease-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  BRANCH: beta
+  # The public repository publishes ci-beta. Anywhere else (a private test copy) the
+  # same run publishes a private ci-beta-test pre-release instead.
+  PUBLIC_REPO: 1LineAtaTime/canary-bots-with-cast
+  BASELINE_REPO: 1LineAtaTime/canary-bots-with-cast
+  BASELINE_TAG: ${{ inputs.baseline || 'v2026.09.01' }}
+  # Release -march for canary and libbot_engine.so. (Not named TARGET_ARCH: LuaJIT's
+  # Makefile reads that variable from the environment as compiler flags.) x86-64-v2 = SSE4.2/POPCNT/CX16
+  # (every x86-64 CPU since ~2009). The top-level CMakeLists already adds -mno-avx
+  # -mno-sse4 for x86_64, and explicit -mno-* flags win over any -march, so v3 would
+  # only add BMI/LZCNT/MOVBE while excluding older and low-end CPUs: not worth it.
+  CANARY_MARCH: x86-64-v2
+  # Upstream's MySQL target for schema.sql.
+  MYSQL_IMAGE: mysql:8.0
+
+jobs:
+
+  check:
+    name: Anything new on beta?
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.cmp.outputs.build }}
+      sha: ${{ steps.cmp.outputs.sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      FORCE: ${{ inputs.force || false }}
+    steps:
+    - id: cmp
+      name: Compare the head of beta with the ci-beta tag
+      run: |
+        set -euo pipefail
+        if [ "$REPO" = "$PUBLIC_REPO" ]; then TAG=ci-beta; else TAG=ci-beta-test; fi
+        HEAD=$(gh api "repos/$REPO/commits/$BRANCH" --jq .sha)
+        TAGSHA=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha 2>/dev/null || echo none)
+        echo "sha=$HEAD" >> "$GITHUB_OUTPUT"
+        if [ "$HEAD" != "$TAGSHA" ] || [ "$FORCE" = "true" ]; then BUILD=true; else BUILD=false; fi
+        echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+        echo "$BRANCH head $HEAD, $TAG at $TAGSHA, force=$FORCE -> build=$BUILD" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  linux:
+    name: Linux x64 (Ubuntu 22.04, GCC 13)
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    env:
+      CC: gcc-13
+      CXX: g++-13
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-bincache,readwrite"
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.check.outputs.sha }}
+        persist-credentials: false
+
+    - name: Install the toolchain
+      run: |
+        set -euo pipefail
+        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+        sudo apt-get update
+        sudo apt-get install -y gcc-13 g++-13 ninja-build ccache pkg-config autoconf automake libtool binutils
+        gcc-13 --version | head -n 1
+        ldd --version | head -n 1
+        cmake --version | head -n 1
+
+    - name: vcpkg baseline
+      run: echo "VCPKG_COMMIT=$(jq -r '."builtin-baseline"' vcpkg.json)" >> "$GITHUB_ENV"
+
+    - name: Restore the vcpkg binary cache
+      id: vcpkg-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: .vcpkg-bincache
+        key: vcpkg-linux-x64-gcc13-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+        restore-keys: vcpkg-linux-x64-gcc13-${{ env.VCPKG_COMMIT }}-
+
+    - name: Count the cached vcpkg packages
+      id: vcpkg-count
+      run: echo "before=$(find .vcpkg-bincache -type f 2>/dev/null | wc -l)" | tee -a "$GITHUB_OUTPUT"
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.20
+      with:
+        max-size: "2G"
+        key: ccache-beta-linux-x64-gcc13
+        restore-keys: ccache-beta-linux-x64
+
+    - uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
+        vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+    - name: Configure
+      id: configure
+      run: |
+        set -euo pipefail
+        mkdir -p .vcpkg-bincache
+        cmake --preset linux-release -DTOGGLE_BIN_FOLDER=ON \
+          -DCANARY_TARGET_ARCH="$CANARY_MARCH" \
+          -DOPTIONS_ENABLE_SCCACHE=OFF -DOPTIONS_ENABLE_CCACHE=ON
+
+    - name: Count the vcpkg packages after configure
+      id: vcpkg-count-after
+      if: always()
+      run: echo "after=$(find .vcpkg-bincache -type f 2>/dev/null | wc -l)" | tee -a "$GITHUB_OUTPUT"
+
+    # Saved whenever vcpkg built something new, even if configure or the build failed.
+    - name: Save the vcpkg binary cache
+      if: always() && steps.vcpkg-count.outputs.before != steps.vcpkg-count-after.outputs.after
+      uses: actions/cache/save@v4
+      with:
+        path: .vcpkg-bincache
+        key: vcpkg-linux-x64-gcc13-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+
+    - name: Build canary and libbot_engine.so
+      run: |
+        set -euo pipefail
+        # Unity + LTO TUs need ~2.5-3 GB each: size the parallelism by RAM, not by cores.
+        JOBS=$(( $(free -g | awk '/^Mem:/{print $2}') / 3 )); [ "$JOBS" -ge 1 ] || JOBS=1
+        [ "$JOBS" -le "$(nproc)" ] || JOBS=$(nproc)
+        echo "nproc=$(nproc) RAM=$(free -g | awk '/^Mem:/{print $2}')G -> $JOBS jobs"
+        cmake --build --preset linux-release --parallel "$JOBS" 2>&1 | tee build.log
+        # The symbol gate (cmake/check_bot_engine_symbols.cmake) runs as bot_engine's
+        # POST_BUILD step and deletes the library on failure; prove it actually ran.
+        grep -F "bot_engine: zero GNU_UNIQUE dynamic symbols" build.log
+
+    - name: Verify the binaries
+      run: |
+        set -euo pipefail
+        cd build/linux-release/bin
+        ls -la canary libbot_engine.so
+        # Symbol gate again, explicitly, on the exact file that ships.
+        cmake -DREADELF="$(command -v readelf)" -DLIBRARY="$PWD/libbot_engine.so" \
+          -P "$GITHUB_WORKSPACE/cmake/check_bot_engine_symbols.cmake"
+        # ABI tag: both files must carry the same BOTENGINE_ABI_TAG=<sha256> marker.
+        tag() { grep -aoE 'BOTENGINE_ABI_TAG=[0-9a-f]{64}' "$1" | sort -u; }
+        A=$(tag canary); B=$(tag libbot_engine.so)
+        echo "canary:           $A"; echo "libbot_engine.so: $B"
+        [ -n "$A" ] && [ "$(wc -l <<< "$A")" = 1 ] || { echo "::error::canary carries no single ABI tag"; exit 1; }
+        [ "$A" = "$B" ] || { echo "::error::ABI tag mismatch between canary and libbot_engine.so"; exit 1; }
+        # Portability: glibc <= 2.35, and every compilation unit built for $CANARY_MARCH, never
+        # -march=native. GCC records each TU's flags in its DWARF producer string (debug info
+        # is still in at this point), so this checks the binary, not the build scripts.
+        # (Raw ymm counts are not a test: OpenSSL & co. carry runtime-dispatched AVX paths.)
+        for f in canary libbot_engine.so; do
+          G=$(objdump -T "$f" | grep -oE 'GLIBC_[0-9.]+' | sort -Vu | tail -n 1)
+          X=$(objdump -T "$f" | grep -oE 'GLIBCXX_[0-9.]+' | sort -Vu | tail -n 1)
+          strings -a "$f" | grep -E '^GNU (C(\+\+)?[0-9]*|GIMPLE) ' > producers.txt || true
+          NATIVE=$(grep -c -- '-march=native' producers.txt || true)
+          OURS=$(grep -c -- "-march=$CANARY_MARCH" producers.txt || true)
+          echo "$f: needs $G, $X; DWARF producers: $(wc -l < producers.txt), -march=$CANARY_MARCH: $OURS, -march=native: $NATIVE"
+          [ "$(printf '%s\n' "$G" GLIBC_2.35 | sort -V | tail -n 1)" = GLIBC_2.35 ] || { echo "::error::$f needs $G (> 2.35)"; exit 1; }
+          [ "$NATIVE" = 0 ] || { echo "::error::$f has $NATIVE units built with -march=native"; exit 1; }
+          [ "$OURS" -gt 0 ] || { echo "::error::$f has no unit built with -march=$CANARY_MARCH"; exit 1; }
+          echo "- \`$f\`: $G, $X; $OURS units -march=$CANARY_MARCH, 0 -march=native" >> "$GITHUB_STEP_SUMMARY"
+        done
+        echo "- ABI tag: \`${A#BOTENGINE_ABI_TAG=}\` (identical in both)" >> "$GITHUB_STEP_SUMMARY"
+        ldd canary
+        echo "ABI_TAG=${A#BOTENGINE_ABI_TAG=}" >> "$GITHUB_ENV"
+        echo "GLIBCXX_NEEDED=$(objdump -T canary libbot_engine.so | grep -oE 'GLIBCXX_[0-9.]+' | sort -Vu | tail -n 1)" >> "$GITHUB_ENV"
+
+    - name: Package
+      run: |
+        set -euo pipefail
+        mkdir -p pkg/canary-bots-beta-linux-x64
+        cp build/linux-release/bin/canary build/linux-release/bin/libbot_engine.so pkg/canary-bots-beta-linux-x64/
+        cd pkg/canary-bots-beta-linux-x64
+        # Debug info off (RelWithDebInfo is ~170 MB); dynamic symbols stay for backtraces.
+        strip --strip-debug canary libbot_engine.so
+        grep -aqE "BOTENGINE_ABI_TAG=$ABI_TAG" libbot_engine.so
+        sha256sum canary libbot_engine.so > SHA256SUMS
+        printf 'abi_tag=%s\nglibcxx=%s\ncommit=%s\n' "$ABI_TAG" "$GLIBCXX_NEEDED" "${{ needs.check.outputs.sha }}" > BUILD_INFO
+        cd ..
+        tar -czf canary-bots-beta-linux-x64.tar.gz canary-bots-beta-linux-x64
+        ls -la
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: beta-linux-x64
+        path: pkg/canary-bots-beta-linux-x64.tar.gz
+        retention-days: 7
+        compression-level: 0
+        if-no-files-found: error
+
+  windows:
+    name: Windows x64 (MSVC v143, static engine)
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    runs-on: windows-2022
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    env:
+      # Everything is built from the neutral root B:\ (a subst of the workspace), so the
+      # absolute source paths std::source_location bakes into the exe read B:\src\...,
+      # and the vcpkg packages are built from B:\vcpkg as well.
+      VCPKG_BINARY_SOURCES: "clear;files,B:\\.vcpkg-bincache,readwrite"
+      SCCACHE_DIR: B:\.sccache
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.check.outputs.sha }}
+        persist-credentials: false
+
+    - name: Neutral build root
+      shell: pwsh
+      run: |
+        subst B: "$env:GITHUB_WORKSPACE"
+        New-Item -ItemType Directory -Force B:\.vcpkg-bincache, B:\.sccache | Out-Null
+        Remove-Item -Recurse -Force C:\mysql* -ErrorAction SilentlyContinue
+        $baseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+        "VCPKG_COMMIT=$baseline" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    - name: Restore the vcpkg binary cache
+      id: vcpkg-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ github.workspace }}\.vcpkg-bincache
+        key: vcpkg-win-x64-static-v143-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+        restore-keys: vcpkg-win-x64-static-v143-${{ env.VCPKG_COMMIT }}-
+
+    - name: Count the cached vcpkg packages
+      id: vcpkg-count
+      shell: pwsh
+      run: |
+        $n = @(Get-ChildItem -Recurse -File B:\.vcpkg-bincache -ErrorAction SilentlyContinue).Count
+        "before=$n" | Tee-Object -Append -FilePath $env:GITHUB_OUTPUT
+
+    - name: sccache
+      uses: hendrikmuhs/ccache-action@v1.2.20
+      with:
+        max-size: "2G"
+        variant: sccache
+        key: sccache-beta-win-x64
+        restore-keys: sccache-beta-win
+
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgDirectory: B:/vcpkg
+        vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
+        vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+    - name: Configure
+      id: configure
+      shell: pwsh
+      working-directory: B:\
+      run: |
+        $env:VCPKG_ROOT = "B:\vcpkg"
+        # The committed preset pins v145 (VS 2026); the runner has VS 2022 = v143.
+        cmake --preset windows-release -DTOGGLE_BIN_FOLDER=ON -DVCPKG_PLATFORM_TOOLSET=v143 -DOPTIONS_ENABLE_CCACHE=OFF `
+          -DCMAKE_TOOLCHAIN_FILE=B:/vcpkg/scripts/buildsystems/vcpkg.cmake
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+    - name: Count the vcpkg packages after configure
+      id: vcpkg-count-after
+      if: always()
+      shell: pwsh
+      run: |
+        $n = @(Get-ChildItem -Recurse -File B:\.vcpkg-bincache -ErrorAction SilentlyContinue).Count
+        "after=$n" | Tee-Object -Append -FilePath $env:GITHUB_OUTPUT
+
+    - name: Save the vcpkg binary cache
+      if: always() && steps.vcpkg-count.outputs.before != steps.vcpkg-count-after.outputs.after
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ github.workspace }}\.vcpkg-bincache
+        key: vcpkg-win-x64-static-v143-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+
+    - name: Build canary.exe
+      shell: pwsh
+      working-directory: B:\
+      run: |
+        $ramGB = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+        $jobs = [math]::Max(1, [math]::Min([Environment]::ProcessorCount, [math]::Floor($ramGB / 3)))
+        "cores=$([Environment]::ProcessorCount) RAM=${ramGB}G -> $jobs jobs"
+        cmake --build --preset windows-release --parallel $jobs
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        Get-Item build\windows-release\bin\canary.exe | Format-List Name, Length
+
+    - name: Package
+      shell: pwsh
+      working-directory: B:\
+      run: |
+        New-Item -ItemType Directory -Force pkg\canary-bots-beta-win64 | Out-Null
+        Copy-Item build\windows-release\bin\canary.exe pkg\canary-bots-beta-win64\
+        $h = (Get-FileHash pkg\canary-bots-beta-win64\canary.exe -Algorithm SHA256).Hash.ToLower()
+        "$h  canary.exe" | Out-File -Encoding ascii pkg\canary-bots-beta-win64\SHA256SUMS
+        "commit=${{ needs.check.outputs.sha }}" | Out-File -Encoding ascii pkg\canary-bots-beta-win64\BUILD_INFO
+        Compress-Archive -Path pkg\canary-bots-beta-win64 -DestinationPath pkg\canary-bots-beta-win64.zip
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: beta-win64
+        path: ${{ github.workspace }}\pkg\canary-bots-beta-win64.zip
+        retention-days: 7
+        compression-level: 0
+        if-no-files-found: error
+
+    # configmanager.hpp's std::source_location default argument bakes the absolute path of
+    # every call site into the exe, and vcpkg packages carry their build tree's __FILE__.
+    # The neutral root must leave no user-profile or runner-workspace path behind.
+    - name: Scan canary.exe for build-machine paths
+      shell: pwsh
+      working-directory: B:\
+      run: |
+        $bytes = [IO.File]::ReadAllBytes("B:\build\windows-release\bin\canary.exe")
+        $ascii = [Text.Encoding]::ASCII.GetString($bytes)
+        $utf16 = [Text.Encoding]::Unicode.GetString($bytes)
+        $rules = [ordered]@{
+          'user profile (C:\Users\<name>)'      = '(?i)[a-z]:[\\/]+users[\\/]+(?!public[\\/]|default[\\/])[^\\/\x00-\x1f"]+'
+          'runner workspace (D:\a\...)'         = '(?i)\b[cd]:[\\/]+a[\\/]+canary'
+          'runner account (runneradmin)'        = '(?i)runneradmin'
+          'hosted tool cache (hostedtoolcache)' = '(?i)hostedtoolcache'
+        }
+        $fail = $false
+        foreach ($k in $rules.Keys) {
+          $n = ([regex]::Matches($ascii, $rules[$k])).Count + ([regex]::Matches($utf16, $rules[$k])).Count
+          $sample = (@([regex]::Matches($ascii, $rules[$k])) + @([regex]::Matches($utf16, $rules[$k])) | Select-Object -First 3 | ForEach-Object { $_.Value }) -join ' | '
+          "{0,-40} {1,6}  {2}" -f $k, $n, $sample
+          "- $k`: **$n**" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          if ($n -gt 0) { $fail = $true }
+        }
+        $neutral = ([regex]::Matches($ascii, '(?i)\bB:[\\/]+(src|vcpkg)')).Count
+        "neutral-root paths (B:\src, B:\vcpkg): $neutral"
+        "- neutral-root paths (B:\src, B:\vcpkg): $neutral" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+        if ($fail) { Write-Error "canary.exe carries build-machine paths"; exit 1 }
+
+  database:
+    name: Database (fresh vs upgraded, packaging)
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          # Throwaway database inside this job, not a secret.
+          MYSQL_ROOT_PASSWORD: ci-root
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pci-root"
+          --health-interval 5s --health-timeout 5s --health-retries 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MYSQL_PWD: ci-root
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.check.outputs.sha }}
+        persist-credentials: false
+
+    - name: Fetch the baseline release runtime
+      run: |
+        set -euo pipefail
+        mkdir -p baseline/dl baseline/tree
+        gh release download "$BASELINE_TAG" -R "$BASELINE_REPO" -p "canary-bots-runtime-$BASELINE_TAG.tar.gz" -D baseline/dl
+        tar -xzf "baseline/dl/canary-bots-runtime-$BASELINE_TAG.tar.gz" -C baseline/tree schema.sql database data-otservbr-global/migrations
+        # The v2026.09.01 tarball was packed from a CRLF checkout: its import.sh fails under
+        # bash ("set: pipefail: invalid option name"). Normalise the script the way such an
+        # install had to (dos2unix); the SQL files are fed to mysql exactly as shipped.
+        sed -i 's/\r$//' baseline/tree/database/bots/import.sh
+        ls -la baseline/tree baseline/tree/database/bots
+        mysql -h 127.0.0.1 -uroot -e "SELECT VERSION(), @@sql_mode\G"
+
+    # The upgrade set is derived, not hand-kept: the files import.sh runs today that the
+    # baseline's import.sh did not, in today's order. The zip's upgrade.sh applies them,
+    # and the upgraded database below is built by RUNNING that script, so the zip is
+    # what gets verified.
+    - name: Build the SQL sources zip
+      run: |
+        set -euo pipefail
+        python3 .github/beta/beta_sql.py package \
+          --baseline-tag "$BASELINE_TAG" --baseline baseline/tree --repo . --out sqlzip
+        (cd sqlzip && zip -X -q -r ../canary-bots-beta-sql.zip canary-bots-beta-sql)
+        unzip -l canary-bots-beta-sql.zip
+        cat sqlzip/canary-bots-beta-sql/upgrade-files.txt >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Fresh install
+      run: |
+        set -euo pipefail
+        mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE canary_fresh DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;"
+        mysql -h 127.0.0.1 -uroot canary_fresh < schema.sql
+        DB_HOST=127.0.0.1 DB_USER=root DB_PASS=ci-root DB_NAME=canary_fresh bash database/bots/import.sh
+
+    - name: Upgraded install (baseline release + upgrade.sh)
+      run: |
+        set -euo pipefail
+        mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE canary_upgraded DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;"
+        mysql -h 127.0.0.1 -uroot canary_upgraded < baseline/tree/schema.sql
+        DB_HOST=127.0.0.1 DB_USER=root DB_PASS=ci-root DB_NAME=canary_upgraded bash baseline/tree/database/bots/import.sh
+        # Negative control: the baseline database WITHOUT the upgrade must differ from the
+        # fresh one, or the comparison below could not tell a missing upgrade file apart.
+        if python3 .github/beta/beta_sql.py compare --host 127.0.0.1 --user root \
+             --a canary_fresh --b canary_upgraded > control.txt; then
+          N=$(grep -c '^- ' sqlzip/canary-bots-beta-sql/upgrade-files.txt || true)
+          if [ "$N" -gt 0 ]; then
+            echo "::error::the comparison found no difference although $N upgrade file(s) exist"; exit 1
+          fi
+        else
+          echo "Negative control: the un-upgraded $BASELINE_TAG database differs, as it must:"
+          grep -E '^- \*\*|DIFFERENT' control.txt | head -n 10
+        fi
+        rm -rf sqlcheck && mkdir sqlcheck && unzip -q canary-bots-beta-sql.zip -d sqlcheck
+        DB_HOST=127.0.0.1 DB_USER=root DB_PASS=ci-root DB_NAME=canary_upgraded \
+          bash sqlcheck/canary-bots-beta-sql/upgrade.sh
+        # Re-running must be harmless (every upgrade file is idempotent by contract).
+        DB_HOST=127.0.0.1 DB_USER=root DB_PASS=ci-root DB_NAME=canary_upgraded \
+          bash sqlcheck/canary-bots-beta-sql/upgrade.sh > /dev/null
+
+    - name: Fresh and upgraded must be identical
+      run: |
+        set -euo pipefail
+        python3 .github/beta/beta_sql.py compare --host 127.0.0.1 --user root \
+          --a canary_fresh --b canary_upgraded --summary "$GITHUB_STEP_SUMMARY"
+
+    - name: Dump the fresh database
+      run: |
+        set -euo pipefail
+        mkdir -p freshzip
+        mysqldump -h 127.0.0.1 -uroot --default-character-set=utf8mb4 --single-transaction \
+          --set-gtid-purged=OFF --skip-comments --routines --triggers canary_fresh \
+          | sed -E 's/ DEFINER=`[^`]+`@`[^`]+`//' > freshzip/canary-bots-beta-fresh.sql
+        ! grep -q DEFINER freshzip/canary-bots-beta-fresh.sql
+        python3 .github/beta/beta_sql.py fresh-readme --baseline-tag "$BASELINE_TAG" > freshzip/IMPORT.txt
+        (cd freshzip && zip -X -q ../canary-bots-beta-db-fresh.zip canary-bots-beta-fresh.sql IMPORT.txt)
+        ls -la canary-bots-beta-db-fresh.zip
+        # The dump must round-trip into an empty database and match the source schema.
+        mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE canary_roundtrip DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;"
+        mysql -h 127.0.0.1 -uroot canary_roundtrip < freshzip/canary-bots-beta-fresh.sql
+        python3 .github/beta/beta_sql.py compare --host 127.0.0.1 --user root \
+          --a canary_fresh --b canary_roundtrip
+
+    - name: Runtime tarball
+      run: |
+        set -euo pipefail
+        # Same layout as the versioned releases' runtime tarball (+ key.pem, upstream's
+        # standard OT RSA key, which the server otherwise falls back to in code).
+        # No world map: otservbr.otbm is not in git (see the release notes).
+        tar --exclude='data-otservbr-global/world/*.otbm' -czf canary-bots-beta-runtime.tar.gz \
+          data data-otservbr-global database schema.sql config.lua.dist key.pem
+        ls -la canary-bots-beta-runtime.tar.gz
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: beta-database
+        path: |
+          canary-bots-beta-db-fresh.zip
+          canary-bots-beta-sql.zip
+          canary-bots-beta-runtime.tar.gz
+        retention-days: 7
+        compression-level: 0
+        if-no-files-found: error
+
+  smoke:
+    name: Boot the Linux build on the fresh database
+    needs: [check, linux, database]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pci-root"
+          --health-interval 5s --health-timeout 5s --health-retries 40
+    env:
+      MYSQL_PWD: ci-root
+      MAP_URL: https://github.com/opentibiabr/canary/releases/download/v3.1.0/otservbr.otbm
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: beta-linux-x64
+        path: dl
+    - uses: actions/download-artifact@v4
+      with:
+        name: beta-database
+        path: dl
+
+    - name: Unpack the runtime and the binaries
+      run: |
+        set -euo pipefail
+        mkdir -p srv && cd srv
+        tar -xzf ../dl/canary-bots-beta-runtime.tar.gz
+        tar -xzf ../dl/canary-bots-beta-linux-x64.tar.gz --strip-components=1
+        (cd ../dl && unzip -q canary-bots-beta-db-fresh.zip)
+        ls -la
+
+    # Upstream's map, the one the release notes point users to.
+    - name: World map (cached)
+      uses: actions/cache@v4
+      with:
+        path: srv-map/otservbr.otbm
+        key: otservbr-otbm-v3.1.0
+
+    - name: Prepare the server
+      run: |
+        set -euo pipefail
+        if [ ! -s srv-map/otservbr.otbm ]; then
+          mkdir -p srv-map && curl -fsSL -o srv-map/otservbr.otbm "$MAP_URL"
+        fi
+        cp srv-map/otservbr.otbm srv/data-otservbr-global/world/otservbr.otbm
+        # Runtime: the binary needs the GCC 13 libstdc++ (Ubuntu 22.04: toolchain PPA).
+        strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep -q "$(grep -oP 'glibcxx=\K.*' srv/BUILD_INFO)" || {
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test && sudo apt-get update && sudo apt-get install -y libstdc++6; }
+        mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE canary DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;"
+        mysql -h 127.0.0.1 -uroot canary < dl/canary-bots-beta-fresh.sql
+        cd srv
+        sed -E -e 's/^mysqlHost = .*/mysqlHost = "127.0.0.1"/' -e 's/^mysqlUser = .*/mysqlUser = "root"/' \
+               -e 's/^mysqlPass = .*/mysqlPass = "ci-root"/' -e 's/^mysqlDatabase = .*/mysqlDatabase = "canary"/' \
+               -e 's/^botPlayersOnline = .*/botPlayersOnline = 50/' config.lua.dist > config.lua
+        grep -E '^(mysql(Host|User|Database)|botPlayersOnline) =' config.lua
+        mysql -h 127.0.0.1 -uroot -N canary -e "SELECT value FROM server_config WHERE config='db_version';"
+
+    - name: Boot
+      run: |
+        set -euo pipefail
+        cd srv
+        ./canary > boot.log 2>&1 &
+        PID=$!
+        ok=""
+        for i in $(seq 1 180); do      # up to 15 min
+          sleep 5
+          if ! kill -0 "$PID" 2>/dev/null; then echo "::error::canary exited during startup"; break; fi
+          if grep -q "\[BotManager\] All [0-9]* bots loaded as INACTIVE" boot.log; then ok=1; break; fi
+        done
+        sleep 15
+        kill -TERM "$PID" 2>/dev/null || true
+        for i in $(seq 1 60); do kill -0 "$PID" 2>/dev/null || break; sleep 1; done
+        kill -KILL "$PID" 2>/dev/null || true
+        echo "----- boot.log (head) -----"; head -n 80 boot.log
+        echo "----- boot.log (tail) -----"; tail -n 80 boot.log
+        DBV=$(mysql -h 127.0.0.1 -uroot -N canary -e "SELECT value FROM server_config WHERE config='db_version';")
+        LATEST=$(ls data-otservbr-global/migrations/*.lua | sed -E 's#.*/([0-9]+)\.lua#\1#' | sort -n | tail -n 1)
+        ERRS=$(grep -ciE 'lua error|\[error\]' boot.log || true)
+        {
+          echo "### Boot"
+          echo "- server online: $(grep -c 'server online!' boot.log || true)"
+          echo "- bot engine: $(grep -m1 -iE 'bot ?engine.*(loaded|ABI)' boot.log || echo 'no loader line')"
+          echo "- $(grep -m1 -oE '\[BotManager\] Found [0-9]+ bots in database, loading [0-9]+' boot.log || echo 'no BotManager line')"
+          echo "- $(grep -m1 -oE '\[BotManager\] All [0-9]+ bots loaded as INACTIVE' boot.log || echo 'bots never finished loading')"
+          echo "- failed bot loads: $(grep -c 'Failed to load bot' boot.log || true)"
+          echo "- $(grep -m1 -oE '\[BotManager\] (Restore flag set|No restore flag|bot_startup_config not found)[^.]*' boot.log || echo 'no restore-check line')"
+          echo "- db_version after boot: $DBV (newest migration file: $LATEST)"
+          echo "- shutdown saved the bot states (restore flag rows): $(mysql -h 127.0.0.1 -uroot -N canary -e "SELECT COUNT(*) FROM bot_startup_config WHERE config_key='should_restore_states';" 2>/dev/null || echo '?')"
+          echo "- bots online in players_online: $(mysql -h 127.0.0.1 -uroot -N canary -e "SELECT COUNT(*) FROM players_online o JOIN players p ON p.id=o.player_id WHERE p.account_id=65000;" 2>/dev/null || echo '?')"
+          echo "- error lines: $ERRS"
+        } | tee -a "$GITHUB_STEP_SUMMARY"
+        [ -n "$ok" ] || { echo "::error::the bots never came online"; exit 1; }
+        grep -q 'server online!' boot.log || { echo "::error::no 'server online!'"; exit 1; }
+        # The runtime tables the engine/Lua write must exist ("bot_startup_config not found"
+        # in the log only means no restore flag row yet, which is normal on a fresh database).
+        RT=$(mysql -h 127.0.0.1 -uroot -N canary -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='canary' AND table_name IN ('bot_state_persistence','bot_startup_config','bot_nav_events','bot_test_commands');")
+        [ "$RT" = 4 ] || { echo "::error::only $RT of the 4 bot runtime tables exist"; exit 1; }
+        ! grep -q 'Failed to load bot' boot.log || { echo "::error::some bots failed to load"; exit 1; }
+        [ "$DBV" = "$LATEST" ] || { echo "::error::migrations stopped at db_version $DBV (newest $LATEST)"; exit 1; }
+
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: smoke-boot-log
+        path: srv/boot.log
+        retention-days: 7
+        if-no-files-found: ignore
+
+  publish:
+    name: Publish the rolling pre-release
+    needs: [check, linux, windows, database, smoke]
+    if: >-
+      ${{ !cancelled() && needs.linux.result == 'success' && needs.windows.result == 'success'
+      && needs.database.result == 'success' && needs.smoke.result == 'success'
+      && (github.event_name == 'schedule' || inputs.publish) }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SHA: ${{ needs.check.outputs.sha }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.check.outputs.sha }}
+        persist-credentials: false
+        sparse-checkout: .github/beta
+
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: beta-*
+        path: out
+        merge-multiple: true
+
+    - name: Release notes
+      run: |
+        set -euo pipefail
+        if [ "$REPO" = "$PUBLIC_REPO" ]; then echo "TAG=ci-beta" >> "$GITHUB_ENV"; else echo "TAG=ci-beta-test" >> "$GITHUB_ENV"; fi
+        ls -la out
+        (cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+        tar -xzf out/canary-bots-beta-linux-x64.tar.gz -O canary-bots-beta-linux-x64/BUILD_INFO > build_info
+        unzip -p out/canary-bots-beta-sql.zip canary-bots-beta-sql/upgrade-files.txt > upgrade_files
+        DATE=$(gh api "repos/$REPO/commits/$SHA" --jq .commit.committer.date)
+        python3 .github/beta/beta_sql.py notes --repo "$REPO" --sha "$SHA" --date "$DATE" \
+          --baseline-tag "$BASELINE_TAG" --build-info build_info --upgrade-files upgrade_files > notes.md
+        cat notes.md
+
+    # Assets and notes first, the tag last: if anything fails, the tag still points at
+    # the previous build and the next run tries again.
+    - name: Update the pre-release
+      run: |
+        set -euo pipefail
+        TITLE="Latest beta CI build (beta branch)"
+        [ "$TAG" = ci-beta ] || TITLE="TEST - $TITLE"
+        # GITHUB_TOKEN may not move a ref across commits that change .github/workflows
+        # (HTTP 403, no "workflows" permission); creating a ref is allowed, so the tag is
+        # then deleted and created again at the new commit.
+        move_tag() {
+          if ! gh api "repos/$REPO/git/ref/tags/$TAG" > /dev/null 2>&1; then
+            gh api -X POST "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" > /dev/null
+          elif ! gh api -X PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null; then
+            echo "Moving the tag was refused; recreating it at $SHA."
+            gh api -X DELETE "repos/$REPO/git/refs/tags/$TAG"
+            gh api -X POST "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" > /dev/null
+          fi
+        }
+        if gh release view "$TAG" -R "$REPO" > /dev/null 2>&1; then
+          gh release upload "$TAG" -R "$REPO" --clobber out/*
+          keep=" $(cd out && echo *) "
+          for name in $(gh release view "$TAG" -R "$REPO" --json assets --jq '.assets[].name'); do
+            case "$keep" in *" $name "*) ;; *) gh release delete-asset "$TAG" "$name" -R "$REPO" --yes ;; esac
+          done
+          gh release edit "$TAG" -R "$REPO" --title "$TITLE" --notes-file notes.md --prerelease --latest=false
+          move_tag
+          # A release whose tag was deleted turns into a draft: publish it again.
+          if [ "$(gh release view "$TAG" -R "$REPO" --json isDraft --jq .isDraft)" = "true" ]; then
+            gh release edit "$TAG" -R "$REPO" --draft=false --prerelease --latest=false
+          fi
+        else
+          move_tag
+          gh release create "$TAG" -R "$REPO" --title "$TITLE" --notes-file notes.md --prerelease --latest=false out/*
+        fi
+        gh release view "$TAG" -R "$REPO" --json tagName,isPrerelease,isDraft,assets \
+          --jq '{tagName, isPrerelease, isDraft, assets: [.assets[] | "\(.name) \(.size)"]}'
+        TAG_SHA=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha)
+        LATEST=$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || echo none)
+        echo "Tag $TAG -> $TAG_SHA; latest release: $LATEST" | tee -a "$GITHUB_STEP_SUMMARY"
+        [ "$TAG_SHA" = "$SHA" ] || { echo "::error::The tag did not move to $SHA"; exit 1; }
+        case "$LATEST" in ci-*) echo "::error::$LATEST became the latest release"; exit 1 ;; esac
