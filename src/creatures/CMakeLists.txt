@@ -9,6 +9,14 @@ target_sources(
             creature.cpp
             interactions/chat.cpp
             monsters/monster.cpp
+            monsters/monster_combat_intention.cpp
+            monsters/monster_combat_intention.hpp
+            monsters/monster_pathfinding.cpp
+            monsters/monster_pathfinding.hpp
+            monsters/monster_relevance.cpp
+            monsters/monster_relevance.hpp
+            monsters/monster_targeting.cpp
+            monsters/monster_targeting.hpp
             monsters/monsters.cpp
             monsters/spawns/spawn_monster.cpp
             npcs/npc.cpp
@@ -21,6 +29,7 @@ target_sources(
             players/grouping/guild.cpp
             players/grouping/party.cpp
             players/imbuements/imbuements.cpp
+            players/livestream/livestream.cpp
             players/management/ban.cpp
             players/management/waitlist.cpp
             players/storages/storages.cpp
@@ -32,9 +41,12 @@ target_sources(
             players/components/player_forge_history.cpp
             players/components/player_storage.cpp
             players/components/player_title.cpp
+            players/components/pvp/expert_pvp.cpp
+            players/components/pvp/player_pvp.cpp
             players/components/wheel/player_wheel.cpp
             players/components/player_vip.cpp
             players/components/wheel/wheel_gems.cpp
+            players/components/weapon_proficiency.cpp
             players/vocations/vocation.cpp
             players/bot/bot_engine_loader.cpp
             # BOT_TEST_HARNESS Phase 2: the audit sink lives in the MAIN binary (not the .so) so

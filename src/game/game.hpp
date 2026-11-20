@@ -23,6 +23,7 @@
 namespace Canary {
 	namespace protobuf {
 		namespace appearances {
+			class Appearance;
 			class Appearances;
 		} // namespace appearances
 	} // namespace protobuf
@@ -84,6 +85,11 @@ struct HighscoreCacheEntry {
 	uint32_t page;
 	uint32_t entriesPerPage;
 	std::chrono::time_point<std::chrono::system_clock> timestamp;
+};
+
+struct PlayerStats {
+	uint32_t filteredOnlinePlayers = 0;
+	uint32_t totalUniqueIPs = 0;
 };
 
 class Game {
@@ -180,6 +186,14 @@ public:
 
 	bool removeCreature(const std::shared_ptr<Creature> &creature, bool isLogout = true);
 
+	/**
+	 * Adds a creature to the periodic think/check list.
+	 *
+	 * The scheduled insertion and the check list intentionally store weak
+	 * observers. Do not replace this generic path with raw pointers or ID-only
+	 * storage until player-session ID reuse is covered by a generation-aware
+	 * handle.
+	 */
 	void addCreatureCheck(const std::shared_ptr<Creature> &creature);
 	static void removeCreatureCheck(const std::shared_ptr<Creature> &creature);
 
@@ -226,7 +240,7 @@ public:
 
 	bool removeMoney(const std::shared_ptr<Cylinder> &cylinder, uint64_t money, uint32_t flags = 0, bool useBank = false);
 
-	void addMoney(const std::shared_ptr<Cylinder> &cylinder, uint64_t money, uint32_t flags = 0);
+	std::pair<uint64_t, ReturnValue> addMoney(const std::shared_ptr<Cylinder> &cylinder, uint64_t money, uint32_t flags = 0);
 
 	std::shared_ptr<Item> transformItem(std::shared_ptr<Item> item, uint16_t newId, int32_t newCount = -1);
 
@@ -294,6 +308,9 @@ public:
 	void playerCyclopediaCharacterInfo(const std::shared_ptr<Player> &player, uint32_t characterID, CyclopediaCharacterInfoType_t characterInfoType, uint16_t entriesPerPage, uint16_t page);
 
 	void playerHighscores(const std::shared_ptr<Player> &player, HighscoreType_t type, uint8_t category, uint32_t vocation, const std::string &worldName, uint16_t page, uint8_t entriesPerPage);
+	[[nodiscard]] static uint16_t calculateHighscorePages(uint32_t totalEntries, uint8_t entriesPerPage);
+	[[nodiscard]] static uint16_t resolveRandomMountClientId(const Mounts &mounts, uint8_t randomMountId);
+	[[nodiscard]] static bool outfitAppearanceSupportsMount(const Canary::protobuf::appearances::Appearance &appearance);
 	static std::string getSkillNameById(uint8_t &skill);
 
 	// House Auction
@@ -336,6 +353,28 @@ public:
 	void playerCloseNpcChannel(uint32_t playerId);
 	void playerReceivePing(uint32_t playerId);
 	void playerReceivePingBack(uint32_t playerId);
+	/**
+	 * Queue autowalk on the walk dispatcher lane.
+	 *
+	 * Captures only the player id and a path snapshot; do not capture Player or Creature ownership here.
+	 *
+	 * @return true when the walk was admitted; false after canceling dependent walk work.
+	 */
+	bool queuePlayerAutoWalk(uint32_t playerId, std::vector<Direction> listDir);
+	/**
+	 * Admits the player-walk task before moving an item into the inventory.
+	 * The owned cylinder and item references keep the pickup inputs alive until
+	 * the dispatcher revalidates and executes the transaction.
+	 */
+	void queuePlayerAutoWalkAfterItemPickup(
+		uint32_t playerId,
+		const Position &walkToPos,
+		int32_t maxTargetDistance,
+		const std::shared_ptr<Cylinder> &fromCylinder,
+		const std::shared_ptr<Item> &item,
+		uint32_t count,
+		std::function<void(const std::shared_ptr<Player> &, const Position &, uint8_t)> &&afterPickup
+	);
 	void playerAutoWalk(uint32_t playerId, const std::vector<Direction> &listDir);
 	void forcePlayerAutoWalk(uint32_t playerId, const std::vector<Direction> &listDir);
 	void playerStopAutoWalk(uint32_t playerId);
@@ -364,12 +403,13 @@ public:
 	void playerSetAttackedCreature(uint32_t playerId, uint32_t creatureId);
 	void playerFollowCreature(uint32_t playerId, uint32_t creatureId);
 	void playerCancelAttackAndFollow(uint32_t playerId);
-	void playerSetFightModes(uint32_t playerId, FightMode_t fightMode, bool chaseMode, bool secureMode);
+	void playerSetFightModes(uint32_t playerId, FightMode_t fightMode, bool chaseMode, bool secureMode, PvpMode_t pvpMode = PVP_MODE_DOVE);
 	void playerLookAt(uint32_t playerId, uint16_t itemId, const Position &pos, uint8_t stackPos);
 	void playerLookInBattleList(uint32_t playerId, uint32_t creatureId);
 	void playerQuickLootCorpse(const std::shared_ptr<Player> &player, const std::shared_ptr<Container> &corpse, const Position &position);
 	void playerQuickLoot(uint32_t playerId, const Position &pos, uint16_t itemId, uint8_t stackPos, const std::shared_ptr<Item> &defaultItem = nullptr, bool lootAllCorpses = false, bool autoLoot = false);
 	void playerLootAllCorpses(const std::shared_ptr<Player> &player, const Position &pos, bool lootAllCorpses);
+	void playerLootNearby(uint32_t playerId);
 	void playerSetManagedContainer(uint32_t playerId, ObjectCategory_t category, const Position &pos, uint16_t itemId, uint8_t stackPos, bool isLootContainer);
 	void playerClearManagedContainer(uint32_t playerId, ObjectCategory_t category, bool isLootContainer);
 	void playerOpenManagedContainer(uint32_t playerId, ObjectCategory_t category, bool isLootContainer);
@@ -385,7 +425,7 @@ public:
 	void playerRequestAddVip(uint32_t playerId, const std::string &name);
 	void playerRequestRemoveVip(uint32_t playerId, uint32_t guid);
 	void playerRequestEditVip(uint32_t playerId, uint32_t guid, const std::string &description, uint32_t icon, bool notify, std::vector<uint8_t> vipGroupsId);
-	void playerApplyImbuement(uint32_t playerId, uint16_t imbuementid, uint8_t slot, bool protectionCharm);
+	void playerApplyImbuement(uint32_t playerId, uint16_t imbuementid, uint8_t slot);
 	void playerClearImbuement(uint32_t playerid, uint8_t slot);
 	void playerCloseImbuementWindow(uint32_t playerid);
 	void playerTurn(uint32_t playerId, Direction dir);
@@ -393,6 +433,7 @@ public:
 	void playerShowQuestLog(uint32_t playerId);
 	void playerShowQuestLine(uint32_t playerId, uint16_t questId);
 	void playerSay(uint32_t playerId, uint16_t channelId, SpeakClasses type, const std::string &receiver, const std::string &text);
+	void playerChangeOutfit(const std::shared_ptr<Player> &player, Outfit_t outfit, bool setMount, uint8_t isMountRandomized = 0);
 	void playerChangeOutfit(uint32_t playerId, Outfit_t outfit, bool setMount, uint8_t isMountRandomized = 0);
 	void playerInviteToParty(uint32_t playerId, uint32_t invitedId);
 	void playerJoinParty(uint32_t playerId, uint32_t leaderId);
@@ -461,7 +502,15 @@ public:
 	void setGameState(GameState_t newState);
 
 	// Events
+	/**
+	 * Runs periodic creature think/check work.
+	 *
+	 * Delayed follow-up work may re-resolve by runtime ID only for creature
+	 * kinds with monotonic runtime IDs. Player IDs are derived from GUIDs and
+	 * must not be treated as a generation-safe async handle.
+	 */
 	void checkCreatures();
+	bool queueMonsterPostThink(uint32_t monsterId, bool playerVisible);
 	void checkLight();
 
 	bool combatBlockHit(CombatDamage &damage, const std::shared_ptr<Creature> &attacker, const std::shared_ptr<Creature> &target, bool checkDefense, bool checkArmor, bool field, bool condition = false);
@@ -500,11 +549,17 @@ public:
 	void addPlayerMana(const std::shared_ptr<Player> &target);
 	void addPlayerVocation(const std::shared_ptr<Player> &target);
 	void addMagicEffect(const Position &pos, uint16_t effect);
+	void addMagicEffect(const Position &pos, uint16_t effect, const std::shared_ptr<Creature> &source);
 	static void addMagicEffect(const CreatureVector &spectators, const Position &pos, uint16_t effect);
+	static void addMagicEffect(const CreatureVector &spectators, const Position &pos, uint16_t effect, const std::shared_ptr<Creature> &source);
 	void removeMagicEffect(const Position &pos, uint16_t effect);
 	static void removeMagicEffect(const CreatureVector &spectators, const Position &pos, uint16_t effect);
 	void addDistanceEffect(const Position &fromPos, const Position &toPos, uint16_t effect);
+	void addDistanceEffect(const Position &fromPos, const Position &toPos, uint16_t effect, const std::shared_ptr<Creature> &source);
 	static void addDistanceEffect(const CreatureVector &spectators, const Position &fromPos, const Position &toPos, uint16_t effect);
+	static void addDistanceEffect(
+		const CreatureVector &spectators, const Position &fromPos, const Position &toPos, uint16_t effect, const std::shared_ptr<Creature> &source
+	);
 
 	int32_t getLightHour() const {
 		return lightHour;
@@ -625,6 +680,7 @@ public:
 	bool isLookTypeRegistered(uint16_t type) const {
 		return std::ranges::find(registeredLookTypes, type) != registeredLookTypes.end();
 	}
+	bool outfitSupportsMount(uint16_t lookType) const;
 
 	void setCreateLuaItems(Position position, uint16_t itemId) {
 		mapLuaItemsStored[position] = itemId;
@@ -649,7 +705,7 @@ public:
 	uint32_t makeFiendishMonster(uint32_t forgeableMonsterId = 0, bool createForgeableMonsters = false);
 	uint32_t makeInfluencedMonster();
 
-	bool addInfluencedMonster(const std::shared_ptr<Monster> &monster);
+	bool addInfluencedMonster(const std::shared_ptr<Monster> &monster, uint16_t stack = 0);
 	void sendUpdateCreature(const std::shared_ptr<Creature> &creature);
 	std::shared_ptr<Item> wrapItem(const std::shared_ptr<Item> &item, const std::shared_ptr<House> &house);
 
@@ -702,6 +758,11 @@ public:
 
 	const std::unordered_map<uint16_t, std::string> &getHirelingSkills();
 	const std::unordered_map<uint16_t, std::string> &getHirelingOutfits();
+
+	// Returns counts compliant with the otservlist.org regulations: drops
+	// players idle for more than 15 minutes, caps each IP at 4 connections,
+	// and reports the number of unique IPs that contributed to the count.
+	[[nodiscard]] PlayerStats getPlayerStats() const;
 	void sendAttachedEffect(const std::shared_ptr<Creature> &creature, uint16_t effectId);
 	void sendDetachEffect(const std::shared_ptr<Creature> &creature, uint16_t effectId);
 	void updateCreatureShader(const std::shared_ptr<Creature> &creature);
@@ -833,6 +894,7 @@ private:
 	std::vector<uint16_t> registeredMagicEffects;
 	std::vector<uint16_t> registeredDistanceEffects;
 	std::vector<uint16_t> registeredLookTypes;
+	phmap::flat_hash_set<uint16_t> outfitMountSupportedLookTypes;
 
 	size_t lastBucket = 0;
 	size_t lastImbuedBucket = 0;
@@ -907,7 +969,7 @@ private:
 	void updatePlayerPartyHuntAnalyzer(const CombatDamage &damage, const std::shared_ptr<Player> &player) const;
 
 	void sendEffects(
-		const std::shared_ptr<Creature> &target, const CombatDamage &damage, const Position &targetPos,
+		const std::shared_ptr<Creature> &attacker, const std::shared_ptr<Creature> &target, const CombatDamage &damage, const Position &targetPos,
 		TextMessage &message, const CreatureVector &spectators
 	);
 
@@ -946,7 +1008,7 @@ private:
 	void cacheQueryHighscore(const std::string &key, const std::string &query, uint32_t page, uint8_t entriesPerPage);
 	void processHighscoreResults(const DBResult_ptr &result, uint32_t playerID, uint8_t category, uint32_t vocation, uint8_t entriesPerPage);
 
-	std::string generateVocationConditionHighscore(uint32_t vocation);
+	std::string generateVocationConditionHighscore(uint32_t vocation, const std::string &conditionPrefix = " WHERE ");
 	std::string generateHighscoreQuery(
 		const std::string &categoryName,
 		uint32_t page,
@@ -958,6 +1020,7 @@ private:
 	std::string generateHighscoreOrGetCachedQueryForOurRank(const std::string &categoryName, uint8_t entriesPerPage, uint32_t playerGUID, uint32_t vocation);
 
 	void updatePlayersOnline() const;
+	[[nodiscard]] std::map<uint32_t, std::vector<std::shared_ptr<Player>>> groupPlayersByIP() const;
 };
 
 constexpr auto g_game = Game::getInstance;

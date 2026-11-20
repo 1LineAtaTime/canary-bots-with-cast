@@ -16,7 +16,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "trader",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_TRADE
 
 npcConfig.voices = {
 	interval = 15000,
@@ -72,6 +74,9 @@ npcHandler:setMessage(MESSAGE_GREET, "Chhchh?")
 npcHandler:setMessage(MESSAGE_FAREWELL, "Chh...")
 npcHandler:setMessage(MESSAGE_WALKAWAY, "Chh...")
 npcHandler:setMessage(MESSAGE_SENDTRADE, "Chchch. Chh! <you're not sure, but it seems that squirrel wants to trade your valuable acorns for useless stones that it found and considered uneatable>")
+
+-- Dialogue keywords the NPC answers on the official server
+keywordHandler:addKeyword({ "chchch" }, StdModule.say, { npcHandler = npcHandler, text = "Chhhhhhhhhhh!" })
 
 npcHandler:addModule(FocusModule:new(), npcConfig.name, true, true, true)
 

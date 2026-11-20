@@ -21,7 +21,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "normal",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_NORMAL
 
 local keywordHandler = KeywordHandler:new()
 local npcHandler = NpcHandler:new(keywordHandler)
@@ -60,6 +62,9 @@ keywordHandler:addKeyword({ "cyclops" }, StdModule.say, { npcHandler = npcHandle
 
 npcHandler:setMessage(MESSAGE_GREET, "Hehehe.")
 npcHandler:setMessage(MESSAGE_FAREWELL, "Hope you die and lose it.")
+-- Dialogue keywords the NPC answers on the official server
+keywordHandler:addKeyword({ "blood" }, StdModule.say, { npcHandler = npcHandler, text = "Roses are red, and so is blood." })
+
 npcHandler:addModule(FocusModule:new(), npcConfig.name, true, true, true)
 
 -- npcType registering the npcConfig table

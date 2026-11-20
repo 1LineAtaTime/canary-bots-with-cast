@@ -22,11 +22,10 @@ public:
 	virtual ~NetworkMessage() = default;
 
 	using MsgSize_t = uint16_t;
-	// Headers:
-	// 2 bytes for unencrypted message size
-	// 4 bytes for checksum
-	// 1 byte for padding message size
-	static constexpr MsgSize_t INITIAL_BUFFER_POSITION = 7;
+	// Header staging space for the largest supported outbound envelope:
+	// 2 bytes for outer message size, 4 bytes for checksum/sequence, and
+	// either 1 modern padding byte or 2 legacy encrypted inner-length bytes.
+	static constexpr MsgSize_t INITIAL_BUFFER_POSITION = 8;
 
 	int32_t decodeHeader();
 
@@ -177,6 +176,12 @@ public:
 
 	void setLength(MsgSize_t newLength);
 
+	/** Returns bytes remaining inside the decoded application payload. */
+	[[nodiscard]] size_t getUnreadBytes() const;
+
+	/** Sets the decoded payload size relative to the current read position. */
+	void setPayloadLength(MsgSize_t payloadLength);
+
 	MsgSize_t getBufferPosition() const;
 
 	void setBufferPosition(MsgSize_t newPosition);
@@ -201,6 +206,7 @@ protected:
 	struct NetworkMessageInfo {
 		MsgSize_t length = 0;
 		MsgSize_t position = INITIAL_BUFFER_POSITION;
+		MsgSize_t readEndPosition = 0;
 		bool overrun = false;
 	};
 

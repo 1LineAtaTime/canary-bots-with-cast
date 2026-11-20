@@ -49,6 +49,8 @@ Event callbacks are available for several categories of game entities, such as `
 - `(void)` `playerOnInventoryUpdate`
 - `(bool)` `playerOnRotateItem`
 - `(void)` `playerOnWalk`
+- `(void)` `playerOnKill`
+- `(void)` `playerOnLoginComplete`
 - `(void)` `playerOnThink`
 - `(void)` `monsterOnDropLoot`
 - `(void)` `monsterPostDropLoot`
@@ -144,7 +146,7 @@ Some event callbacks are expected to return a enum value, in this case, the enum
 Here is an example of a ReturnValue event callback:
 
 ```lua
-local callback = EventCallback()
+local callback = EventCallback("CreatureOnAreaCombat")
 
 function callback.creatureOnAreaCombat(creature, tile, isAggressive)
 	-- if the creature is not aggressive, stop the execution of the C++ function

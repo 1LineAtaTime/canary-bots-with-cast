@@ -1,4 +1,5 @@
 local senders = require("gamestore.senders")
+local taskboard = require("gamestore.taskboard")
 local player = {}
 
 local sendStoreBalanceUpdating = senders.sendStoreBalanceUpdating
@@ -16,7 +17,7 @@ local function canBuyOffer(self, offer)
 		offer.type ~= GameStore.OfferTypes.OFFER_TYPE_NAMECHANGE
 		and offer.type ~= GameStore.OfferTypes.OFFER_TYPE_EXPBOOST
 		and offer.type ~= GameStore.OfferTypes.OFFER_TYPE_PREYSLOT
-		and offer.type ~= GameStore.OfferTypes.OFFER_TYPE_HUNTINGSLOT
+		and offer.type ~= GameStore.OfferTypes.OFFER_TYPE_WEEKLY_TASK_EXPANSION
 		and offer.type ~= GameStore.OfferTypes.OFFER_TYPE_PREYBONUS
 		and offer.type ~= GameStore.OfferTypes.OFFER_TYPE_TEMPLE
 		and offer.type ~= GameStore.OfferTypes.OFFER_TYPE_SEXCHANGE
@@ -102,10 +103,14 @@ local function canBuyOffer(self, offer)
 				disabled = 1
 				disabledReason = "You already have charm expansion."
 			end
-		elseif offer.type == GameStore.OfferTypes.OFFER_TYPE_HUNTINGSLOT then
-			if self:taskHuntingThirdSlot() then
+		elseif offer.type == GameStore.OfferTypes.OFFER_TYPE_WEEKLY_TASK_EXPANSION then
+			local unlocked = taskboard.isWeeklyExpansionUnlocked(self)
+			if unlocked == nil then
 				disabled = 1
-				disabledReason = "You already have 3 slots released."
+				disabledReason = "Task Board is unavailable."
+			elseif unlocked then
+				disabled = 1
+				disabledReason = "You already have the Permanent Weekly Task Expansion."
 			end
 		elseif offer.type == GameStore.OfferTypes.OFFER_TYPE_PREYSLOT then
 			if self:preyThirdSlot() then
@@ -198,8 +203,7 @@ end
 local function removeCoinsBalance(self, coins)
 	if self:canRemoveCoins(coins) then
 		sendStoreBalanceUpdating(self:getId(), true)
-		self:removeTibiaCoins(coins)
-		return true
+		return self:removeTibiaCoins(coins) == true
 	end
 
 	return false
@@ -220,8 +224,7 @@ end
 local function removeTransferableCoinsBalance(self, coins)
 	if self:canRemoveTransferableCoins(coins) then
 		sendStoreBalanceUpdating(self:getId(), true)
-		self:removeTransferableCoins(coins)
-		return true
+		return self:removeTransferableCoins(coins) == true
 	end
 
 	return false
@@ -233,6 +236,14 @@ local function addTransferableCoinsBalance(self, coins, update)
 		sendStoreBalanceUpdating(self:getId(), true)
 	end
 	return true
+end
+
+local function removeCombinedCoinsBalance(self, coins)
+	local removed = self:removeTransferableAndTibiaCoins(coins) == true
+	if removed then
+		sendStoreBalanceUpdating(self:getId(), true)
+	end
+	return removed
 end
 
 local function makeCoinTransaction(self, offer, desc)
@@ -261,8 +272,8 @@ local function makeCoinTransaction(self, offer, desc)
 
 	if offer.coinType == GameStore.CoinType.Coin and self:canRemoveCoins(offer.price) then
 		op = self:removeCoinsBalance(offer.price)
-	elseif offer.coinType == GameStore.CoinType.Transferable and self:canRemoveTransferableCoins(offer.price) then
-		op = self:removeTransferableCoinsBalance(offer.price)
+	elseif offer.coinType == GameStore.CoinType.Transferable and self:canPayForOffer(offer.price, offer.coinType) then
+		op = removeCombinedCoinsBalance(self, offer.price)
 	end
 
 	if op then
@@ -278,7 +289,8 @@ local function canPayForOffer(self, coinsToRemove, coinType)
 	end
 
 	if coinType == GameStore.CoinType.Transferable then
-		return self:canRemoveTransferableCoins(coinsToRemove)
+		-- Transferable coin offers can be paid using transferable and regular coins combined
+		return ((self:getTransferableCoins() or 0) + (self:getTibiaCoins() or 0)) >= coinsToRemove
 	end
 
 	return false

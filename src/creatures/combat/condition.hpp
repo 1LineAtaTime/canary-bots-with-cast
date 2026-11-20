@@ -15,6 +15,8 @@
 enum class PlayerIcon : uint8_t;
 
 class Creature;
+class ConditionDamage;
+struct MapCacheFloorCursor;
 class Player;
 class PropStream;
 class PropWriteStream;
@@ -40,6 +42,7 @@ public:
 	int32_t getTicks() const;
 	void setTicks(int32_t newTicks);
 
+	static std::shared_ptr<ConditionDamage> createDamageCondition(ConditionId_t id, ConditionType_t type, bool buff = false, uint32_t subId = 0);
 	static std::shared_ptr<Condition> createCondition(ConditionId_t id, ConditionType_t type, int32_t ticks, int32_t param = 0, bool buff = false, uint32_t subId = 0, bool isPersistent = false);
 	static std::shared_ptr<Condition> createCondition(PropStream &propStream);
 
@@ -55,6 +58,7 @@ public:
 	bool isRemovableOnDeath() const;
 
 protected:
+	uint32_t owner = 0;
 	uint8_t drainBodyStage = 0;
 	int64_t endTime {};
 	uint32_t subId {};
@@ -326,7 +330,6 @@ private:
 	bool forceUpdate = false;
 	bool delayed = false;
 	bool field = false;
-	uint32_t owner = 0;
 
 	bool init();
 
@@ -355,6 +358,7 @@ public:
 
 private:
 	bool canWalkTo(const std::shared_ptr<Creature> &creature, Position pos, Direction moveDirection) const;
+	bool canWalkTo(const std::shared_ptr<Creature> &creature, Position pos, Direction moveDirection, MapCacheFloorCursor &floorCursor) const;
 	bool getFleeDirection(const std::shared_ptr<Creature> &creature);
 	bool getFleePath(const std::shared_ptr<Creature> &creature, const Position &pos, std::vector<Direction> &dirList);
 	bool getRandomDirection(const std::shared_ptr<Creature> &creature, Position pos);

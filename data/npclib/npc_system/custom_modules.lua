@@ -1,4 +1,20 @@
--- Custom Modules, created to help us in this datapack
+-- Custom modules used by the NPC system
+function registerHealKeyword(keywordHandler, npcHandler, text, condition, effect, minimumHealth)
+	keywordHandler:addKeyword({ "heal" }, StdModule.say, { npcHandler = npcHandler, text = text }, function(player)
+		return player:getCondition(condition) ~= nil
+	end, function(player)
+		if minimumHealth then
+			local health = player:getHealth()
+			if health < minimumHealth then
+				player:addHealth(minimumHealth - health)
+			end
+		end
+
+		player:removeCondition(condition)
+		player:getPosition():sendMagicEffect(effect)
+	end)
+end
+
 local travelDiscounts = {
 	["postman"] = { price = 10, storage = Storage.Quest.ExampleQuest, value = 1 },
 }
@@ -43,7 +59,7 @@ function StdModule.kick(npc, player, message, keywords, parameters, node)
 
 	Player(player):teleportTo(destination, true)
 
-	npcHandler:resetNpc(player)
+	npcHandler:resetNpc(npc, player)
 	return true
 end
 
@@ -54,12 +70,16 @@ function GreetModule.greet(npc, player, message, keywords, parameters)
 	end
 
 	if parameters.npcHandler:checkInteraction(npc, player) then
+		NpcDialog.add(player, npc:getId())
+		NpcDialog.sendWindow(player)
 		return true
 	end
 
 	local parseInfo = { [TAG_PLAYERNAME] = Player(player):getName() }
 	parameters.npcHandler:say(parameters.npcHandler:parseMessage(parameters.text, parseInfo), npc, player)
 	parameters.npcHandler:setInteraction(npc, player)
+	NpcDialog.add(player, npc:getId())
+	NpcDialog.sendWindow(player)
 	return true
 end
 
@@ -70,8 +90,10 @@ function GreetModule.farewell(npc, player, message, keywords, parameters)
 
 	local parseInfo = { [TAG_PLAYERNAME] = Player(player):getName() }
 	parameters.npcHandler:say(parameters.npcHandler:parseMessage(parameters.text, parseInfo), npc, player)
-	parameters.npcHandler:resetNpc(player)
+	parameters.npcHandler:resetNpc(npc, player)
 	parameters.npcHandler:removeInteraction(npc, player)
+	NpcDialog.remove(player, npc:getId())
+	NpcDialog.sendWindow(player)
 	return true
 end
 

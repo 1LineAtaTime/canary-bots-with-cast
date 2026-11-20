@@ -20,12 +20,15 @@ class ConditionDamage;
 class Loot {
 public:
 	Loot() = default;
+	explicit Loot(std::string monsterName) :
+		monsterName(std::move(monsterName)) { }
 
 	// non-copyable
 	Loot(const Loot &) = delete;
 	Loot &operator=(const Loot &) = delete;
 
 	LootBlock lootBlock;
+	std::string monsterName;
 };
 
 class BaseSpell;
@@ -246,6 +249,7 @@ public:
 	static Monsters &getInstance();
 
 	void clear();
+	[[nodiscard]] uint64_t getReloadEpoch() const;
 
 	std::shared_ptr<MonsterType> getMonsterType(const std::string &name, bool silent = false) const;
 	std::shared_ptr<MonsterType> getMonsterTypeByRaceId(uint16_t raceId, bool isBoss = false) const;
@@ -259,6 +263,7 @@ public:
 
 private:
 	std::shared_ptr<ConditionDamage> getDamageCondition(ConditionType_t conditionType, int32_t maxDamage, int32_t minDamage, int32_t startDamage, uint32_t tickInterval) const;
+	uint64_t reloadEpoch = 1;
 };
 
 constexpr auto g_monsters = Monsters::getInstance;

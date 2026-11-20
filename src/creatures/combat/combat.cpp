@@ -16,10 +16,12 @@
 #include "creatures/monsters/monsters.hpp"
 #include "creatures/players/grouping/party.hpp"
 #include "creatures/players/player.hpp"
+#include "creatures/players/components/pvp/expert_pvp.hpp"
 #include "creatures/players/imbuements/imbuements.hpp"
 #include "game/game.hpp"
 #include "game/scheduling/dispatcher.hpp"
 #include "io/iobestiary.hpp"
+#include "kv/kv.hpp"
 #include "io/ioprey.hpp"
 #include "creatures/players/vocations/vocation.hpp"
 #include "items/weapons/weapons.hpp"
@@ -29,6 +31,106 @@
 #include "map/spectators.hpp"
 #include "creatures/players/player.hpp"
 #include "creatures/players/components/wheel/wheel_definitions.hpp"
+
+namespace {
+	std::shared_ptr<Player> getExpertPvpActorPlayer(const std::shared_ptr<Creature> &actor) {
+		if (!actor) {
+			return nullptr;
+		}
+
+		if (const auto &player = actor->getPlayer()) {
+			return player;
+		}
+
+		const auto &master = actor->getMaster();
+		return master ? master->getPlayer() : nullptr;
+	}
+
+	ExpertPvpActionKind getExpertPvpTargetActionKind(const CombatParams &params) {
+		switch (params.origin) {
+			case ORIGIN_MELEE:
+			case ORIGIN_RANGED:
+			case ORIGIN_FIST:
+			case ORIGIN_WEAPON_PROFICIENCY:
+				return ExpertPvpActionKind::DirectAttack;
+			default:
+				return ExpertPvpActionKind::RuneTarget;
+		}
+	}
+
+	ReturnValue getExpertPvpTargetReturnValue(const ExpertPvpDecision &decision, const std::shared_ptr<Creature> &target) {
+		if (!decision.handled || decision.allowed) {
+			return RETURNVALUE_NOERROR;
+		}
+
+		return target && target->getPlayer() ? RETURNVALUE_YOUMAYNOTATTACKTHISPLAYER : RETURNVALUE_YOUMAYNOTATTACKTHISCREATURE;
+	}
+
+	ReturnValue getExpertPvpCombatReturnValue(ExpertPvpActionKind actionKind, const std::shared_ptr<Creature> &actor, const std::shared_ptr<Creature> &target) {
+		if (!target || !ExpertPvp::isEnabled() || !Combat::isPlayerCombat(target)) {
+			return RETURNVALUE_NOERROR;
+		}
+
+		const auto actorPlayer = getExpertPvpActorPlayer(actor);
+		if (!actorPlayer) {
+			return RETURNVALUE_NOERROR;
+		}
+
+		const auto relation = ExpertPvp::classifyRelation(actorPlayer, target);
+		const auto decision = ExpertPvp::evaluateCombatAction(actionKind, relation.facts);
+		return getExpertPvpTargetReturnValue(decision, target);
+	}
+
+	void applyExpertPvpCombatSideEffects(ExpertPvpActionKind actionKind, const std::shared_ptr<Creature> &actor, const std::shared_ptr<Creature> &target) {
+		if (!target || !ExpertPvp::isEnabled() || !Combat::isPlayerCombat(target)) {
+			return;
+		}
+
+		const auto actorPlayer = getExpertPvpActorPlayer(actor);
+		if (!actorPlayer) {
+			return;
+		}
+
+		const auto relation = ExpertPvp::classifyRelation(actorPlayer, target);
+		const auto decision = ExpertPvp::evaluateCombatAction(actionKind, relation.facts);
+		ExpertPvp::applyCombatSideEffects(decision, relation.facts);
+	}
+
+	bool canDoCombatWithExpertPvp(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, bool aggressive, ExpertPvpActionKind actionKind) {
+		if (Combat::canDoCombat(caster, target, aggressive) != RETURNVALUE_NOERROR) {
+			return false;
+		}
+
+		return getExpertPvpCombatReturnValue(actionKind, caster, target) == RETURNVALUE_NOERROR;
+	}
+
+	bool applyExpertPvpFieldDamage(const std::shared_ptr<MagicField> &field, const std::shared_ptr<Condition> &condition, const std::shared_ptr<Creature> &creature) {
+		if (!field || !condition || !creature || !Combat::isPlayerCombat(creature) || !ExpertPvp::isEnabled()) {
+			return false;
+		}
+
+		const auto fieldContext = ExpertPvp::getFieldContext(field);
+		const auto relation = ExpertPvp::classifyFieldRelation(fieldContext, creature);
+		const auto decision = ExpertPvp::evaluateFieldDamage(fieldContext, relation.facts);
+		if (!decision.handled) {
+			return false;
+		}
+
+		if (!decision.applyDamage) {
+			return true;
+		}
+
+		const auto combatDecision = ExpertPvp::evaluateCombatAction(fieldContext.ownerMode, ExpertPvpActionKind::FieldDamage, relation.facts);
+		ExpertPvp::applyCombatSideEffects(combatDecision, relation.facts);
+
+		if (decision.setConditionOwner) {
+			condition->setParam(CONDITION_PARAM_OWNER, decision.conditionOwnerGuid);
+		}
+
+		creature->addCondition(condition);
+		return true;
+	}
+}
 
 int32_t Combat::getLevelFormula(const std::shared_ptr<Player> &player, const std::shared_ptr<Spell> &wheelSpell, const CombatDamage &damage) const {
 	if (!player) {
@@ -121,6 +223,7 @@ CombatDamage Combat::getCombatDamage(const std::shared_ptr<Creature> &creature, 
 		}
 		if (casterPlayer && wheelSpell && wheelSpell->isInstant()) {
 			wheelSpell->getCombatDataAugment(casterPlayer, damage);
+			casterPlayer->weaponProficiency().applySpellAugment(damage, wheelSpell->getSpellId());
 		}
 	}
 
@@ -254,8 +357,15 @@ ReturnValue Combat::canTargetCreature(const std::shared_ptr<Player> &player, con
 		if (isProtected(player, target->getPlayer())) {
 			return RETURNVALUE_YOUMAYNOTATTACKTHISPLAYER;
 		}
+	}
 
-		if (player->hasSecureMode() && !Combat::isInPvpZone(player, target) && player->getSkullClient(target->getPlayer()) == SKULL_NONE) {
+	const auto expertPvpRet = getExpertPvpCombatReturnValue(ExpertPvpActionKind::DirectAttack, player, target);
+	if (expertPvpRet != RETURNVALUE_NOERROR) {
+		return expertPvpRet;
+	}
+
+	if (target->getPlayer()) {
+		if (!ExpertPvp::isEnabled() && player->hasSecureMode() && !Combat::isInPvpZone(player, target) && player->getSkullClient(target->getPlayer()) == SKULL_NONE) {
 			return RETURNVALUE_TURNSECUREMODETOATTACKUNMARKEDPLAYERS;
 		}
 	}
@@ -412,7 +522,10 @@ ReturnValue Combat::canDoCombat(const std::shared_ptr<Creature> &attacker, const
 				}
 			}
 		} else if (targetMonster) {
-			if (attacker->getFaction() != FACTION_DEFAULT && attacker->getFaction() != FACTION_PLAYER && attackerMonster && !attackerMonster->isEnemyFaction(target->getFaction())) {
+			const bool allowMonsterPerfTestFriendlyFire = attackerMonster && attacker != target
+				&& !attacker->isSummon() && !target->isSummon()
+				&& g_configManager().getBoolean(MONSTER_PERF_TEST_FRIENDLY_FIRE);
+			if (!allowMonsterPerfTestFriendlyFire && attacker->getFaction() != FACTION_DEFAULT && attacker->getFaction() != FACTION_PLAYER && attackerMonster && !attackerMonster->isEnemyFaction(target->getFaction())) {
 				return RETURNVALUE_YOUMAYNOTATTACKTHISCREATURE;
 			}
 
@@ -424,7 +537,7 @@ ReturnValue Combat::canDoCombat(const std::shared_ptr<Creature> &attacker, const
 				if (target->isSummon() && targetMasterPlayer && target->getZoneType() == ZONE_NOPVP) {
 					return RETURNVALUE_ACTIONNOTPERMITTEDINANOPVPZONE;
 				}
-			} else if (attackerMonster) {
+			} else if (attackerMonster && !allowMonsterPerfTestFriendlyFire) {
 				if ((!targetMaster || !targetMasterPlayer) && attacker->getFaction() == FACTION_DEFAULT) {
 					if (!attackerMaster || !masterAttackerPlayer) {
 						return RETURNVALUE_YOUMAYNOTATTACKTHISCREATURE;
@@ -741,7 +854,7 @@ void Combat::CombatHealthFunc(const std::shared_ptr<Creature> &caster, const std
 			damage.secondary.value *= attackerPlayer->getBuff(BUFF_AUTOATTACKDEALT) / 100.;
 		}
 
-		if (attackerPlayer && attackerPlayer->getPlayerVocationEnum() == VOCATION_MONK_CIP && damage.origin == ORIGIN_FIST) {
+		if (attackerPlayer->getPlayerVocationEnum() == VOCATION_MONK_CIP && damage.origin == ORIGIN_FIST) {
 			auto bonusMantra = attackerPlayer->getMantra();
 			auto bonusAscetic = attackerPlayer->wheel().getStage(WheelStage_t::ASCETIC);
 			damage.primary.value -= bonusMantra * bonusAscetic;
@@ -754,12 +867,21 @@ void Combat::CombatHealthFunc(const std::shared_ptr<Creature> &caster, const std
 			}
 		}
 
+		attackerPlayer->weaponProficiency().applySkillAutoAttackPercentage(damage);
+		attackerPlayer->weaponProficiency().applySkillSpellPercentage(damage);
+		attackerPlayer->weaponProficiency().applySkillSpellPercentage(damage, true);
+
 		damage.damageMultiplier += attackerPlayer->wheel().getMajorStatConditional("Divine Empowerment", WheelMajor_t::DAMAGE);
 		g_logger().trace("Wheel Divine Empowerment damage multiplier {}", damage.damageMultiplier);
 	}
 
 	if (g_game().combatBlockHit(damage, caster, target, params.blockedByShield, params.blockedByArmor, params.itemId != 0)) {
 		return;
+	}
+
+	if (attackerPlayer) {
+		attackerPlayer->weaponProficiency().applyOn(WeaponProficiencyHealth_t::LIFE, WeaponProficiencyGain_t::HIT);
+		attackerPlayer->weaponProficiency().applyOn(WeaponProficiencyHealth_t::MANA, WeaponProficiencyGain_t::HIT);
 	}
 
 	// Player attacking monster
@@ -769,6 +891,9 @@ void Combat::CombatHealthFunc(const std::shared_ptr<Creature> &caster, const std
 			damage.primary.value += static_cast<int32_t>(std::ceil((damage.primary.value * slot->bonusPercentage) / 100));
 			damage.secondary.value += static_cast<int32_t>(std::ceil((damage.secondary.value * slot->bonusPercentage) / 100));
 		}
+
+		attackerPlayer->weaponProficiency().applyBestiaryDamage(damage, targetMonster);
+		attackerPlayer->weaponProficiency().applyPowerfulFoeDamage(damage, targetMonster);
 
 		// Monster type onPlayerAttack event
 		targetMonster->onAttackedByPlayer(attackerPlayer);
@@ -1009,7 +1134,7 @@ uint16_t Combat::monkEffectByElementalBond(CombatType_t combatType, uint16_t eff
 					return effect; // fallback: WHITE
 			}
 		case CONST_ME_WHITE_ENERGY_SPARK:
-			return effect; // Não possui variantes
+			return effect; // Don't have variants
 		default:
 			return effect;
 	}
@@ -1020,7 +1145,7 @@ void Combat::sendCombatEffect(const std::shared_ptr<Creature> &caster, const Pos
 
 	// If not a Monk player, use the original effect
 	if (!casterPlayer || casterPlayer->getPlayerVocationEnum() != VOCATION_MONK_CIP) {
-		g_game().addMagicEffect(position, effect);
+		g_game().addMagicEffect(position, effect, caster);
 		return;
 	}
 
@@ -1030,7 +1155,7 @@ void Combat::sendCombatEffect(const std::shared_ptr<Creature> &caster, const Pos
 		effect = monkEffectByElementalBond(it.elementalBond, effect);
 	}
 
-	g_game().addMagicEffect(position, effect);
+	g_game().addMagicEffect(position, effect, caster);
 }
 
 void Combat::combatTileEffects(const CreatureVector &spectators, const std::shared_ptr<Creature> &caster, const std::shared_ptr<Tile> &tile, const CombatParams &params) {
@@ -1069,6 +1194,7 @@ void Combat::combatTileEffects(const CreatureVector &spectators, const std::shar
 				break;
 		}
 
+		bool attachExpertFieldContext = false;
 		if (caster) {
 			std::shared_ptr<Player> casterPlayer;
 			if (caster->isSummon()) {
@@ -1078,7 +1204,8 @@ void Combat::combatTileEffects(const CreatureVector &spectators, const std::shar
 			}
 
 			if (casterPlayer) {
-				if (g_game().getWorldType() == WORLD_TYPE_NO_PVP || tile->hasFlag(TILESTATE_NOPVPZONE)) {
+				const bool noPvpField = g_game().getWorldType() == WORLD_TYPE_NO_PVP || tile->hasFlag(TILESTATE_NOPVPZONE);
+				if (noPvpField) {
 					if (itemId == ITEM_FIREFIELD_PVP_FULL) {
 						itemId = ITEM_FIREFIELD_NOPVP;
 					} else if (itemId == ITEM_POISONFIELD_PVP) {
@@ -1090,8 +1217,18 @@ void Combat::combatTileEffects(const CreatureVector &spectators, const std::shar
 					} else if (itemId == ITEM_WILDGROWTH) {
 						itemId = ITEM_WILDGROWTH_SAFE;
 					}
-				} else if (itemId == ITEM_FIREFIELD_PVP_FULL || itemId == ITEM_POISONFIELD_PVP || itemId == ITEM_ENERGYFIELD_PVP || itemId == ITEM_MAGICWALL || itemId == ITEM_WILDGROWTH) {
-					casterPlayer->addInFightTicks();
+				} else {
+					const bool expertPvpWall = ExpertPvp::isEnabled() && (itemId == ITEM_MAGICWALL || itemId == ITEM_WILDGROWTH);
+					attachExpertFieldContext = ExpertPvp::isEnabled() && ExpertPvp::isExpertFieldItem(itemId);
+					if (expertPvpWall) {
+						itemId = itemId == ITEM_MAGICWALL ? ITEM_MAGICWALL_SAFE : ITEM_WILDGROWTH_SAFE;
+					}
+
+					const bool pvpDamagingField = itemId == ITEM_FIREFIELD_PVP_FULL || itemId == ITEM_POISONFIELD_PVP || itemId == ITEM_ENERGYFIELD_PVP;
+					const bool legacyBlockingWall = !expertPvpWall && (itemId == ITEM_MAGICWALL || itemId == ITEM_WILDGROWTH);
+					if (pvpDamagingField || legacyBlockingWall) {
+						casterPlayer->addInFightTicks();
+					}
 				}
 			}
 		}
@@ -1099,6 +1236,9 @@ void Combat::combatTileEffects(const CreatureVector &spectators, const std::shar
 		const auto &item = Item::CreateItem(itemId);
 		if (caster) {
 			item->setOwner(caster);
+			if (attachExpertFieldContext) {
+				[[maybe_unused]] const auto fieldContext = ExpertPvp::attachFieldContext(item, caster);
+			}
 		}
 
 		ReturnValue ret = g_game().internalAddItem(tile, item);
@@ -1173,7 +1313,7 @@ void Combat::addDistanceEffect(const std::shared_ptr<Creature> &caster, const Po
 	}
 
 	if (effect != CONST_ANI_NONE) {
-		g_game().addDistanceEffect(fromPos, toPos, effect);
+		g_game().addDistanceEffect(fromPos, toPos, effect, caster);
 	}
 }
 
@@ -1419,7 +1559,7 @@ void Combat::CombatFunc(const std::shared_ptr<Creature> &caster, const Position 
 					}
 				}
 
-				if (!params.aggressive || (caster != creature && Combat::canDoCombat(caster, creature, params.aggressive) == RETURNVALUE_NOERROR)) {
+				if (!params.aggressive || (caster != creature && canDoCombatWithExpertPvp(caster, creature, params.aggressive, ExpertPvpActionKind::AreaSpell))) {
 					affectedTargets.push_back(creature);
 				}
 			}
@@ -1467,7 +1607,10 @@ void Combat::CombatFunc(const std::shared_ptr<Creature> &caster, const Position 
 					}
 				}
 
-				if (!params.aggressive || (caster != creature && Combat::canDoCombat(caster, creature, params.aggressive) == RETURNVALUE_NOERROR)) {
+				if (!params.aggressive || (caster != creature && canDoCombatWithExpertPvp(caster, creature, params.aggressive, ExpertPvpActionKind::AreaSpell))) {
+					if (params.aggressive) {
+						applyExpertPvpCombatSideEffects(ExpertPvpActionKind::AreaSpell, caster, creature);
+					}
 					// Wheel of destiny update beam mastery damage
 					if (casterPlayer) {
 						casterPlayer->wheel().updateBeamMasteryDamage(tmpDamage, beamAffectedTotal, beamAffectedCurrent);
@@ -1504,7 +1647,7 @@ void Combat::doCombatHealth(const std::shared_ptr<Creature> &caster, const std::
 }
 
 void Combat::doCombatHealth(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const Position &origin, CombatDamage &damage, const CombatParams &params) {
-	bool canCombat = !params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR);
+	bool canCombat = !params.aggressive || (caster != target && canDoCombatWithExpertPvp(caster, target, params.aggressive, getExpertPvpTargetActionKind(params)));
 	if ((caster && target)
 	    && (caster == target || canCombat)
 	    && (params.impactEffect != CONST_ME_NONE)) {
@@ -1522,7 +1665,7 @@ void Combat::doCombatHealth(const std::shared_ptr<Creature> &caster, const std::
 			return;
 		}
 
-		if (target->isSummon() && caster && caster->getMonster()) {
+		if (target->isSummon() && caster && caster->getMonster() && caster != target) {
 			const auto &targetMaster = target->getMaster();
 			if (targetMaster && targetMaster->getPlayer()) {
 				return;
@@ -1546,6 +1689,10 @@ void Combat::doCombatHealth(const std::shared_ptr<Creature> &caster, const std::
 	applyExtensions(caster, affectedTargets, damage, params);
 
 	if (canCombat) {
+		if (params.aggressive && caster != target) {
+			applyExpertPvpCombatSideEffects(getExpertPvpTargetActionKind(params), caster, target);
+		}
+
 		if (target && caster && params.distanceEffect != CONST_ANI_NONE) {
 			addDistanceEffect(caster, origin, target->getPosition(), params.distanceEffect);
 		}
@@ -1573,7 +1720,7 @@ void Combat::doCombatMana(const std::shared_ptr<Creature> &caster, const std::sh
 }
 
 void Combat::doCombatMana(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const Position &origin, CombatDamage &damage, const CombatParams &params) {
-	bool canCombat = !params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR);
+	bool canCombat = !params.aggressive || (caster != target && canDoCombatWithExpertPvp(caster, target, params.aggressive, getExpertPvpTargetActionKind(params)));
 	if ((caster && target)
 	    && (caster == target || canCombat)
 	    && (params.impactEffect != CONST_ME_NONE)) {
@@ -1585,6 +1732,10 @@ void Combat::doCombatMana(const std::shared_ptr<Creature> &caster, const std::sh
 	applyExtensions(caster, affectedTargets, damage, params);
 
 	if (canCombat) {
+		if (params.aggressive && caster != target) {
+			applyExpertPvpCombatSideEffects(getExpertPvpTargetActionKind(params), caster, target);
+		}
+
 		if (caster && target && params.distanceEffect != CONST_ANI_NONE) {
 			addDistanceEffect(caster, origin, target->getPosition(), params.distanceEffect);
 		}
@@ -1613,12 +1764,16 @@ void Combat::doCombatCondition(const std::shared_ptr<Creature> &caster, const Po
 }
 
 void Combat::doCombatCondition(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const CombatParams &params) {
-	bool canCombat = !params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR);
+	bool canCombat = !params.aggressive || (caster != target && canDoCombatWithExpertPvp(caster, target, params.aggressive, getExpertPvpTargetActionKind(params)));
 	if ((caster == target || canCombat) && params.impactEffect != CONST_ME_NONE) {
 		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect);
 	}
 
 	if (canCombat) {
+		if (params.aggressive && caster != target) {
+			applyExpertPvpCombatSideEffects(getExpertPvpTargetActionKind(params), caster, target);
+		}
+
 		if (caster && target && params.distanceEffect != CONST_ANI_NONE) {
 			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
 		}
@@ -1642,7 +1797,7 @@ void Combat::doCombatDispel(const std::shared_ptr<Creature> &caster, const Posit
 }
 
 void Combat::doCombatDispel(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const CombatParams &params) {
-	bool canCombat = !params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR);
+	bool canCombat = !params.aggressive || (caster != target && canDoCombatWithExpertPvp(caster, target, params.aggressive, getExpertPvpTargetActionKind(params)));
 	if ((caster && target)
 	    && (caster == target || canCombat)
 	    && (params.impactEffect != CONST_ME_NONE)) {
@@ -1650,6 +1805,10 @@ void Combat::doCombatDispel(const std::shared_ptr<Creature> &caster, const std::
 	}
 
 	if (canCombat) {
+		if (params.aggressive && caster != target) {
+			applyExpertPvpCombatSideEffects(getExpertPvpTargetActionKind(params), caster, target);
+		}
+
 		CombatDispelFunc(caster, target, params, nullptr);
 		if (params.targetCallback) {
 			params.targetCallback->onTargetCombat(caster, target);
@@ -1672,7 +1831,11 @@ void Combat::doCombatDispel(const std::shared_ptr<Creature> &caster, const std::
 }
 
 void Combat::doCombatDefault(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const Position &origin, const CombatParams &params) {
-	if (!params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR)) {
+	if (!params.aggressive || (caster != target && canDoCombatWithExpertPvp(caster, target, params.aggressive, getExpertPvpTargetActionKind(params)))) {
+		if (params.aggressive && caster != target) {
+			applyExpertPvpCombatSideEffects(getExpertPvpTargetActionKind(params), caster, target);
+		}
+
 		auto spectators = Spectators().find<Player>(target->getPosition(), true);
 
 		CombatNullFunc(caster, target, params, nullptr);
@@ -2426,7 +2589,11 @@ void AreaCombat::setupExtArea(const std::list<uint32_t> &list, uint32_t rows) {
 
 void MagicField::onStepInField(const std::shared_ptr<Creature> &creature) {
 	// remove magic walls/wild growth
-	if ((!isBlocking() && g_game().getWorldType() == WORLD_TYPE_NO_PVP && id == ITEM_MAGICWALL_SAFE) || id == ITEM_WILDGROWTH_SAFE) {
+	const auto expertFieldContext = ExpertPvp::isEnabled() ? ExpertPvp::getFieldContext(static_self_cast<Item>()) : ExpertFieldContext {};
+	const bool expertPvpOwnedField = expertFieldContext.ownerGuid != 0 && expertFieldContext.ownerWasPlayerOrSummon;
+	const bool removableNoPvpMagicWall = !isBlocking() && g_game().getWorldType() == WORLD_TYPE_NO_PVP && id == ITEM_MAGICWALL_SAFE;
+	const bool removableSafeField = removableNoPvpMagicWall || id == ITEM_WILDGROWTH_SAFE;
+	if (!expertPvpOwnedField && removableSafeField) {
 		if (!creature->isInGhostMode()) {
 			g_game().internalRemoveItem(static_self_cast<Item>(), 1);
 		}
@@ -2437,6 +2604,10 @@ void MagicField::onStepInField(const std::shared_ptr<Creature> &creature) {
 	const ItemType &it = items[getID()];
 	if (it.conditionDamage) {
 		const auto &conditionCopy = it.conditionDamage->clone();
+		if (applyExpertPvpFieldDamage(getMagicField(), conditionCopy, creature)) {
+			return;
+		}
+
 		auto ownerId = getOwnerId();
 		if (ownerId) {
 			bool harmfulField = true;
@@ -2482,14 +2653,16 @@ void Combat::applyExtensions(const std::shared_ptr<Creature> &caster, const std:
 	const auto &player = caster->getPlayer();
 	const auto &monster = caster->getMonster();
 
-	uint16_t baseChance = 0;
-	int32_t baseBonus = 50;
 	if (player) {
-		baseChance = player->getSkillLevel(SKILL_CRITICAL_HIT_CHANCE);
-		baseBonus = player->getSkillLevel(SKILL_CRITICAL_HIT_DAMAGE);
+		uint16_t baseChance = player->getSkillLevel(SKILL_CRITICAL_HIT_CHANCE) + player->getBaseCritical().chance * 10000;
+		int32_t baseBonus = player->getSkillLevel(SKILL_CRITICAL_HIT_DAMAGE) + player->getBaseCritical().damage * 10000;
 
 		uint16_t lowBlowRaceid = player->parseRacebyCharm(CHARM_LOW);
 		uint16_t savageBlowRaceid = player->parseRacebyCharm(CHARM_SAVAGE);
+
+		player->weaponProficiency().applyAutoAttackCritical(damage);
+		player->weaponProficiency().applyRunesCritical(damage, params.aggressive);
+		player->weaponProficiency().applyElementCritical(damage);
 
 		baseBonus += damage.criticalDamage;
 		baseChance += static_cast<uint16_t>(damage.criticalChance);
@@ -2590,8 +2763,8 @@ void Combat::applyExtensions(const std::shared_ptr<Creature> &caster, const std:
 			}
 		}
 	} else if (monster) {
-		baseChance = monster->getCriticalChance() * 100;
-		baseBonus = monster->getCriticalDamage() * 100;
+		uint16_t baseChance = monster->getCriticalChance() * 100;
+		int32_t baseBonus = monster->getCriticalDamage() * 100;
 		baseBonus += damage.criticalDamage;
 		double multiplier = 1.0 + static_cast<double>(baseBonus) / 10000;
 		baseChance += static_cast<uint16_t>(damage.criticalChance);

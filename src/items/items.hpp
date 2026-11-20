@@ -104,24 +104,24 @@ public:
 	ItemType(ItemType &&other) noexcept = default;
 	ItemType &operator=(ItemType &&other) = default;
 
-	bool triggerExhaustion() const;
+	[[nodiscard]] bool triggerExhaustion() const;
 
-	bool isGroundTile() const {
+	[[nodiscard]] bool isGroundTile() const {
 		return group == ITEM_GROUP_GROUND;
 	}
-	bool isContainer() const {
+	[[nodiscard]] bool isContainer() const {
 		return group == ITEM_GROUP_CONTAINER;
 	}
-	bool isSplash() const {
+	[[nodiscard]] bool isSplash() const {
 		return group == ITEM_GROUP_SPLASH;
 	}
-	bool isFluidContainer() const {
+	[[nodiscard]] bool isFluidContainer() const {
 		return group == ITEM_GROUP_FLUID;
 	}
-	bool isShield() const {
+	[[nodiscard]] bool isShield() const {
 		return type == ITEM_TYPE_SHIELD && !isSpellBook();
 	}
-	bool isSpellBook() const {
+	[[nodiscard]] bool isSpellBook() const {
 		return spellbook;
 	}
 
@@ -188,6 +188,10 @@ public:
 	bool hasSubType() const {
 		return (isFluidContainer() || isSplash() || stackable || charges != 0);
 	}
+	[[nodiscard]] bool isActiveEquipment() const {
+		// Legacy timed equipment may omit a move event but decay directly to the same inactive state used on de-equip.
+		return transformDeEquipTo != 0 && (hasDeEquipEvent || (decayTime != 0 && decayTo == transformDeEquipTo));
+	}
 	bool isWeapon() const {
 		return weaponType != WEAPON_NONE && weaponType != WEAPON_SHIELD && weaponType != WEAPON_AMMO;
 	}
@@ -220,15 +224,15 @@ public:
 		return *abilities;
 	}
 
-	int32_t getSpeed() const {
+	[[nodiscard]] int32_t getSpeed() const {
 		return abilities ? abilities->speed : 0;
 	}
 
-	int32_t getSkill(skills_t skill) const {
+	[[nodiscard]] int32_t getSkill(skills_t skill) const {
 		return abilities ? abilities->skills[skill] : 0;
 	}
 
-	int32_t getStat(stats_t stat) const {
+	[[nodiscard]] int32_t getStat(stats_t stat) const {
 		return abilities ? abilities->stats[stat] : 0;
 	}
 
@@ -248,8 +252,8 @@ public:
 		return str;
 	}
 
-	std::string parseAugmentDescription(bool inspect = false) const;
-	std::string getFormattedAugmentDescription(const std::shared_ptr<AugmentInfo> &augmentInfo) const;
+	[[nodiscard]] std::string parseAugmentDescription(bool inspect = false) const;
+	[[nodiscard]] std::string getFormattedAugmentDescription(const std::shared_ptr<AugmentInfo> &augmentInfo) const;
 
 	void addAugment(std::string spellName, Augment_t augmentType, int32_t value);
 
@@ -330,6 +334,8 @@ public:
 	uint8_t imbuementSlot = 0;
 	uint8_t stackSize = 100;
 
+	uint16_t proficiencyId = 0;
+
 	int8_t hitChance = 0;
 
 	std::vector<std::shared_ptr<AugmentInfo>> augments;
@@ -365,6 +371,7 @@ public:
 	bool allowDistRead = false;
 	bool lookThrough = false;
 	bool stopTime = false;
+	bool hasDeEquipEvent = false;
 	bool showCount = true;
 	bool stackable = false;
 	bool isPodium = false;
@@ -398,8 +405,8 @@ public:
 	const ItemType &operator[](size_t id) const {
 		return getItemType(id);
 	}
-	const ItemType &getItemType(size_t id) const;
-	ItemType &getItemType(size_t id);
+	[[nodiscard]] const ItemType &getItemType(size_t id) const;
+	[[nodiscard]] ItemType &getItemType(size_t id);
 
 	/**
 	 * @brief Check if the itemid "hasId" is stored on "items", if not, return false
@@ -408,11 +415,11 @@ public:
 	 * @return true if the item exist
 	 * @return false if the item not exist
 	 */
-	bool hasItemType(size_t hasId) const;
+	[[nodiscard]] bool hasItemType(size_t hasId) const;
 
-	uint16_t getItemIdByName(const std::string &name);
+	[[nodiscard]] uint16_t getItemIdByName(const std::string &name);
 
-	ItemTypes_t getLootType(const std::string &strValue) const;
+	[[nodiscard]] ItemTypes_t getLootType(const std::string &strValue) const;
 
 	bool loadFromXml();
 	void parseItemNode(const pugi::xml_node &itemNode, uint16_t id);

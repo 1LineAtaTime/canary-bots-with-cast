@@ -21,7 +21,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "normal",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_NORMAL
 
 npcConfig.voices = {
 	interval = 15000,
@@ -192,6 +194,7 @@ keywordHandler:addKeyword({ "billy" }, StdModule.say, { npcHandler = npcHandler,
 keywordHandler:addAliasKeyword({ "willie" })
 
 -- Healing
+registerHealKeyword(keywordHandler, npcHandler, "You are burning. Let me quench those flames.", CONDITION_FIRE, CONST_ME_MAGIC_GREEN, 65)
 keywordHandler:addKeyword({ "heal" }, StdModule.say, { npcHandler = npcHandler, text = "You are poisoned. I will help you." }, function(player)
 	return player:getCondition(CONDITION_POISON) ~= nil
 end, function(player)

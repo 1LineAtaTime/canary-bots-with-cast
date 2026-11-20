@@ -161,8 +161,7 @@ void EventCallback::pushArgument(lua_State* L, const std::shared_ptr<Container> 
 
 void EventCallback::pushArgument(lua_State* L, const std::shared_ptr<Zone> &zone) {
 	if (zone) {
-		Lua::pushUserdata<Zone>(L, zone);
-		Lua::setMetatable(L, -1, "Zone");
+		Lua::pushSharedUserdata<Zone>(L, zone);
 	} else {
 		lua_pushnil(L);
 	}
@@ -203,7 +202,7 @@ void EventCallback::pushArgument(lua_State* L, const ItemType* itemType) {
 }
 
 void EventCallback::pushArgument(lua_State* L, CombatDamage &damage) {
-	lua_createtable(L, 0, 4);
+	lua_createtable(L, 0, 5);
 
 	lua_createtable(L, 0, 2);
 	Lua::setField(L, "value", damage.primary.value);
@@ -218,6 +217,8 @@ void EventCallback::pushArgument(lua_State* L, CombatDamage &damage) {
 	Lua::setField(L, "origin", damage.origin);
 	lua_pushboolean(L, damage.critical);
 	lua_setfield(L, -2, "critical");
+
+	Lua::setField(L, "lifeLeech", damage.lifeLeech);
 }
 
 void EventCallback::pushArgument(lua_State* L, const Position &position) {

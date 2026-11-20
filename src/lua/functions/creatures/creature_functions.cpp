@@ -776,8 +776,7 @@ int CreatureFunctions::luaCreatureGetCondition(lua_State* L) {
 
 	const auto &condition = creature->getCondition(conditionType, conditionId, subId);
 	if (condition) {
-		Lua::pushUserdata<const Condition>(L, condition);
-		Lua::setWeakMetatable(L, -1, "Condition");
+		Lua::pushSharedUserdata<Condition>(L, condition);
 	} else {
 		lua_pushnil(L);
 	}
@@ -1150,8 +1149,7 @@ int CreatureFunctions::luaCreatureGetZones(lua_State* L) {
 	int index = 0;
 	for (const auto &zone : zones) {
 		index++;
-		Lua::pushUserdata<Zone>(L, zone);
-		Lua::setMetatable(L, -1, "Zone");
+		Lua::pushSharedUserdata<Zone>(L, zone);
 		lua_rawseti(L, -2, index);
 	}
 	return 1;

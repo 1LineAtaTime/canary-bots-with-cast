@@ -74,22 +74,22 @@ local function saveDeathRecord(playerGuid, player, killerName, byPlayer, mostDam
 		mostDamageUnjustified and 1 or 0,
 		db.escapeString(participantsString)
 	)
+	-- IronOT/CodeRabbit: this must stay synchronous. handleGuildWar(), called
+	-- right after this in onDeath, immediately does a synchronous
+	-- getDeathRecords() read against this same table -- with an async write,
+	-- that read can run before the INSERT lands, so a player's first-ever
+	-- death could read 0 records and skip the guild-war kill/score update.
 	db.query(query)
 end
 
-local function getDeathRecords(playerGuid)
-	local resultId = db.storeQuery("SELECT `player_id` FROM `player_deaths` WHERE `player_id` = " .. playerGuid)
-	local deathRecords = 0
-	while resultId do
-		resultId = Result.next(resultId)
-		deathRecords = deathRecords + 1
+local function hasDeathRecord(playerGuid)
+	local resultId = db.storeQuery("SELECT 1 FROM `player_deaths` WHERE `player_id` = " .. playerGuid .. " LIMIT 1")
+	if not resultId then
+		return false
 	end
 
-	if resultId then
-		Result.free(resultId)
-	end
-
-	return deathRecords
+	Result.free(resultId)
+	return true
 end
 
 local function handleGuildWar(player, killer, mostDamageKiller, killerName, mostDamageName)
@@ -104,7 +104,7 @@ local function handleGuildWar(player, killer, mostDamageKiller, killerName, most
 		return
 	end
 
-	if getDeathRecords(player:getGuid()) > 0 then
+	if hasDeathRecord(player:getGuid()) then
 		local warId = checkForGuildWar(playerGuildId, killerGuildId)
 		if warId then
 			recordGuildWarKill(killer, player, killerGuildId, playerGuildId, warId)
@@ -199,7 +199,7 @@ function playerDeath.onDeath(player, corpse, killer, mostDamageKiller, unjustifi
 	local killerName, byPlayer = getKillerInfo(killer)
 	local mostDamageName, byPlayerMostDamage = getMostDamageInfo(mostDamageKiller)
 
-	player:takeScreenshot(byPlayer and SCREENSHOT_TYPE_DEATHPVP or SCREENSHOT_TYPE_DEATHPVE)
+	player:takeScreenshot(byPlayer == 1 and SCREENSHOT_TYPE_DEATHPVP or SCREENSHOT_TYPE_DEATHPVE)
 
 	if mostDamageKiller and mostDamageKiller:isPlayer() then
 		mostDamageKiller:takeScreenshot(SCREENSHOT_TYPE_PLAYERKILL)

@@ -52,6 +52,10 @@ function Player.isUsingOtClient(self)
 	return self:getClient().os >= CLIENTOS_OTCLIENT_LINUX
 end
 
+function Player.isUsingOTCR(self)
+	return self:getClient().os >= CLIENTOS_OTCLIENT_LINUX and self:getClient().os < CLIENTOS_OTCLIENT_MAC
+end
+
 function Player.sendExtendedOpcode(self, opcode, buffer)
 	if not self:isUsingOtClient() then
 		return false
@@ -427,10 +431,24 @@ function Player:addItemStoreInbox(itemId, amount, movable, setOwner)
 		return nil
 	end
 
+	local inbox = self:getStoreInbox()
+	if not inbox then
+		return nil
+	end
+
+	local batchUpdate = BatchUpdate(self)
+	batchUpdate:add(inbox)
+
 	if iType:isStackable() then
 		local stackSize = iType:getStackSize()
 		while amount > stackSize do
-			self:addItemStoreInboxEx(Game.createItem(itemId, stackSize), movable, setOwner)
+			local stackItem = Game.createItem(itemId, stackSize)
+			if not stackItem then
+				batchUpdate:delete()
+				return nil
+			end
+
+			self:addItemStoreInboxEx(stackItem, movable, setOwner)
 			amount = amount - stackSize
 		end
 	end
@@ -446,10 +464,13 @@ function Player:addItemStoreInbox(itemId, amount, movable, setOwner)
 	end
 
 	if not item then
+		batchUpdate:delete()
 		return nil
 	end
 
-	return self:addItemStoreInboxEx(item, movable, setOwner)
+	local inboxItem = self:addItemStoreInboxEx(item, movable, setOwner)
+	batchUpdate:delete()
+	return inboxItem
 end
 
 ---@param monster Monster
@@ -490,6 +511,17 @@ function Player:calculateLootFactor(monster)
 	end
 	if vipBoost > 0 then
 		suffix = string.format("vip bonus %d%%", math.floor(vipBoost * 100 + 0.5))
+	end
+
+	local taskboard = rawget(_G, "Taskboard")
+	if taskboard and type(taskboard.getLootBonus) == "function" then
+		local ok, bonus = pcall(taskboard.getLootBonus, self, monster)
+		local taskboardBonus = ok and (tonumber(bonus) or 0) or 0
+		if taskboardBonus > 0 then
+			factor = factor * (1 + taskboardBonus)
+			local bonusText = string.format("task board bonus %d%%", math.floor(taskboardBonus * 100 + 0.5))
+			suffix = suffix == "" and bonusText or suffix .. ", " .. bonusText
+		end
 	end
 
 	return {
@@ -620,11 +652,19 @@ function Player.setDayStreak(self, value)
 end
 
 function Player.getStreakLevel(self)
-	return self:kv():scoped("daily-reward"):get("streak") or 7
+	return self:kv():scoped("daily-reward"):get("streak") or 0
 end
 
 function Player.setStreakLevel(self, value)
 	self:kv():scoped("daily-reward"):set("streak", value)
+end
+
+function Player.getDailyRewardClaimedServerSave(self)
+	return self:kv():scoped("daily-reward"):get("claimed-server-save")
+end
+
+function Player.setDailyRewardClaimedServerSave(self, value)
+	self:kv():scoped("daily-reward"):set("claimed-server-save", value)
 end
 
 function Player.setNextRewardTime(self, value)

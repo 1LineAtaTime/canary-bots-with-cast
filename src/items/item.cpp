@@ -391,20 +391,6 @@ std::shared_ptr<Item> Item::createItemBatch(uint16_t itemId, uint32_t count, uin
 };
 
 std::shared_ptr<Item> Item::CreateItem(const uint16_t type, uint16_t count /*= 0*/, Position* itemPosition /*= nullptr*/, bool createWrappableItem /* false*/, bool customCharges /* false */) {
-	// A map which contains items that, when on creating, should be transformed to the default type.
-	static const phmap::flat_hash_map<ItemID_t, ItemID_t> ItemTransformationMap = {
-		{ ITEM_SWORD_RING_ACTIVATED, ITEM_SWORD_RING },
-		{ ITEM_CLUB_RING_ACTIVATED, ITEM_CLUB_RING },
-		{ ITEM_DWARVEN_RING_ACTIVATED, ITEM_DWARVEN_RING },
-		{ ITEM_RING_HEALING_ACTIVATED, ITEM_RING_HEALING },
-		{ ITEM_STEALTH_RING_ACTIVATED, ITEM_STEALTH_RING },
-		{ ITEM_TIME_RING_ACTIVATED, ITEM_TIME_RING },
-		{ ITEM_PAIR_SOFT_BOOTS_ACTIVATED, ITEM_PAIR_SOFT_BOOTS },
-		{ ITEM_DEATH_RING_ACTIVATED, ITEM_DEATH_RING },
-		{ ITEM_PRISMATIC_RING_ACTIVATED, ITEM_PRISMATIC_RING },
-		{ ITEM_OLD_DIAMOND_ARROW, ITEM_DIAMOND_ARROW },
-	};
-
 	std::shared_ptr<Item> newItem = nullptr;
 
 	const ItemType &it = Item::items[type];
@@ -446,12 +432,12 @@ std::shared_ptr<Item> Item::CreateItem(const uint16_t type, uint16_t count /*= 0
 		} else if (it.isBed()) {
 			newItem = std::make_shared<BedItem>(type);
 		} else {
-			const auto itemMap = ItemTransformationMap.find(static_cast<ItemID_t>(it.id));
-			if (itemMap != ItemTransformationMap.end()) {
-				newItem = std::make_shared<Item>(itemMap->second, count);
-			} else {
-				newItem = std::make_shared<Item>(type, count);
+			uint16_t creationType = it.isActiveEquipment() ? it.transformDeEquipTo : type;
+			// The old Diamond Arrow is a legacy asset alias, not an equipment state.
+			if (it.id == ITEM_OLD_DIAMOND_ARROW) {
+				creationType = ITEM_DIAMOND_ARROW;
 			}
+			newItem = std::make_shared<Item>(creationType, count);
 		}
 	} else if (type > 0 && itemPosition) {
 		const auto position = *itemPosition;
@@ -466,6 +452,21 @@ std::shared_ptr<Item> Item::CreateItem(const uint16_t type, uint16_t count /*= 0
 bool Item::hasImbuementAttribute(const std::string &attributeSlot) const {
 	// attributeSlot = ITEM_IMBUEMENT_SLOT + slot id
 	return getCustomAttribute(attributeSlot) != nullptr;
+}
+
+int8_t Item::getFreeImbuementSlot() const {
+	if (getImbuementSlot() == 0) {
+		return -1;
+	}
+
+	for (uint8_t slotId = 0; slotId < getImbuementSlot(); slotId++) {
+		ImbuementInfo imbuementInfo;
+		if (!getImbuementInfo(slotId, &imbuementInfo)) {
+			return slotId;
+		}
+	}
+
+	return -1;
 }
 
 bool Item::getImbuementInfo(uint8_t slot, ImbuementInfo* imbuementInfo) const {
@@ -487,23 +488,41 @@ void Item::setImbuement(uint8_t slot, uint16_t imbuementId, uint32_t duration) {
 }
 
 bool Item::canAddImbuement(uint8_t slot, const std::shared_ptr<Player> &player, const Imbuement* imbuement) {
+	if (!player) {
+		g_logger().error("[Item::canAddImbuement] - Null player while validating imbuement for item id {}", getID());
+		return false;
+	}
+
+	if (!imbuement) {
+		g_logger().error("[Item::canAddImbuement] - Null imbuement while validating item id {}", getID());
+		player->sendImbuementResult("Invalid imbuement selection.");
+		return false;
+	}
+
 	auto itemSlots = getImbuementSlot();
 	if (itemSlots == 0 || slot >= itemSlots) {
-		g_logger().error("[Player::onApplyImbuement] - Player {} attempted to apply imbuement in an invalid slot ({})", player->getName(), slot);
+		g_logger().error("[Item::canAddImbuement] - Player {} attempted to apply imbuement in an invalid slot ({})", player->getName(), slot);
 		player->sendImbuementResult("Invalid slot selection.");
 		return false;
 	}
 
-	// Get category imbuement for acess category id
+	// Get category imbuement for access category id
 	const CategoryImbuement* categoryImbuement = g_imbuements().getCategoryByID(imbuement->getCategory());
+	if (!categoryImbuement) {
+		g_logger().error("[Item::canAddImbuement] - Invalid imbuement category '{}' for item id {}", imbuement->getCategory(), getID());
+		player->sendImbuementResult("This object cannot be imbued with that scroll.");
+		return false;
+	}
+
 	if (!hasImbuementType(static_cast<ImbuementTypes_t>(categoryImbuement->id), imbuement->getBaseID())) {
+		player->sendImbuementResult("This object cannot be imbued with that scroll.");
 		return false;
 	}
 
 	// Checks if the item already has the imbuement category id
 	if (hasImbuementCategoryId(categoryImbuement->id)) {
 		g_logger().error("[Item::setImbuement] - An error occurred while player with name {} try to apply imbuement, item already contains imbuement of the same type: {}", player->getName(), imbuement->getName());
-		player->sendImbuementResult("An error ocurred, please reopen imbuement window.");
+		player->sendImbuementResult("This item already has this imbuement type.");
 		return false;
 	}
 

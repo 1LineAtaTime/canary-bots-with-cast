@@ -16,7 +16,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "normal",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_NORMAL
 
 local keywordHandler = KeywordHandler:new()
 local npcHandler = NpcHandler:new(keywordHandler)
@@ -52,18 +54,9 @@ blessKeyword:addChildKeyword({ "" }, StdModule.say, { npcHandler = npcHandler, t
 keywordHandler:addAliasKeyword({ "shield" })
 
 -- Healing
-local function addHealKeyword(text, condition, effect)
-	keywordHandler:addKeyword({ "heal" }, StdModule.say, { npcHandler = npcHandler, text = text }, function(player)
-		return player:getCondition(condition) ~= nil
-	end, function(player)
-		player:removeCondition(condition)
-		player:getPosition():sendMagicEffect(effect)
-	end)
-end
-
-addHealKeyword("You are burning. Let me quench those flames.", CONDITION_FIRE, CONST_ME_MAGIC_GREEN)
-addHealKeyword("You are poisoned. Let me soothe your pain.", CONDITION_POISON, CONST_ME_MAGIC_RED)
-addHealKeyword("You are electrified, my child. Let me help you to stop trembling.", CONDITION_ENERGY, CONST_ME_MAGIC_GREEN)
+registerHealKeyword(keywordHandler, npcHandler, "You are burning. Let me quench those flames.", CONDITION_FIRE, CONST_ME_MAGIC_GREEN, nil)
+registerHealKeyword(keywordHandler, npcHandler, "You are poisoned. Let me soothe your pain.", CONDITION_POISON, CONST_ME_MAGIC_RED, nil)
+registerHealKeyword(keywordHandler, npcHandler, "You are electrified, my child. Let me help you to stop trembling.", CONDITION_ENERGY, CONST_ME_MAGIC_GREEN, nil)
 
 keywordHandler:addKeyword({ "heal" }, StdModule.say, { npcHandler = npcHandler, text = "You are hurt, my child. I will heal your wounds." }, function(player)
 	return player:getHealth() < 40
@@ -103,6 +96,17 @@ keywordHandler:addKeyword({ "solitude" }, StdModule.say, { npcHandler = npcHandl
 keywordHandler:addAliasKeyword({ "wisdom" })
 
 npcHandler:setMessage(MESSAGE_GREET, "Welcome, pilgrim. How may I {help} you? Are you in need of {healing}?")
+
+-- Dialogue keywords the NPC answers on the official server
+keywordHandler:addKeyword({ "sacred places" }, StdModule.say, { npcHandler = npcHandler, text = "Just ask in which of the five blessings you are interested in." })
+keywordHandler:addKeyword({ "enhanced" }, StdModule.say, {
+	npcHandler = npcHandler,
+	text = "It is said that one enhanced blessing, the 'heart of the mountain', has been lost in the icy wastes of Svargrond. Find a nomad far to the west of these barren lands, hiding in the cold there, slightly above ground. ... It is also said that a mysterious djinn, bound to an existence of slavery, lies buried somewhere beneath the northern Tiquanda jungle. I cannot confirm whether this tale is true but if you find him, you shall also find the 'blood of the mountain'.",
+})
+keywordHandler:addKeyword({ "pilgrim" }, StdModule.say, { npcHandler = npcHandler, text = "I am here to provide one of the five blessings." })
+keywordHandler:addKeyword({ "ashes" }, StdModule.say, { npcHandler = npcHandler, text = "Whenever you receive a lethal wound, your vital force is damaged and there is a chance that you lose some of your equipment. With every single of the five blessings you have, this damage and chance of loss will be reduced." })
+keywordHandler:addKeyword({ "name" }, StdModule.say, { npcHandler = npcHandler, text = "My name is Norf." })
+keywordHandler:addKeyword({ "job" }, StdModule.say, { npcHandler = npcHandler, text = "I am here to provide one of the five blessings." })
 
 npcHandler:addModule(FocusModule:new(), npcConfig.name, true, true, true)
 

@@ -21,7 +21,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "banker",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_BANKER
 
 npcConfig.voices = {
 	interval = 15000,
@@ -89,7 +91,7 @@ local function creatureSayCallback(npc, creature, type, message)
 		else
 			npcHandler:say("Oh, I just remember I have some work to do, sorry. Bye!", npc, creature)
 			npcHandler:removeInteraction(npc, creature)
-			npcHandler:resetNpc(creature)
+			npcHandler:resetNpc(npc, creature)
 		end
 		npcHandler:setTopic(playerId, nil)
 		price[playerId] = nil
@@ -202,7 +204,7 @@ local function creatureSayCallback(npc, creature, type, message)
 		npcHandler:setTopic(playerId, nil)
 		price[playerId] = nil
 		npcHandler:removeInteraction(npc, creature)
-		npcHandler:resetNpc(creature)
+		npcHandler:resetNpc(npc, creature)
 	elseif MsgContains(message, "tibia") then
 		npcHandler:say("I would like to visit the beach more often, but I guess it's too dangerous.", npc, creature)
 		npcHandler:setTopic(playerId, 2)
@@ -248,7 +250,7 @@ local function creatureSayCallback(npc, creature, type, message)
 		npcHandler:setTopic(playerId, nil)
 		price[playerId] = nil
 		npcHandler:removeInteraction(npc, creature)
-		npcHandler:resetNpc(creature)
+		npcHandler:resetNpc(npc, creature)
 	end
 	return true
 end
@@ -258,6 +260,12 @@ npcHandler:setMessage(MESSAGE_FAREWELL, "Good bye, |PLAYERNAME|. I really hope w
 
 npcHandler:setCallback(CALLBACK_GREET, greetCallback)
 npcHandler:setCallback(CALLBACK_MESSAGE_DEFAULT, creatureSayCallback)
+-- Dialogue keywords the NPC answers on the official server
+keywordHandler:addKeyword({ "the first dragon" }, StdModule.say, { npcHandler = npcHandler, text = "If you'd ask me - what you just did - it's only a myth." })
+keywordHandler:addKeyword({ "eclesius" }, StdModule.say, { npcHandler = npcHandler, text = "He often passes me on the way to Frodo's." })
+keywordHandler:addKeyword({ "frodo" }, StdModule.say, { npcHandler = npcHandler, text = "Oh, a girl like me shouldn't go to this place." })
+keywordHandler:addKeyword({ "news" }, StdModule.say, { npcHandler = npcHandler, text = "You should ask Oswald about news. He loves them." })
+
 npcHandler:addModule(FocusModule:new(), npcConfig.name, true, true, true)
 
 -- npcType registering the npcConfig table

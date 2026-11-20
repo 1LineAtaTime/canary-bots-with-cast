@@ -21,7 +21,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "sailor",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_SAILOR
 
 local keywordHandler = KeywordHandler:new()
 local npcHandler = NpcHandler:new(keywordHandler)
@@ -63,6 +65,11 @@ keywordHandler:addKeyword({ "bruno" }, StdModule.say, { npcHandler = npcHandler,
 
 npcHandler:setMessage(MESSAGE_FAREWELL, "Good bye and don't forget me!")
 npcHandler:setMessage(MESSAGE_GREET, "Ahoi, young man |PLAYERNAME|. Looking for work on my ship?")
+
+-- Dialogue keywords the NPC answers on the official server
+keywordHandler:addKeyword({ "work" }, StdModule.say, { npcHandler = npcHandler, text = "I'm sorry, but it is too dangerous nowadays. Too many storms out there. Too dangerous for the ship. Come back in some months and we will see." })
+keywordHandler:addKeyword({ "aneus" }, StdModule.say, { npcHandler = npcHandler, text = "Hmm, I don't know him very well. But he has a very nice story to tell." })
+keywordHandler:addKeyword({ "food" }, StdModule.say, { npcHandler = npcHandler, text = "Sorry, sold out. Ask Bruno." })
 
 npcHandler:addModule(FocusModule:new(), npcConfig.name, true, true, true)
 

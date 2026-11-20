@@ -9,6 +9,12 @@
 
 #pragma once
 
+#ifndef USE_PRECOMPILED_HEADERS
+	#include <memory>
+	#include <mutex>
+	#include <set>
+#endif
+
 #include "game/movement/position.hpp"
 #include "items/item.hpp"
 #include "creatures/creature.hpp"
@@ -86,62 +92,24 @@ struct Area {
 
 namespace weak {
 	template <typename T>
-	struct ThingHasher {
-		std::size_t operator()(std::weak_ptr<T> thing) const {
-			if (thing.expired()) {
-				return 0;
-			}
-			return std::hash<void*> {}(thing.lock().get());
-		}
-	};
-
-	template <typename T>
-	struct ThingComparator {
-		bool operator()(const std::weak_ptr<T> &lhs, const std::weak_ptr<T> &rhs) const {
-			return lhs.lock() == rhs.lock();
-		}
-	};
-
-	template <>
-	struct ThingHasher<Creature> {
-		std::size_t operator()(const std::weak_ptr<Creature> &weakCreature) const {
-			auto locked = weakCreature.lock();
-			if (!locked) {
-				return 0;
-			}
-			return std::hash<uint32_t> {}(locked->getID());
-		}
-	};
-
-	template <>
-	struct ThingComparator<Creature> {
-		bool operator()(const std::weak_ptr<Creature> &lhs, const std::weak_ptr<Creature> &rhs) const {
-			if (lhs.expired() || rhs.expired()) {
-				return false;
-			}
-			return lhs.lock()->getID() == rhs.lock()->getID();
-		}
-	};
-
-	template <typename T>
-	using set = std::unordered_set<std::weak_ptr<T>, ThingHasher<T>, ThingComparator<T>>;
+	using set = std::set<std::weak_ptr<T>, std::owner_less<std::weak_ptr<T>>>;
 
 	template <typename T>
 	std::vector<std::shared_ptr<T>> lock(set<T> &weakSet) {
 		std::vector<std::shared_ptr<T>> result;
 		for (auto it = weakSet.begin(); it != weakSet.end();) {
-			if (it->expired()) {
-				it = weakSet.erase(it);
-			} else {
-				result.push_back(it->lock());
+			if (auto locked = it->lock()) {
+				result.emplace_back(std::move(locked));
 				++it;
+			} else {
+				it = weakSet.erase(it);
 			}
 		}
 		return result;
 	}
 }
 
-class Zone {
+class Zone : public std::enable_shared_from_this<Zone> {
 public:
 	explicit Zone(std::string name, uint32_t id = 0) :
 		name(std::move(name)), id(id) { }
@@ -157,12 +125,8 @@ public:
 	}
 	void addArea(Area area);
 	void subtractArea(Area area);
-	void addPosition(const Position &position) {
-		positions.emplace(position);
-	}
-	void removePosition(const Position &position) {
-		positions.erase(position);
-	}
+	void addPosition(const Position &position);
+	void removePosition(const Position &position);
 	Position getRemoveDestination(const std::shared_ptr<Creature> &creature = nullptr) const;
 	void setRemoveDestination(const Position &position) {
 		removeDestination = position;
@@ -212,6 +176,10 @@ public:
 
 protected:
 	bool contains(const Position &position) const;
+	void indexPosition(const Position &position);
+	void indexPositions();
+	void unindexPosition(const Position &position);
+	void unindexPositions();
 
 	Position removeDestination = Position();
 	std::string name;
@@ -219,6 +187,7 @@ protected:
 	phmap::flat_hash_set<Position> positions;
 	uint32_t id = 0; // ID 0 is used in zones created dynamically from lua. The map editor uses IDs starting from 1 (automatically generated).
 
+	mutable std::mutex cacheMutex;
 	weak::set<Item> itemsCache;
 	weak::set<Creature> creaturesCache;
 	weak::set<Monster> monstersCache;
@@ -227,4 +196,5 @@ protected:
 
 	static phmap::parallel_flat_hash_map<std::string, std::shared_ptr<Zone>> zones;
 	static phmap::parallel_flat_hash_map<uint32_t, std::shared_ptr<Zone>> zonesByID;
+	static phmap::parallel_flat_hash_map<Position, std::vector<std::shared_ptr<Zone>>> zonesByPosition;
 };

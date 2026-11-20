@@ -65,7 +65,7 @@ soulCageDeath:register()
 local fourthTaintBossesDeath = CreatureEvent("FourthTaintBossesPrepareDeath")
 
 function fourthTaintBossesDeath.onPrepareDeath(creature, killer, realDamage)
-	if not creature or not killer:getPlayer() then
+	if not creature or not killer or not killer:getPlayer() then
 		return true
 	end
 
@@ -630,7 +630,7 @@ function goshnarsHatredBuff.onHealthChange(creature, attacker, primaryDamage, pr
 				logger.debug("Adding defense to {}.", creature:getName())
 			end
 		-- Check if the attacker is a monster and the player is being hit
-		elseif attacker and creature:isPlayer() and attacker:isMonster() and (attacker:getName() == "Goshnar's Hatred" or creature:getName() == "Goshnar's Megalomania") then
+		elseif attacker and creature:isPlayer() and attacker:isMonster() and (attacker:getName() == "Goshnar's Hatred" or attacker:getName() == "Goshnar's Megalomania") then
 			local damageMultiplier = attacker:getHatredDamageMultiplier()
 			if damageMultiplier > 0 then
 				local multip = 1 + (damageMultiplier / 100)

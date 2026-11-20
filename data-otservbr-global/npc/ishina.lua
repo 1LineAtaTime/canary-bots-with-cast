@@ -21,7 +21,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "trader",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_TRADE
 
 local keywordHandler = KeywordHandler:new()
 local npcHandler = NpcHandler:new(keywordHandler)
@@ -116,6 +118,7 @@ npcHandler:setCallback(CALLBACK_MESSAGE_DEFAULT, creatureSayCallback)
 npcHandler:addModule(FocusModule:new(), npcConfig.name, true, true, true)
 
 npcConfig.shop = {
+	{ itemName = "bounty talisman", clientId = 51978, buy = 5000 },
 	{ itemName = "amber with a bug", clientId = 32624, sell = 41000 },
 	{ itemName = "amber with a dragonfly", clientId = 32625, sell = 56000 },
 	{ itemName = "amber", clientId = 32626, sell = 20000 },

@@ -11,12 +11,9 @@ local sayFunction = function(npcId, text, type, eventDelay, playerId)
 end
 
 function MsgContains(message, keyword)
-	local lowerMessage, lowerKeyword = message:lower(), keyword:lower()
-	if lowerMessage == lowerKeyword then
-		return true
-	end
-
-	return lowerMessage:find(lowerKeyword) and not lowerMessage:find("(%w+)" .. lowerKeyword)
+	local msg = " " .. message:lower() .. " "
+	local kw = keyword:lower():gsub("(%W)", "%%%1")
+	return msg:find("%W" .. kw .. "%W") ~= nil
 end
 
 function MsgFind(message, keyword)
@@ -78,7 +75,7 @@ end
 function SayEvent(npcId, playerId, messageDelayed, npcHandler, textType)
 	local npc = Npc(npcId)
 	if not npc then
-		return logger.error("[{} NpcHandler:say] - Npc parameter for npc '{}' is missing, nil or not found", npc:getName(), npc:getName())
+		return logger.error("[NpcHandler:say] - Npc parameter for npc id '{}' is missing, nil or not found", npcId)
 	end
 
 	local player = Player(playerId)

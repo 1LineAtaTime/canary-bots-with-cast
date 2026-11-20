@@ -3,11 +3,27 @@ cmake_minimum_required(
     FATAL_ERROR
 )
 
+if(POLICY CMP0156)
+    cmake_policy(
+        SET
+        CMP0156
+        NEW
+    )
+endif()
+
+if(POLICY CMP0179)
+    cmake_policy(
+        SET
+        CMP0179
+        NEW
+    )
+endif()
+
 # VCPKG cmake
 # -DCMAKE_TOOLCHAIN_FILE=/opt/workspace/vcpkg/scripts/buildsystems/vcpkg.cmake
 # .. Needed libs are in file vcpkg.json Windows required libs: .\vcpkg install
 # --triplet x64-windows asio pugixml spdlog curl protobuf parallel-hashmap
-# magic-enum mio luajit libmariadb openssl abseil bshoshany-thread-pool
+# magic-enum mio luajit libmariadb mbedtls abseil bshoshany-thread-pool
 
 if(DEFINED ENV{VCPKG_ROOT}
    AND NOT
@@ -34,12 +50,28 @@ endif()
 set(VCPKG_FEATURE_FLAGS
     "versions"
 )
+if(NOT
+   DEFINED
+   VCPKG_BUILD_TYPE
+)
+    set(VCPKG_BUILD_TYPE
+        "release"
+    )
+endif()
 set(VCPKG_BUILD_TYPE
-    "release"
+    "${VCPKG_BUILD_TYPE}"
+    CACHE STRING "vcpkg build type"
 )
 set(CMAKE_EXPORT_COMPILE_COMMANDS
     ON
 )
+
+set(VCPKG_MANIFEST_FEATURES
+    "${VCPKG_MANIFEST_FEATURES}"
+    CACHE STRING "vcpkg manifest features"
+)
+
+include(cmake/SharedBuildCache.cmake)
 
 # *****************************************************************************
 # Project canary
@@ -150,6 +182,37 @@ option(
 # Options Code
 # *****************************************************************************
 
+set(CANARY_MSVC_NINJA
+    OFF
+)
+if(MSVC
+   AND CMAKE_GENERATOR
+       MATCHES
+       "Ninja"
+)
+    set(CANARY_MSVC_NINJA
+        ON
+    )
+
+    # Native Ninja parses the raw localized /showIncludes output into
+    # .ninja_deps. A configured compiler launcher can hide or alter it.
+    foreach(
+        COMPILER_LAUNCHER
+        CMAKE_C_COMPILER_LAUNCHER CMAKE_CXX_COMPILER_LAUNCHER
+    )
+        if(NOT
+           "${${COMPILER_LAUNCHER}}"
+           STREQUAL
+           ""
+        )
+            message(
+                FATAL_ERROR
+                    "MSVC Ninja builds require raw cl.exe /showIncludes output. Clear ${COMPILER_LAUNCHER} from the CMake cache or environment and reconfigure."
+            )
+        endif()
+    endforeach()
+endif()
+
 if(FEATURE_METRICS)
     log_option_enabled("metrics")
 else()
@@ -158,30 +221,41 @@ endif()
 
 # === CCACHE ===
 if(OPTIONS_ENABLE_CCACHE)
-    find_program(CCACHE ccache)
-    if(CCACHE)
-        log_option_enabled("ccache")
-        set(CMAKE_CXX_COMPILER_LAUNCHER
-            ${CCACHE}
-        )
+    if(CANARY_MSVC_NINJA)
+        log_option_disabled("ccache for MSVC Ninja dependency tracking")
     else()
-        log_option_disabled("ccache")
+        find_program(CCACHE ccache)
+        if(CCACHE)
+            log_option_enabled("ccache")
+            set(CMAKE_CXX_COMPILER_LAUNCHER
+                ${CCACHE}
+            )
+        else()
+            log_option_disabled("ccache")
+        endif()
     endif()
 endif()
 
 # === SCCACHE ===
 if(OPTIONS_ENABLE_SCCACHE)
-    find_program(SCCACHE_PATH sccache)
-    if(SCCACHE_PATH)
-        log_option_enabled("sccache")
-        set(CMAKE_C_COMPILER_LAUNCHER
-            ${SCCACHE_PATH}
-        )
-        set(CMAKE_CXX_COMPILER_LAUNCHER
-            ${SCCACHE_PATH}
-        )
+    if(CANARY_MSVC_NINJA)
+        # Ninja's MSVC dependency tracking relies on /showIncludes output. With
+        # sccache as a compiler launcher, Ninja may record empty deps, which
+        # breaks incremental builds for headers and CMake unity sources.
+        log_option_disabled("sccache for MSVC Ninja dependency tracking")
     else()
-        log_option_disabled("sccache")
+        find_program(SCCACHE_PATH sccache)
+        if(SCCACHE_PATH)
+            log_option_enabled("sccache")
+            set(CMAKE_C_COMPILER_LAUNCHER
+                ${SCCACHE_PATH}
+            )
+            set(CMAKE_CXX_COMPILER_LAUNCHER
+                ${SCCACHE_PATH}
+            )
+        else()
+            log_option_disabled("sccache")
+        endif()
     endif()
 endif()
 
@@ -189,17 +263,26 @@ endif()
 # Options for Targets
 # *****************************************************************************
 option(
+    CANARY_BUILD_TESTS
+    "Build unit tests"
+    OFF
+)
+option(
     CANARY_BUILD_SERVER
     "Build server executable"
     ON
 )
-option(
-    CANARY_BUILD_TESTS
-    "Build unit tests"
-    ON
-)
-
 if(CANARY_BUILD_TESTS)
+    if(NOT
+       "tests"
+       IN_LIST
+       VCPKG_MANIFEST_FEATURES
+    )
+        message(
+            FATAL_ERROR
+                "CANARY_BUILD_TESTS requires the vcpkg manifest feature 'tests'. Use a test preset or configure with -DVCPKG_MANIFEST_FEATURES=tests."
+        )
+    endif()
     enable_testing()
 endif()
 

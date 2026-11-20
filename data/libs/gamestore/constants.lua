@@ -31,7 +31,7 @@ GameStore.OfferTypes = {
 	OFFER_TYPE_HIRELING_SEXCHANGE = 22,
 	OFFER_TYPE_HIRELING_SKILL = 23,
 	OFFER_TYPE_HIRELING_OUTFIT = 24,
-	OFFER_TYPE_HUNTINGSLOT = 25,
+	OFFER_TYPE_WEEKLY_TASK_EXPANSION = 25,
 	OFFER_TYPE_ITEM_BED = 26,
 	OFFER_TYPE_ITEM_UNIQUE = 27,
 }
@@ -51,8 +51,9 @@ GameStore.SubActions = {
 	BLESSING_ALL_PVE = 11,
 	BLESSING_ALL_PVP = 12,
 	CHARM_EXPANSION = 13,
-	TASKHUNTING_THIRDSLOT = 14,
+	WEEKLY_TASK_EXPANSION = 14,
 	PREY_THIRDSLOT_REDIRECT = 15,
+	PREY_WILDCARD_BUNDLE = 16,
 }
 
 GameStore.ActionType = {
@@ -133,6 +134,7 @@ GameStore.SendingPackets = {
 }
 
 GameStore.RecivedPackets = {
+	C_GetOfferDescription = 0xE8, -- 232
 	C_StoreEvent = 0xE9, -- 233
 	C_TransferCoins = 0xEF, -- 239
 	C_ParseHirelingName = 0xEC, -- 236

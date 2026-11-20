@@ -17,11 +17,125 @@
 #include "game/scheduling/dispatcher.hpp"
 #include "io/fileloader.hpp"
 #include "kv/kv.hpp"
+#include "map/map.hpp"
 #include "map/spectators.hpp"
 #include "creatures/creature.hpp"
 #include "creatures/players/player.hpp"
 #include "server/network/protocol/protocolgame.hpp"
 #include "utils/object_pool.hpp"
+#include "creatures/players/imbuements/imbuements.hpp"
+
+namespace {
+	struct VibrancyData {
+		uint8_t removeChance = 0;
+		bool pvpDeflect = false;
+	};
+
+	struct ConditionOwnerContext {
+		std::shared_ptr<Player> player;
+		std::shared_ptr<Creature> creature;
+	};
+
+	VibrancyData getVibrancyData(const std::shared_ptr<Item> &item) {
+		VibrancyData data;
+		if (!item) {
+			return data;
+		}
+
+		const uint8_t slots = item->getImbuementSlot();
+		for (uint8_t slot = 0; slot < slots; ++slot) {
+			ImbuementInfo info;
+			if (!item->getImbuementInfo(slot, &info) || !info.imbuement) {
+				continue;
+			}
+
+			if (info.imbuement->getCategory() != IMBUEMENT_PARALYSIS_DEFLECTION) {
+				continue;
+			}
+
+			uint8_t chance = info.imbuement->paralysisRemoveChance;
+			if (chance == 0) {
+				switch (info.imbuement->getBaseID()) {
+					case 1:
+						chance = 15;
+						break;
+					case 2:
+						chance = 25;
+						break;
+					case 3:
+						chance = 50;
+						break;
+					default:
+						break;
+				}
+			}
+
+			data.removeChance = std::max<uint8_t>(data.removeChance, chance);
+			data.pvpDeflect = data.pvpDeflect || info.imbuement->pvpParalysisDeflect;
+		}
+
+		return data;
+	}
+
+	ConditionOwnerContext resolveConditionOwner(uint32_t owner) {
+		ConditionOwnerContext context;
+		if (owner == 0) {
+			return context;
+		}
+
+		context.player = g_game().getPlayerByGUID(owner);
+		context.creature = context.player ? context.player->getCreature() : g_game().getCreatureByID(owner);
+
+		if (!context.player && context.creature) {
+			context.player = context.creature->getPlayer();
+		}
+
+		return context;
+	}
+
+	bool handleParalyzeVibrancy(
+		const std::shared_ptr<Creature> &creature,
+		const std::shared_ptr<Player> &targetPlayer,
+		const std::shared_ptr<Condition> &addCondition,
+		uint32_t owner
+	) {
+		if (!creature || !targetPlayer) {
+			return false;
+		}
+
+		const auto targetVibrancy = getVibrancyData(targetPlayer->getInventoryItem(CONST_SLOT_FEET));
+		if (targetVibrancy.removeChance == 0 && !targetVibrancy.pvpDeflect) {
+			return false;
+		}
+
+		const auto attackerContext = resolveConditionOwner(owner);
+
+		if (targetVibrancy.pvpDeflect && attackerContext.player) {
+			const auto attackerVibrancy = getVibrancyData(attackerContext.player->getInventoryItem(CONST_SLOT_FEET));
+			if (!attackerVibrancy.pvpDeflect && attackerContext.creature) {
+				auto reflected = addCondition->clone();
+				if (reflected) {
+					reflected->setParam(CONDITION_PARAM_OWNER, 0); // avoid ping-pong
+					attackerContext.creature->addCondition(reflected);
+				}
+			}
+		}
+
+		if (targetVibrancy.removeChance > 0 && uniform_random(1, 100) <= targetVibrancy.removeChance) {
+			creature->removeCondition(CONDITION_PARALYZE);
+
+			TextMessage message(MESSAGE_EVENT_ADVANCE, "You are unparalyzed by vibrancy.");
+			targetPlayer->sendTextMessage(message);
+			return true;
+		}
+
+		if (targetVibrancy.pvpDeflect && attackerContext.player) {
+			return true;
+		}
+
+		return false;
+	}
+} // namespace
 
 /**
  *  Condition
@@ -34,6 +148,9 @@ bool Condition::setParam(ConditionParam_t param, int32_t value) {
 			return true;
 		}
 
+		case CONDITION_PARAM_OWNER:
+			owner = static_cast<uint32_t>(value);
+			return true;
 		case CONDITION_PARAM_DRAIN_BODY: {
 			drainBodyStage = std::min(static_cast<uint8_t>(value), std::numeric_limits<uint8_t>::max());
 			return true;
@@ -206,7 +323,7 @@ bool Condition::executeCondition(const std::shared_ptr<Creature> &creature, int3
 	return true;
 }
 
-std::shared_ptr<Condition> Condition::createCondition(ConditionId_t id, ConditionType_t type, int32_t ticks, int32_t param /* = 0*/, bool buff /* = false*/, uint32_t subId /* = 0*/, bool isPersistent /* = false*/) {
+std::shared_ptr<ConditionDamage> Condition::createDamageCondition(ConditionId_t id, ConditionType_t type, bool buff /* = false*/, uint32_t subId /* = 0*/) {
 	switch (type) {
 		case CONDITION_POISON:
 		case CONDITION_FIRE:
@@ -218,6 +335,17 @@ std::shared_ptr<Condition> Condition::createCondition(ConditionId_t id, Conditio
 		case CONDITION_BLEEDING:
 			return ObjectPool<ConditionDamage, 1024>::allocateShared(id, type, buff, subId);
 
+		default:
+			return nullptr;
+	}
+}
+
+std::shared_ptr<Condition> Condition::createCondition(ConditionId_t id, ConditionType_t type, int32_t ticks, int32_t param /* = 0*/, bool buff /* = false*/, uint32_t subId /* = 0*/, bool isPersistent /* = false*/) {
+	if (const auto damageCondition = createDamageCondition(id, type, buff, subId)) {
+		return damageCondition;
+	}
+
+	switch (type) {
 		case CONDITION_HASTE:
 		case CONDITION_PARALYZE:
 			return ObjectPool<ConditionSpeed, 1024>::allocateShared(id, type, ticks, buff, subId, param);
@@ -1634,10 +1762,6 @@ bool ConditionDamage::setParam(ConditionParam_t param, int32_t value) {
 	bool ret = Condition::setParam(param, value);
 
 	switch (param) {
-		case CONDITION_PARAM_OWNER:
-			owner = value;
-			return true;
-
 		case CONDITION_PARAM_FORCEUPDATE:
 			forceUpdate = (value != 0);
 			return true;
@@ -1671,7 +1795,7 @@ bool ConditionDamage::setParam(ConditionParam_t param, int32_t value) {
 			break;
 
 		default:
-			return false;
+			return ret;
 	}
 
 	return ret;
@@ -1689,7 +1813,7 @@ bool ConditionDamage::unserializeProp(ConditionAttr_t attr, PropStream &propStre
 	} else if (attr == CONDITIONATTR_PERIODDAMAGE) {
 		return propStream.read<int32_t>(periodDamage);
 	} else if (attr == CONDITIONATTR_OWNER) {
-		return propStream.skip(4);
+		return propStream.read<uint32_t>(owner);
 	} else if (attr == CONDITIONATTR_INTERVALDATA) {
 		IntervalInfo damageInfo {};
 		if (!propStream.read<IntervalInfo>(damageInfo)) {
@@ -1713,6 +1837,11 @@ void ConditionDamage::serialize(PropWriteStream &propWriteStream) {
 
 	propWriteStream.write<uint8_t>(CONDITIONATTR_PERIODDAMAGE);
 	propWriteStream.write<int32_t>(periodDamage);
+
+	if (owner != 0) {
+		propWriteStream.write<uint8_t>(CONDITIONATTR_OWNER);
+		propWriteStream.write<uint32_t>(owner);
+	}
 
 	for (const IntervalInfo &intervalInfo : damageList) {
 		propWriteStream.write<uint8_t>(CONDITIONATTR_INTERVALDATA);
@@ -2034,8 +2163,9 @@ void ConditionDamage::generateDamageList(int32_t amount, int32_t start, std::lis
  *  ConditionFeared
  */
 bool ConditionFeared::isStuck(const std::shared_ptr<Creature> &creature, Position pos) const {
+	MapCacheFloorCursor floorCursor;
 	return std::ranges::all_of(m_directionsVector, [&](Direction dir) {
-		return !canWalkTo(creature, pos, dir);
+		return !canWalkTo(creature, pos, dir, floorCursor);
 	});
 }
 
@@ -2053,8 +2183,9 @@ bool ConditionFeared::getRandomDirection(const std::shared_ptr<Creature> &creatu
 
 	std::ranges::shuffle(directions, getRandomGenerator());
 
+	MapCacheFloorCursor floorCursor;
 	auto it = std::ranges::find_if(directions, [&](Direction dir) {
-		return canWalkTo(creature, pos, dir);
+		return canWalkTo(creature, pos, dir, floorCursor);
 	});
 
 	if (it != directions.end()) {
@@ -2066,13 +2197,18 @@ bool ConditionFeared::getRandomDirection(const std::shared_ptr<Creature> &creatu
 }
 
 bool ConditionFeared::canWalkTo(const std::shared_ptr<Creature> &creature, Position pos, Direction moveDirection) const {
+	MapCacheFloorCursor floorCursor;
+	return canWalkTo(creature, pos, moveDirection, floorCursor);
+}
+
+bool ConditionFeared::canWalkTo(const std::shared_ptr<Creature> &creature, Position pos, Direction moveDirection, MapCacheFloorCursor &floorCursor) const {
 	pos = getNextPosition(moveDirection, pos);
 	if (!creature) {
 		g_logger().error("[{}] creature is nullptr", __FUNCTION__);
 		return false;
 	}
 
-	auto tile = g_game().map.getTile(pos);
+	auto tile = g_game().map.getTileWithFloorCursor(pos, floorCursor);
 	if (tile && tile->getTopVisibleCreature(creature) == nullptr && tile->queryAdd(0, creature, 1, FLAG_PATHFINDING) == RETURNVALUE_NOERROR) {
 		const auto &field = tile->getFieldItem();
 		if (field && !field->isBlocking() && field->getDamage() != 0) {
@@ -2337,6 +2473,9 @@ void ConditionSpeed::getFormulaValues(int32_t var, int32_t &min, int32_t &max) c
 
 bool ConditionSpeed::setParam(ConditionParam_t param, int32_t value) {
 	Condition::setParam(param, value);
+	if (param == CONDITION_PARAM_OWNER) {
+		return true;
+	}
 	if (param != CONDITION_PARAM_SPEED) {
 		return false;
 	}
@@ -2354,6 +2493,8 @@ bool ConditionSpeed::setParam(ConditionParam_t param, int32_t value) {
 bool ConditionSpeed::unserializeProp(ConditionAttr_t attr, PropStream &propStream) {
 	if (attr == CONDITIONATTR_SPEEDDELTA) {
 		return propStream.read<int32_t>(speedDelta);
+	} else if (attr == CONDITIONATTR_OWNER) {
+		return propStream.read<uint32_t>(owner);
 	} else if (attr == CONDITIONATTR_FORMULA_MINA) {
 		return propStream.read<float>(mina);
 	} else if (attr == CONDITIONATTR_FORMULA_MINB) {
@@ -2383,6 +2524,11 @@ void ConditionSpeed::serialize(PropWriteStream &propWriteStream) {
 
 	propWriteStream.write<uint8_t>(CONDITIONATTR_FORMULA_MAXB);
 	propWriteStream.write<float>(maxb);
+
+	if (owner != 0) {
+		propWriteStream.write<uint8_t>(CONDITIONATTR_OWNER);
+		propWriteStream.write<uint32_t>(owner);
+	}
 }
 
 ConditionSpeed::ConditionSpeed(ConditionId_t initId, ConditionType_t initType, int32_t initTicks, bool initBuff, uint32_t initSubId, int32_t initChangeSpeed) :
@@ -2419,6 +2565,20 @@ void ConditionSpeed::endCondition(std::shared_ptr<Creature> creature) {
 void ConditionSpeed::addCondition(std::shared_ptr<Creature> creature, const std::shared_ptr<Condition> addCondition) {
 	if (conditionType != addCondition->getType()) {
 		return;
+	}
+
+	// /////////Imbuement Vibrancy/////////
+	// Tibia-like Vibrancy behaviour:
+	// - Triggers on additional paralyse attempts (this method is called when refreshing an existing paralyse).
+	// - Chance (15/25/50) to cancel the INITIAL paralyse when receiving a NEW paralyse attempt (PvE & PvP).
+	// - In PvP only: additional paralyse attempts are deflected/repelled back to the aggressor (no ping-pong if aggressor also has Vibrancy).
+	if (conditionType == CONDITION_PARALYZE) {
+		const auto targetPlayer = creature ? creature->getPlayer() : nullptr;
+		const auto &incomingSpeed = addCondition->static_self_cast<ConditionSpeed>();
+
+		if (targetPlayer && handleParalyzeVibrancy(creature, targetPlayer, addCondition, incomingSpeed->owner)) {
+			return;
+		}
 	}
 
 	if (ticks == -1 && addCondition->getTicks() > 0) {

@@ -1,4 +1,7 @@
+local isSaveScheduled = false
+
 local function serverSave(interval)
+	isSaveScheduled = false
 	if configManager.getBoolean(configKeys.TOGGLE_SAVE_INTERVAL_CLEAN_MAP) then
 		cleanMap()
 	end
@@ -13,16 +16,28 @@ end
 local save = GlobalEvent("save")
 
 function save.onTime(interval)
-	local remainingTime = 60 * 1000
-	if configManager.getBoolean(configKeys.TOGGLE_SAVE_INTERVAL) then
-		local message = "The server will save all accounts within " .. (remainingTime / 1000) .. " seconds. \z
-		You might lag or freeze for 5 seconds, please find a safe place."
-		Game.broadcastMessage(message, MESSAGE_GAME_HIGHLIGHT)
-		logger.info(string.format(message, SAVE_INTERVAL_CONFIG_TIME, SAVE_INTERVAL_TYPE))
-		addEvent(serverSave, remainingTime, interval)
+	if not configManager.getBoolean(configKeys.TOGGLE_SAVE_INTERVAL) then
 		return true
 	end
-	return not configManager.getBoolean(configKeys.TOGGLE_SAVE_INTERVAL)
+
+	if isSaveScheduled then
+		return true
+	end
+
+	local warningDuration = 60 * 1000
+	if interval <= warningDuration then
+		serverSave(interval)
+		return true
+	end
+
+	local warningSeconds = math.floor(warningDuration / 1000)
+	local message = "The server will save all accounts within " .. warningSeconds .. " seconds. You might lag or freeze for 5 seconds, please find a safe place."
+	Game.broadcastMessage(message, MESSAGE_GAME_HIGHLIGHT)
+	logger.info(message)
+	isSaveScheduled = true
+	addEvent(serverSave, warningDuration, interval)
+
+	return true
 end
 
 if SAVE_INTERVAL_TIME ~= 0 then

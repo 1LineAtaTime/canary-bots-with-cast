@@ -21,7 +21,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "trader",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_TRADE
 
 npcConfig.shop = {
 	{ itemname = "almanac of magic", clientid = 10025, buy = 600 },
@@ -195,6 +197,11 @@ end
 
 npcHandler:setMessage(MESSAGE_GREET, "Hi there, |PLAYERNAME|! You look like you are eager to {trade}!")
 npcHandler:setMessage(MESSAGE_FAREWELL, "Bye, |PLAYERNAME|")
+
+-- Dialogue keywords the NPC answers on the official server
+keywordHandler:addKeyword({ "first dragon" }, StdModule.say, { npcHandler = npcHandler, text = "It's told that some hero killed him and absorbed his power." })
+keywordHandler:addKeyword({ "eclesius" }, StdModule.say, { npcHandler = npcHandler, text = "I know no Eclesius." })
+keywordHandler:addKeyword({ "name" }, StdModule.say, { npcHandler = npcHandler, text = "Hey, I'm Black Bert." })
 
 npcHandler:addModule(FocusModule:new(), npcConfig.name, true, true, true)
 

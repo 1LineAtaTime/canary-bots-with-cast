@@ -17,6 +17,9 @@ local modulesToPreload = {
 	["gamestore.senders"] = function()
 		return moduleLoader("senders")
 	end,
+	["gamestore.taskboard"] = function()
+		return moduleLoader("taskboard")
+	end,
 	["gamestore.purchases"] = function()
 		return moduleLoader("purchases")
 	end,
@@ -88,6 +91,8 @@ sendRequestPurchaseData = senders.sendRequestPurchaseData
 sendHomePage = senders.sendHomePage
 
 parseTransferableCoins = parsers.parseTransferableCoins
+parseGetOfferDescription = parsers.parseGetOfferDescription
+parseStoreEvent = parsers.parseStoreEvent
 parseOpenStore = parsers.parseOpenStore
 parseRequestStoreOffers = parsers.parseRequestStoreOffers
 parseBuyStoreOffer = parsers.parseBuyStoreOffer

@@ -51,8 +51,10 @@ void PlayerVIP::notifyStatusChange(const std::shared_ptr<Player> &loginPlayer, V
 
 	if (message) {
 		if (vipStatus == VipStatus_t::Online) {
+			m_player.sendSingleSoundEffect(m_player.getPosition(), SoundEffect_t::ACTION_VIP_LOGIN, SourceEffect_t::OWN);
 			m_player.sendTextMessage(TextMessage(MESSAGE_FAILURE, fmt::format("{} has logged in.", loginPlayer->getName())));
 		} else if (vipStatus == VipStatus_t::Offline) {
+			m_player.sendSingleSoundEffect(m_player.getPosition(), SoundEffect_t::ACTION_VIP_LOGOUT, SourceEffect_t::OWN);
 			m_player.sendTextMessage(TextMessage(MESSAGE_FAILURE, fmt::format("{} has logged out.", loginPlayer->getName())));
 		}
 	}
@@ -122,6 +124,10 @@ bool PlayerVIP::edit(uint32_t vipGuid, const std::string &description, uint32_t 
 	}
 
 	return true;
+}
+
+bool PlayerVIP::exists(uint32_t vipGuid) const {
+	return vipGuids.contains(vipGuid);
 }
 
 std::shared_ptr<VIPGroup> PlayerVIP::getGroupByID(uint8_t groupId) const {

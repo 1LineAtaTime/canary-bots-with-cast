@@ -21,7 +21,9 @@ npcConfig.outfit = {
 
 npcConfig.flags = {
 	floorchange = false,
+	profession = "trader",
 }
+npcConfig.speechBubble = SPEECHBUBBLE_TRADE
 
 npcConfig.voices = {
 	interval = 15000,
@@ -123,9 +125,17 @@ npcHandler:setMessage(MESSAGE_FAREWELL, "Good bye.")
 npcHandler:setMessage(MESSAGE_WALKAWAY, "Good bye.")
 
 npcHandler:setCallback(CALLBACK_MESSAGE_DEFAULT, creatureSayCallback)
+-- Dialogue keywords the NPC answers on the official server
+keywordHandler:addKeyword({ "kingsday" }, StdModule.say, { npcHandler = npcHandler, text = "Oh, do you wish to buy a special something for Kingsday? Have a look at my offers in gems and jewellery!" })
+keywordHandler:addKeyword({ "eclesius" }, StdModule.say, { npcHandler = npcHandler, text = "I don't know that name." })
+keywordHandler:addKeyword({ "goblets" }, StdModule.say, { npcHandler = npcHandler, text = "Ah, our newest import! We have golden goblets, silver goblets and bronze goblets. All of them have space for a hand-written dedication." })
+keywordHandler:addKeyword({ "jeweler" }, StdModule.say, { npcHandler = npcHandler, text = "Currently you can purchase wedding rings, golden amulets, and ruby necklaces. We also buy gold ingots." })
+keywordHandler:addKeyword({ "gems" }, StdModule.say, { npcHandler = npcHandler, text = "You can buy and sell small diamonds, sapphires, rubies, emeralds and amethysts or sell topazes." })
+
 npcHandler:addModule(FocusModule:new(), npcConfig.name, true, true, true)
 
 npcConfig.shop = {
+	{ itemName = "bounty talisman", clientId = 51978, buy = 5000 },
 	{ itemName = "amber with a bug", clientId = 32624, sell = 41000 },
 	{ itemName = "amber with a dragonfly", clientId = 32625, sell = 56000 },
 	{ itemName = "amber", clientId = 32626, sell = 20000 },

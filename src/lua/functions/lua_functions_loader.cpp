@@ -87,6 +87,8 @@ std::string Lua::getErrorDesc(ErrorCode_t code) {
 			return "TalkAction not found";
 		case LUA_ERROR_ZONE_NOT_FOUND:
 			return "Zone not found";
+		case LUA_ERROR_BATCHUPDATE_NOT_FOUND:
+			return "BatchUpdate not found";
 		default:
 			return "Bad error code";
 	}
@@ -905,8 +907,8 @@ int Lua::luaGarbageCollection(lua_State* L) {
 }
 
 int Lua::validateDispatcherContext(std::string_view fncName) {
-	if (DispatcherContext::isOn() && g_dispatcher().context().isAsync()) {
-		g_logger().warn("[{}] The call to lua was ignored because the '{}' task is trying to communicate while in async mode.", fncName, g_dispatcher().context().getName());
+	if (DispatcherContext::isOn() && g_dispatcher().context().isBarrierParallel()) {
+		g_logger().warn("[{}] The call to lua was ignored because the '{}' task is trying to communicate while in barrier-parallel mode.", fncName, g_dispatcher().context().getName());
 		return LUA_ERRRUN;
 	}
 
