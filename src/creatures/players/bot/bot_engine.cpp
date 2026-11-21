@@ -545,6 +545,9 @@ bool BotEngine::activateBot(uint32_t guid) {
 	bot.nextRerollTime = OTSYS_TIME() + uniform_random(5, 15) * 1000;
 	bot.postActivationReroll = true;
 
+	// #27: logged out in a bed last time (deactivated or restarted while asleep): get up from it.
+	finishBedWake(bot, player, "activate");
+
 	// Restore saved AI state if available (e.g. bot was deactivated mid-hunt by scheduler).
 	// Rows older than 24 h (BOT_PERSIST_FRESH_SQL) are ignored (#47 review): since #47 rows of bots
 	// outside the startup population survive boot, and a task saved days ago must not resume.
@@ -597,6 +600,10 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 	// partyHuntId-keyed cleanups elsewhere skip it) took the party into oblivion with it — and if
 	// it was the Canary leader, the members were left holding a party nothing can ever disband.
 	reclaimStaleCanaryParty(guid, "deactivateBot");
+	// #102: a deactivated sleeper keeps its bed (a player who logged out in bed); activation's
+	// finishBedWake gets it up next time. A pending rescue simply ends.
+	dropPendingRescue(guid, "deactivate");
+	bedSleepers_.erase(guid);
 	endIceFishSession(bot, "deactivated");
 	clearLootState(bot.guid);
 
@@ -612,6 +619,7 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 		g_logger().info("[BotEngine] [PINVITE] stale-cleared: bot='{}' site=deactivateBot", bot.name);
 	}
 	s_inviteDebugKeepAlive.erase(guid);
+	endSpar(guid, "deactivate"); // #87
 
 	auto& db = Database::getInstance();
 
@@ -731,6 +739,8 @@ bool BotEngine::hibernateBot(uint32_t guid) {
 	auto &bot = bots_[it->second];
 	if (bot.hibernated) return false;
 	audClearFirstActPending(guid); // #125 review
+	// #104: nobody is watching a bot that hibernates -- finish its deferred rescue jump first.
+	flushPendingRescue(bot, "hibernate");
 	endIceFishSession(bot, "hibernated");
 	clearLootState(bot.guid);
 	// BOT_LURE_KITE: a hibernated bot has no Player and its virtual twin models neither
@@ -947,6 +957,7 @@ bool BotEngine::hibernateBot(uint32_t guid) {
 		// dwellUntil would sit idle for minutes. clearFishingRun puts that back to normal.
 		clearFishingRun(bot.guid);
 		endHouseVisit(bot.guid, "hibernate");
+		endSpar(bot.guid, "hibernate"); // #87
 		endShrineVisit(bot.guid, "hibernate");
 		bot.followingCityRoute = false;
 		bot.cityRouteWps.clear();
@@ -1066,6 +1077,16 @@ bool BotEngine::wakeBot(uint32_t guid) {
 	// the cascade loop re-asserts `proximityWake` explicitly before each member wake.
 	const bool proximityWake = s_proximityWake;
 	s_proximityWake = true;
+
+	// #27: a bot asleep in a bed stays asleep until its timer (tickRealismTimers) or an explicit
+	// wake (admin, cast viewer, party: s_forceWakeGuid) gets it up. Proximity offers are refused
+	// silently -- the Lua monitor re-offers every 300 ms. s_forceWakeGuid is consumed here on refusal
+	// for the same reason shouldGateWake consumes it: a stale bypass must not leak to another wake.
+	if (bedSleepRefusesWake(bot)) {
+		if (s_forceWakeGuid != guid) {
+			return false;
+		}
+	}
 
 	// #115: density-gate backoff. The Lua proximity monitor (bot_hibernation.lua, every 300 ms)
 	// offers every hibernated bot within 100 tiles of a player, and while a density ring is full
@@ -1250,7 +1271,10 @@ bool BotEngine::wakeBot(uint32_t guid) {
 			// value also arrives from callers that computed it another way, and internalTeleport
 			// skips queryDestination — so an FC tile here would leave the bot standing on
 			// stairs. Cheap: isUnsafeWakeTile short-circuits on the common safe case.
-			if (isUnsafeWakeTile(bot, placeAt)) {
+			// #27: a sleeper logs back in on its bed. The bed tile is a house tile with a bed on it,
+			// which isUnsafeWakeTile rejects by design, so the repair must not move it off.
+			const bool bedWake = bedWakePlacement(bot, placeAt);
+			if (!bedWake && isUnsafeWakeTile(bot, placeAt)) {
 				Position repaired = safePlacementTail(bot, placeAt, burstReservedTiles_,
 					/*allowWideRings=*/true, /*allowTempleFallback=*/true, "wakeBot");
 				if (repaired.x > 0) {
@@ -1430,6 +1454,9 @@ bool BotEngine::wakeBot(uint32_t guid) {
 			castLog(bot, "WAKE: hunt script player-claimed, resetting to IDLE");
 		}
 	}
+
+	// #27: up from the bed (stock wakeUp: regeneration, sleeper cleared, bed sprite reset).
+	finishBedWake(bot, player, proximityWake ? "wake_prox" : "wake");
 
 	bot.currentPos = player->getPosition();
 	bot.lastPos = bot.currentPos;
@@ -2231,7 +2258,7 @@ bool BotEngine::kickSpawnHolder(const HuntScript& script, const std::string& rea
 		holderBot.hasWalkTarget = false;
 		if (hp) { // hibernated holder has no Player — lock already freed, skip teleport
 			auto templePos = hp->getTemplePosition();
-			BOT_TELEPORT(hp, templePos, true);
+			BOT_RESCUE_TELEPORT(holderBot, hp, templePos, true); // #104: the claimer is usually watching
 			holderBot.currentPos = templePos;
 			holderBot.lastPos = templePos;
 		}
@@ -2633,6 +2660,14 @@ void BotEngine::restoreSingleBotState(BotState& bot, std::shared_ptr<DBResult> r
 		if (reservedBy != activeHunts_.end() && reservedBy->second != bot.guid) {
 			castLog(bot, fmt::format("RESTORE: Script {} claimed by bot {}, staying IDLE", scriptId, reservedBy->second));
 			return;
+		}
+		// #29: a sibling script over the same physical spawn may be held by another bot.
+		if (!script->spawnGroup.empty()) {
+			auto sg = activeSpawnGroups_.find(script->spawnGroup);
+			if (sg != activeSpawnGroups_.end() && sg->second != bot.guid) {
+				castLog(bot, fmt::format("RESTORE: Script {} spawn group {} held by bot {}, staying IDLE", scriptId, script->spawnGroup, sg->second));
+				return;
+			}
 		}
 
 		// Saved waypoint index vs the script as it exists NOW. A waypoint-data edit renumbers a

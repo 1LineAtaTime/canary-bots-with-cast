@@ -46,6 +46,7 @@ void BotEngine::loadHuntData() {
 	// running the population on nothing.
 	g_logger().info("[BotEngine] Loading authored bot data from {} ...", BOT_AUTHORED_DIR);
 	reloadBotData();
+	loadDangerZones();   // #96 learned danger zones (bot_hunt_danger)
 }
 
 std::string BotEngine::reloadBotData() {
@@ -239,12 +240,8 @@ void BotEngine::loadHuntScriptsCsv(std::vector<HuntScript>& out, uint32_t nextSc
 		s.enabled = t.getInt(i, "enabled", 0, 1) != 0;
 		s.isQuest = t.getInt(i, "is_quest", 0, 1) != 0;
 		s.scriptCategory = t.raw(i, "script_category");
-		// Reservation key = lowercased script name — unchanged from the SQL loader (the
-		// spawn_group column was dropped in the per-vocation hunt-route de-dup; see the
-		// long WARNING comment in the pre-CSV bot_data.cpp:70-85 / git history for why
-		// this is NOT one-bot-per-physical-spawn and why that is accepted).
-		s.spawnGroup = s.name;
-		std::transform(s.spawnGroup.begin(), s.spawnGroup.end(), s.spawnGroup.begin(), ::tolower);
+		// Reservation key (spawnGroup) is assigned after waypoints load, from the PHYSICAL
+		// patrol area: assignPhysicalSpawnGroups (#29).
 		all.push_back(std::move(s));
 	}
 
@@ -346,9 +343,109 @@ void BotEngine::loadHuntScriptsCsv(std::vector<HuntScript>& out, uint32_t nextSc
 			out.push_back(std::move(s));
 		}
 	}
+	assignPhysicalSpawnGroups(out);
 	if (!csvQuiet_) {
 		g_logger().info("[BotEngine] Loaded {} hunt scripts with waypoints and targets", out.size());
 	}
+}
+
+// #29 one bot per PHYSICAL spawn. The reservation key used to be the lowercased script
+// name, so "Meriana Gargoyle Cave" and "... Lure", or the three Mutated Humans scripts,
+// each got their own bot on the same tiles. Here every non-quest hunt script's patrol
+// waypoints are bucketed into 8x8 cells per floor; two scripts are merged (union-find)
+// when they share >= SPAWN_GROUP_MIN_CELLS cells AND that is >= SPAWN_GROUP_MIN_FRAC of
+// the smaller script's cells. The fraction stops chaining: a long surface patrol that
+// clips one corner of a cave entrance does not pull a whole city into one group
+// (measured offline on the 223 enabled hunts: no fraction = one 84-script group;
+// 0.5 = 186 groups, largest 11 = the Edron Vampire Crypt / Old Fortress complex).
+// Quests and "traveling" scripts hold no reservation, so they keep their name key.
+// Singletons keep the old name key; merged groups get "geo:<lowest member id>".
+void BotEngine::assignPhysicalSpawnGroups(std::vector<HuntScript>& scripts) {
+	constexpr size_t SPAWN_GROUP_MIN_CELLS = 3;
+	constexpr double SPAWN_GROUP_MIN_FRAC = 0.5;
+	const size_t n = scripts.size();
+	std::vector<std::unordered_set<uint64_t>> cells(n);
+	std::vector<bool> eligible(n, false);
+	for (size_t i = 0; i < n; i++) {
+		auto& s = scripts[i];
+		s.spawnGroup = s.name;
+		std::transform(s.spawnGroup.begin(), s.spawnGroup.end(), s.spawnGroup.begin(), ::tolower);
+		if (s.isQuest || s.scriptCategory != "hunt") {
+			continue;
+		}
+		for (const auto& wp : s.patrolWaypoints) {
+			cells[i].insert((static_cast<uint64_t>(wp.pos.x / 8) << 24) | (static_cast<uint64_t>(wp.pos.y / 8) << 8) | wp.pos.z);
+		}
+		eligible[i] = !cells[i].empty();
+	}
+	std::vector<size_t> parent(n);
+	for (size_t i = 0; i < n; i++) {
+		parent[i] = i;
+	}
+	auto find = [&](size_t x) {
+		while (parent[x] != x) {
+			parent[x] = parent[parent[x]];
+			x = parent[x];
+		}
+		return x;
+	};
+	for (size_t a = 0; a < n; a++) {
+		if (!eligible[a]) {
+			continue;
+		}
+		for (size_t b = a + 1; b < n; b++) {
+			if (!eligible[b]) {
+				continue;
+			}
+			const bool aSmall = cells[a].size() <= cells[b].size();
+			const auto& small = aSmall ? cells[a] : cells[b];
+			const auto& big = aSmall ? cells[b] : cells[a];
+			size_t shared = 0;
+			for (const uint64_t c : small) {
+				shared += big.count(c);
+			}
+			if (shared >= SPAWN_GROUP_MIN_CELLS && static_cast<double>(shared) >= SPAWN_GROUP_MIN_FRAC * static_cast<double>(small.size())) {
+				parent[find(a)] = find(b);
+			}
+		}
+	}
+	std::unordered_map<size_t, std::vector<size_t>> groups;
+	for (size_t i = 0; i < n; i++) {
+		if (eligible[i]) {
+			groups[find(i)].push_back(i);
+		}
+	}
+	std::vector<const std::vector<size_t>*> merged;
+	for (const auto& [root, members] : groups) {
+		if (members.size() < 2) {
+			continue;
+		}
+		uint32_t minId = UINT32_MAX;
+		for (const size_t m : members) {
+			minId = std::min(minId, scripts[m].id);
+		}
+		for (const size_t m : members) {
+			scripts[m].spawnGroup = fmt::format("geo:{}", minId);
+		}
+		merged.push_back(&members);
+	}
+	if (csvQuiet_) {
+		return;
+	}
+	std::sort(merged.begin(), merged.end(), [](const auto* x, const auto* y) { return x->size() > y->size(); });
+	size_t eligibleCount = 0;
+	for (const bool e : eligible) {
+		eligibleCount += e ? 1 : 0;
+	}
+	std::string top;
+	for (size_t g = 0; g < merged.size() && g < 5; g++) {
+		top += fmt::format(" [{}:{}", scripts[(*merged[g])[0]].spawnGroup, merged[g]->size());
+		for (size_t k = 0; k < merged[g]->size() && k < 4; k++) {
+			top += fmt::format(" '{}'", scripts[(*merged[g])[k]].name);
+		}
+		top += merged[g]->size() > 4 ? " ...]" : "]";
+	}
+	g_logger().info("[SPAWN_GROUPS] scripts={} groups={} merged={} largest:{}", eligibleCount, groups.size(), merged.size(), top);
 }
 
 void BotEngine::loadCityPOIsCsv(std::unordered_map<uint32_t, std::vector<BotPOI>>& out) {

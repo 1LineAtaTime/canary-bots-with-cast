@@ -7512,6 +7512,11 @@ void Game::playerSay(uint32_t playerId, uint16_t channelId, SpeakClasses type, c
 		case TALKTYPE_CHANNEL_Y:
 		case TALKTYPE_CHANNEL_R1:
 			g_chat().talkToChannel(player, type, text, channelId);
+			// #91: party-channel command verbs ("@ek follow", "stay", "heal me") for the bots in the
+			// speaker's party. The engine ignores ordinary chat; bots never command bots.
+			if (channelId == CHANNEL_PARTY && !player->isBotPlayer() && player->getParty() && isBotEngineReady()) {
+				g_botEngine().executeCommand("_global", fmt::format("verb party {} {}", player->getID(), text));
+			}
 			break;
 
 		case TALKTYPE_PRIVATE_PN:

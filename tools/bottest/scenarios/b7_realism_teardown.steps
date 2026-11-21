@@ -1,0 +1,6 @@
+# SCENARIO: b7_realism_teardown   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Batch 7 realism wave teardown: audit off, leave debug mode (all bots back).
+@srv audit off
+@srv cmd _global "reload debug off" timeout=120
+@srv sleep 20
+@srv expect-none src=srv msg~="Lua Script Error" within=60

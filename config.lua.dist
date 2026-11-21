@@ -1137,6 +1137,19 @@ botHouseMaxOccupants = 2
 -- expiry the bot settles where it stands and downgrades to a plain idle; if it never got inside
 -- at all, the visit is abandoned and the POI fails normally.
 botHouseSettleSec = 45
+
+-- #27 bed sleep: % of house visits that end in bed when the floor has a free, complete bed.
+-- The bot lies down, hibernates on it (the bed shows it as the sleeper, like a player who
+-- logged out there) and wakes on the bed after botBedSleepMinSec..botBedSleepMaxSec. 0 = never.
+botBedSleepPct = 10
+botBedSleepMinSec = 900
+botBedSleepMaxSec = 3600
+
+-- #104 disguised rescues: a rescue teleport (home, patrol start, party catch-up) never happens in
+-- sight of a real player or cast viewer. The bot walks out of view first, or lands off-screen near
+-- the destination; past botRescueMaxDeferSec it teleports anyway, dressed as a teleport scroll.
+botRescueDisguise = true
+botRescueMaxDeferSec = 90
 -- Awake bots only, offered at reroll like any other POI, walked by the scoped route planner
 -- (the shrine sits inside the depot or temple building, behind a door). Purely cosmetic: the
 -- bot never USES either shrine, because both actions are client-only and a bot has no client.
@@ -1229,6 +1242,17 @@ botGangVictimCooldownSec = 86400  -- seconds before the SAME victim can be jumpe
 -- #123 proportionality: no gang raid over a trivially weak victim.
 botGangMinVictimLevel    = 50     -- a victim below this level never draws a raid (0 = no floor)
 botGangMaxLevelRatio     = 4      -- no raid if the strongest attacker is >= this x the victim's level (0 = off)
+-- ---- #87 sparring outside depots (bot_spar.cpp) ----
+-- Two awake bots of a similar level near a depot form a party (partners never skull each other),
+-- fight until one is below 30 % HP, heal each other back to 90 %, then disband. Never lethal, never
+-- a real player. Journal: [SPAR] start|stop|heal|end.
+botSparEnable            = true
+botSparMaxPairs          = 1      -- most pairs sparring at once
+botSparChancePct         = 3      -- chance per 60 s scan of an eligible bot near a depot
+botSparLevelBandPct      = 20     -- levels within this % of the higher one may pair
+botSparCooldownSec       = 900    -- per-bot wait before the next spar
+botSparRematchSec        = 3600   -- the same two bots do not spar again for this long
+botSparTowns             = ""     -- csv of town names ("" = every town with a depot POI)
 -- ---- PZ-blocked roaming ----
 -- While genuinely pz-locked (60s after a PvP hit) a bot cannot enter depot/temple/boat PZ. It
 -- stops rolling HUNT/TRAVEL and mills around non-PZ tiles until the lock clears.

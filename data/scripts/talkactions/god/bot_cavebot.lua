@@ -762,6 +762,14 @@ function cavebotCmd.onSay(player, words, param)
 		cmdStr = string.format("active %d,%d,%d", pos.x, pos.y, pos.z)
 	end
 
+	-- #83: storages is a Lua-side dump (the CSV and its gates live in bot_storages.lua)
+	if cmdStr:lower() == "storages" then
+		for line in tostring(BotStorages.dump(botName)):gmatch("[^\n]+") do
+			player:sendTextMessage(MESSAGE_STATUS, line)
+		end
+		return true
+	end
+
 	-- Route command to C++ BotEngine
 	local result = cavebotCall(botName, cmdStr)
 	player:sendTextMessage(MESSAGE_STATUS, "[cavebot] " .. tostring(result))

@@ -32,6 +32,7 @@
 
 #include "creatures/npcs/npc.hpp"     // hireling NPCs standing in a house
 #include "lua/creature/actions.hpp"   // g_actions().useItemEx — the dummy training kickoff
+#include "items/bed.hpp"              // #27 BedItem (bed sleep)
 #include "map/house/house.hpp"        // House::getOwner/getTownId/getEntryPosition/getDoors
 
 namespace {
@@ -348,6 +349,42 @@ void BotEngine::releaseHouseClaims(uint32_t guid) {
 // Offered to the POI roll in bot_poi.cpp. Const because it runs inside selectNextPOI's candidate
 // build, which must not commit anything: the claim is taken by the caller only if the candidate
 // actually wins the weighted roll.
+namespace {
+// #27: is there a bed at `p` a bot may lie down in -- the PILLOW half of a complete, free bed of
+// this house? Same tests as BedItem::canUse minus the premium/player ones, which startBedSleep
+// re-runs live against the actual body.
+bool botBedUsable(const Position& p, uint32_t houseId) {
+	const auto& tile = g_game().map.getTile(p);
+	if (!tile) return false;
+	const auto& house = tile->getHouse();
+	if (!house || house->getId() != houseId) return false;
+	const auto bed = tile->getBedItem();
+	if (!bed || bed->getSleeper() != 0) return false;
+	if (Item::items[bed->getID()].bedPart != BED_PILLOW_PART) return false;
+	const auto next = bed->getNextBedItem();
+	return next && bed->isBedComplete(next) && next->getSleeper() == 0;
+}
+} // namespace
+
+// #27: every {stand tile, pillow tile} pair on one floor of a house: a free bed with a free,
+// standable tile next to it (any of the eight sides -- using an item works diagonally).
+std::vector<std::pair<Position, Position>> BotEngine::houseBedSpots(const std::vector<Position>& idleTiles,
+	uint32_t houseId, uint32_t guid) const {
+	std::vector<std::pair<Position, Position>> beds;
+	for (const auto& t : idleTiles) {
+		if (isHouseTileClaimed(t, guid) || !houseTileStandable(t, houseId)) continue;
+		for (int dx = -1; dx <= 1; ++dx) {
+			for (int dy = -1; dy <= 1; ++dy) {
+				if (dx == 0 && dy == 0) continue;
+				const Position bp(static_cast<uint16_t>(t.x + dx), static_cast<uint16_t>(t.y + dy), t.z);
+				if (!botBedUsable(bp, houseId) || isHouseTileClaimed(bp, guid)) continue;
+				beds.emplace_back(t, bp);
+			}
+		}
+	}
+	return beds;
+}
+
 bool BotEngine::pickHouseVisit(const BotState& bot, HouseRun& out) const {
 	// The town the bot is physically standing in, not its home town — bots roam, and visiting a
 	// house where you actually are is both achievable and more realistic. Same idiom as the NPC
@@ -468,6 +505,22 @@ bool BotEngine::pickHouseVisit(const BotState& bot, HouseRun& out) const {
 			}
 		}
 
+		// #27 bed sleep. Rolled on top of TABLE C (not a row of it, so its sum-to-100 contract is
+		// untouched): a visit that hits goes to bed if this floor has a free, complete bed with a
+		// free tile beside it. Live scan, like hirelings and shrines -- beds are house furniture
+		// restored from tile_store and can be moved, so the OTBM sweep cannot be trusted with them.
+		if (livenessCfg_.bedSleepPct > 0 && uniform_random(1, 100) <= livenessCfg_.bedSleepPct) {
+			const auto beds = houseBedSpots(floor.idleTiles, houseId, bot.guid);
+			if (!beds.empty()) {
+				const auto& pick = beds[uniform_random(0, static_cast<int32_t>(beds.size()) - 1)];
+				run.mode = HouseMode::BED;
+				run.tile = pick.first;
+				run.feature = pick.second;
+				out = run;
+				return true;
+			}
+		}
+
 		if (want == HouseMode::SHRINE) {
 			// Discovery already paired every hit with its stand tile, so unlike DUMMY/LOCKER there
 			// is no adjacency search to redo -- only the claim check, from a random start so two
@@ -564,7 +617,7 @@ bool BotEngine::pickHouseVisit(const BotState& bot, HouseRun& out) const {
 void BotEngine::claimHouseVisit(uint32_t guid, const HouseRun& run) {
 	const int64_t expiry = OTSYS_TIME() + HOUSE_CLAIM_MS;
 	s_houseTileClaims[botTileKey(run.tile)] = HouseClaim { guid, expiry };
-	if (run.mode == HouseMode::DUMMY) {
+	if (run.mode == HouseMode::DUMMY || run.mode == HouseMode::BED) {
 		s_houseTileClaims[botTileKey(run.feature)] = HouseClaim { guid, expiry };
 	}
 	s_houseOccupants[run.houseId].push_back(HouseClaim { guid, expiry });
@@ -715,6 +768,18 @@ void BotEngine::startHouseVisit(BotState& bot) {
 			return;
 		}
 		case HouseMode::LOCKER: modeName = "locker"; break;
+		case HouseMode::BED: {
+			// #27: lie down. On success the bed owns the bot from here (startBedSleep ends this
+			// visit and hibernates the body on the bed next tick); on failure it is a plain idle.
+			const uint32_t houseId = run.houseId;
+			const Position bedPos = run.feature;
+			if (startBedSleep(bot, bedPos, houseId, "house_visit")) {
+				return;  // the visit was ended inside startBedSleep: `run` is gone
+			}
+			run.mode = HouseMode::IDLE;
+			modeName = "idle(bed_failed)";
+			break;
+		}
 		case HouseMode::SHRINE: {
 			// The whole point of the mode: face the shrine. run.tile is a CARDINAL neighbour of
 			// run.feature by construction (pickHouseVisit's discovery pairs them that way and the
@@ -897,6 +962,8 @@ std::string BotEngine::forceHouseVisit(BotState& bot, const std::string& arg) {
 				for (const auto& c : houseShrineStands(hid, bot.currentPos.z)) {
 					if (!wantKind || c.kind == wantKind) { has = true; break; }
 				}
+			} else if (modeArg == "bed") {
+				has = !houseBedSpots(fit2->second.idleTiles, hid, bot.guid).empty();
 			} else if (modeArg == "hireling") {
 				for (const auto& t : fit2->second.idleTiles) {
 					const auto& tile = g_game().map.getTile(t);
@@ -909,7 +976,7 @@ std::string BotEngine::forceHouseVisit(BotState& bot, const std::string& arg) {
 					}
 				}
 			} else {
-				return fmt::format("Unknown mode '{}'. Valid: idle, dummy, locker, hireling.", modeArg);
+				return fmt::format("Unknown mode '{}'. Valid: idle, dummy, locker, hireling, shrine, bed.", modeArg);
 			}
 			if (has) {
 				best = hid;
@@ -1003,6 +1070,16 @@ std::string BotEngine::forceHouseVisit(BotState& bot, const std::string& arg) {
 					                   wantKind == SHRINE_KIND_IMBUING ? "imbuing " : "",
 					                   bot.currentPos.z, tried);
 				}
+			} else if (modeArg == "bed") {
+				// #27: the stand tile comes paired with its bed, like a shrine's.
+				const auto beds = houseBedSpots(fl.idleTiles, houseId, bot.guid);
+				if (!beds.empty()) {
+					const auto& pick = beds[uniform_random(0, static_cast<int32_t>(beds.size()) - 1)];
+					feature = pick.second;
+					run.tile = pick.first;
+					run.mode = HouseMode::BED;
+					found = true;
+				}
 			} else if (modeArg == "hireling") {
 				for (const auto& t : fl.idleTiles) {
 					const auto& tile = g_game().map.getTile(t);
@@ -1026,7 +1103,7 @@ std::string BotEngine::forceHouseVisit(BotState& bot, const std::string& arg) {
 			// the eight-side pick below: houseStandsAround includes diagonals, and a bot on a
 			// diagonal tile cannot face the shrine at all (internalCreatureTurn is 4-directional).
 			// Same carve-out as the one in pickHouseVisit, for the same reason.
-			if (run.mode != HouseMode::SHRINE) {
+			if (run.mode != HouseMode::SHRINE && run.mode != HouseMode::BED) {
 				// All eight sides, live — see houseStandsAround.
 				std::vector<Position> adj = houseStandsAround(feature, houseId);
 				if (adj.empty()) {
@@ -1052,13 +1129,16 @@ std::string BotEngine::forceHouseVisit(BotState& bot, const std::string& arg) {
 	const char* modeName = run.mode == HouseMode::HIRELING ? "hireling"
 		: run.mode == HouseMode::DUMMY ? "dummy"
 		: run.mode == HouseMode::LOCKER ? "locker"
-		: run.mode == HouseMode::SHRINE ? "shrine" : "idle";
+		: run.mode == HouseMode::SHRINE ? "shrine"
+		: run.mode == HouseMode::BED ? "bed" : "idle";
 	g_logger().info("[HOUSE_VISIT_START] guid={} house={} mode={} tile=({},{},{}) from=({},{},{}) forced",
 	                bot.guid, run.houseId, modeName, run.tile.x, run.tile.y, run.tile.z,
 	                bot.currentPos.x, bot.currentPos.y, bot.currentPos.z);
-	return fmt::format("House visit: house={} mode={} -> ({},{},{}), dist={}",
+	return fmt::format("House visit: house={} mode={} -> ({},{},{}), dist={}{}",
 	                   run.houseId, modeName, run.tile.x, run.tile.y, run.tile.z,
-	                   houseCheb(run.tile, bot.currentPos));
+	                   houseCheb(run.tile, bot.currentPos),
+	                   run.mode == HouseMode::BED
+	                       ? fmt::format(" bed=({},{},{})", run.feature.x, run.feature.y, run.feature.z) : std::string());
 }
 
 // Dumps what the harvest actually found, including every door's id and whether the engine

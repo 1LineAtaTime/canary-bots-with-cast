@@ -1,0 +1,11 @@
+Module
+  name: game_botcontrol
+  description: Bot control panel - command your party bots (follow, stay, attack, flee, heal, hunt, invite, kick, summon) over ExtendedOpcode 120
+  author: canary-bot-players
+  website: https://github.com/1LineAtaTime/canary-bot-players
+  autoload: true
+  autoload-priority: 1200
+  sandboxed: true
+  scripts: [ botcontrol ]
+  @onLoad: init()
+  @onUnload: terminate()

@@ -1,0 +1,185 @@
+BotRow < Label
+  height: 16
+  font: verdana-11px-monochrome
+  text-offset: 4 1
+  color: #c0c0c0
+  focusable: true
+  background-color: alpha
+  $focus:
+    background-color: #ffffff22
+    color: #ffffff
+
+BotButton < Button
+  width: 74
+  height: 20
+  margin-top: 3
+
+MainWindow
+  id: botControlWindow
+  !text: tr('Bot Control')
+  size: 262 372
+  visible: false
+  @onEscape: modules.game_botcontrol.hide()
+
+  Label
+    id: header
+    anchors.top: parent.top
+    anchors.left: parent.left
+    anchors.right: parent.right
+    text-auto-resize: false
+    height: 14
+    font: verdana-11px-monochrome
+    color: #9d9d9d
+    !text: tr('No party')
+
+  TextList
+    id: botList
+    anchors.top: header.bottom
+    anchors.left: parent.left
+    anchors.right: botListScroll.left
+    margin-top: 4
+    height: 130
+    background-color: #2a2a2a
+    border-width: 1
+    border-color: #000000
+    padding: 1
+    focusable: false
+    vertical-scrollbar: botListScroll
+
+  VerticalScrollBar
+    id: botListScroll
+    anchors.top: header.bottom
+    anchors.right: parent.right
+    margin-top: 4
+    height: 130
+    step: 16
+    pixels-scroll: true
+
+  CheckBox
+    id: selectedOnly
+    anchors.top: botList.bottom
+    anchors.left: parent.left
+    margin-top: 5
+    width: 230
+    !text: tr('Only the selected bot')
+
+  BotButton
+    id: btnFollow
+    !text: tr('Follow')
+    anchors.top: selectedOnly.bottom
+    anchors.left: parent.left
+    margin-top: 6
+    @onClick: modules.game_botcontrol.click('follow')
+
+  BotButton
+    id: btnStay
+    !text: tr('Stay')
+    anchors.top: btnFollow.top
+    anchors.left: btnFollow.right
+    margin-top: 0
+    margin-left: 4
+    @onClick: modules.game_botcontrol.click('stay')
+
+  BotButton
+    id: btnAttack
+    !text: tr('Attack')
+    anchors.top: btnFollow.top
+    anchors.left: btnStay.right
+    margin-top: 0
+    margin-left: 4
+    !tooltip: tr('Attack my current target')
+    @onClick: modules.game_botcontrol.click('attack')
+
+  BotButton
+    id: btnFlee
+    !text: tr('Flee')
+    anchors.top: btnFollow.bottom
+    anchors.left: parent.left
+    @onClick: modules.game_botcontrol.click('flee')
+
+  BotButton
+    id: btnHeal
+    !text: tr('Heal me')
+    anchors.top: btnFlee.top
+    anchors.left: btnFlee.right
+    margin-top: 0
+    margin-left: 4
+    @onClick: modules.game_botcontrol.click('heal')
+
+  BotButton
+    id: btnHunt
+    !text: tr('Hunt')
+    anchors.top: btnFlee.top
+    anchors.left: btnHeal.right
+    margin-top: 0
+    margin-left: 4
+    !tooltip: tr('Hunt with me: attack anything near me')
+    @onClick: modules.game_botcontrol.click('hunt')
+
+  BotButton
+    id: btnInvite
+    !text: tr('Invite')
+    anchors.top: btnFlee.bottom
+    anchors.left: parent.left
+    !tooltip: tr('Ask the selected bot to join my party')
+    @onClick: modules.game_botcontrol.click('invite')
+
+  BotButton
+    id: btnKick
+    !text: tr('Kick')
+    anchors.top: btnInvite.top
+    anchors.left: btnInvite.right
+    margin-top: 0
+    margin-left: 4
+    !tooltip: tr('Remove the selected bot from my party')
+    @onClick: modules.game_botcontrol.click('kick')
+
+  BotButton
+    id: btnSummon
+    !text: tr('Summon')
+    anchors.top: btnInvite.top
+    anchors.left: btnKick.right
+    margin-top: 0
+    margin-left: 4
+    !tooltip: tr('Summon a party of bots (vocations below)')
+    @onClick: modules.game_botcontrol.click('summon')
+
+  Label
+    id: summonLabel
+    anchors.top: btnInvite.bottom
+    anchors.left: parent.left
+    margin-top: 7
+    width: 60
+    font: verdana-11px-monochrome
+    color: #9d9d9d
+    !text: tr('Summon:')
+
+  TextEdit
+    id: summonVocs
+    anchors.top: btnInvite.bottom
+    anchors.left: summonLabel.right
+    anchors.right: parent.right
+    margin-top: 4
+    height: 18
+    text: ek,ed
+
+  Label
+    id: result
+    anchors.top: summonVocs.bottom
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.bottom: closeButton.top
+    margin-top: 5
+    margin-bottom: 4
+    text-wrap: true
+    text-auto-resize: false
+    font: verdana-11px-monochrome
+    color: #d0d0a0
+
+  Button
+    id: closeButton
+    !text: tr('Close')
+    anchors.bottom: parent.bottom
+    anchors.right: parent.right
+    width: 60
+    @onClick: modules.game_botcontrol.hide()

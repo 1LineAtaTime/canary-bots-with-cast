@@ -1,0 +1,17 @@
+# SCENARIO: fix_29_spawn_groups   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #29 - one bot per PHYSICAL spawn. assignPhysicalSpawnGroups (bot_data.cpp) union-finds hunt
+# scripts whose patrol waypoints share >= 3 8x8 cells covering >= 50% of the smaller script, and
+# the merged group ("geo:<lowest id>") is the reservation key every live/virtual/party pick checks.
+# Baseline (whohunts on the 15.25 server before the deploy, grouped offline with the same rule):
+# 7 groups hunted by 2+ bots at once (23 bots), e.g. Meriana Gargoyle Cave + its Lure, Putrid
+# Mummy + Lure, Hero Fortress -1 + Box, the Edron crypt complex (9 bots).
+# PRECONDITION: normal AI, 500 bots. No client needed.
+# Acceptance: Meriana Gargoyle Cave (354) and "... Lure" (40) share a geo group; multiHeld=0 at the
+# start and again after 5 min of hunt rerolls; zero Lua errors.
+@srv cmd _global spawngroups expect="\[SPAWN_GROUPS\] groups=[0-9]+ merged=[1-9][0-9]* held=[1-9][0-9]* multiHeld=0"
+@srv cmd _global spawngroups expect="geo:[0-9]+ n=[0-9]+ hunters=[01]:[^\n]*40'Meriana Gargoyle Cave Lure'[^\n]*354'Meriana Gargoyle Cave'"
+@srv cmd _global whohunts expect="Active hunts"
+@srv sleep 300
+@srv cmd _global spawngroups expect="multiHeld=0"
+@srv cmd _global whohunts expect="Active hunts"
+@srv expect-none src=srv msg~="Lua Script Error" within=320

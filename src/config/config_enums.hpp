@@ -495,5 +495,11 @@ enum ConfigKey_t : uint16_t {
 	BOT_PVP_SANITY_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
 	// #153 bot camera keys. Appended last for the same reason: nothing shifts.
 	BOT_CAMERA_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	// #87 spar keys (batch 7). Appended last: nothing shifts.
+	BOT_SPAR_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	// #102 realism keys (batch 7). Appended last for the same reason: nothing shifts.
+	BOT_REALISM_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	// Batch 7 learning keys (#30, #96). Appended last for the same reason: nothing shifts.
+	BOT_LEARNING_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
 #undef BOT_CFG_ENUMERATOR
 };

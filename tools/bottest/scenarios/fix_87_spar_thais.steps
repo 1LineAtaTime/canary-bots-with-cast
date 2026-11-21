@@ -1,0 +1,23 @@
+# SCENARIO: fix_87_spar_thais   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #87 (design #88) - sparring outside the Thais depot. Two bots form a REAL party (partners
+# never skull each other: Player::onAttackedCreature skips the skull/pz block for isPartner), trade
+# capped hits until one is below 30 % HP, heal each other back to 90 %, and the party is disbanded.
+# Run: runner.py fix_87_spar_thais.steps --var S1=<bot> --var S2=<bot of a similar level>
+# PRECONDITION: debug mode with both pinned (`/cavebot reload debug,$S1,$S2`), so both are awake;
+# pinned bots never auto-pair, so `spar` forces the pairing (the other rules still apply).
+# Acceptance: start, stop reason=hp with one side < 30 %, >= 1 heal, end reason=done with both
+# minimum HPs >= 25 % and skullA=0 skullB=0 (getSkull), no [SPAR] SKULL line, no death of either.
+@srv cmd "$S1" stop
+@srv cmd "$S2" stop
+@srv cmd "$S1" teleport 32369,32215,7
+@srv cmd "$S2" teleport 32365,32214,7
+@srv sleep 3
+@srv cmd "$S1" spar $S2 expect="Spar [0-9]+ started"
+@srv expect src=srv msg~="\[SPAR\] start pair=[0-9]+ a='$S1' lv[0-9]+ b='$S2'" min=1 wait=15
+@srv expect src=srv msg~="\[SPAR\] stop pair=[0-9]+ reason=hp" min=1 wait=200
+@srv expect src=srv msg~="\[SPAR\] heal pair=[0-9]+ by='($S1|$S2)'" min=1 wait=60
+@srv expect src=srv msg~="\[SPAR\] end pair=[0-9]+ reason=done .*minHpA=(2[5-9]|[3-9][0-9]|100)% minHpB=(2[5-9]|[3-9][0-9]|100)% .*skullA=0 skullB=0" min=1 wait=90
+@srv expect-none src=srv msg~="\[SPAR\] SKULL"
+@srv expect-none src=srv msg~="\[Bot\] ($S1|$S2) died"
+@srv expect-none src=srv msg~="Lua Script Error"
+@srv cmd "$S1" partyinfo

@@ -1,0 +1,21 @@
+# SCENARIO: fix_97_abort_loop   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #97 - abort-loop breaker. The 5th consecutive hunt abort within 2 tiles of the previous one
+# skips the recovery route and resets the bot to its town temple, logging [ABORTLOOP] once.
+# `huntabort <id> <n>` (test verb) starts hunt <id> and aborts it with a counted reason n times
+# from the tile the bot stands on.
+# Run: runner.py fix_97_abort_loop.steps --var R=<awake Thais bot>
+# PRECONDITION: debug mode with the bot pinned (`/cavebot reload debug,$R`), so it is awake.
+# Acceptance: streaks "1 2 3 4 RESET", the bot ends on another tile (the temple), exactly one
+# [ABORTLOOP] line for it with count=5; a 4-round run afterwards (streak restarted) gives none.
+@srv cmd "$R" stop
+@srv cmd "$R" teleport 32369,32215,7
+@srv sleep 3
+@srv cmd "$R" huntabort 67 5 expect="streak after each round: 1 2 3 4 RESET \| origin=\(32369,32215,7\) now=\((?!32369,32215,7\))"
+@srv expect src=srv msg~="\[ABORTLOOP\] guid=[0-9]+ name='$R' count=5 tile=\(32369,32215,7\) reason='forced abort' virtual=0" min=1 within=30
+@srv cmd "$R" teleport 32369,32215,7
+@srv sleep 3
+@srv cmd "$R" huntabort 67 4 expect="streak after each round: 1 2 3 4 \|"
+@srv sleep 5
+@srv expect src=srv msg~="\[ABORTLOOP\] guid=[0-9]+ name='$R'" min=1 max=1 within=60
+@srv expect-none src=srv msg~="Lua Script Error" within=60
+@srv cmd "$R" stop

@@ -1,0 +1,12 @@
+# SCENARIO: fix_83_storages   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #83 - quest-access storages come from data/bot/authored/bot_storages.csv, level-gated, and
+# are applied right after each bot loads. `/cavebot <bot> storages` dumps the gates.
+# Run: runner.py fix_83_storages.steps --var LO=<online bot, level < 20> --var HI=<online bot, level >= 1000>
+# Acceptance: the low bot has gated rows and missing=0; the high bot has gated=0 and missing=0
+# (same rows as the old table: 180, none unresolved).
+@srv cmd "$LO" wake optional=1
+@srv cmd "$HI" wake optional=1
+@srv sleep 5
+@srv cmd "$LO" storages expect="\[BOT_STORAGES\] .* rows=180 applies=[0-9]+ gated=[1-9][0-9]* missing=0"
+@srv cmd "$HI" storages expect="\[BOT_STORAGES\] .* rows=180 applies=180 gated=0 missing=0"
+@srv expect-none src=srv msg~="Lua Script Error" within=60

@@ -114,7 +114,7 @@ target_include_directories(${CORE_TARGET_NAME} PRIVATE "${BOT_ABI_DIR}")
 # ===========================================================================
 # Bot Engine shared library (hot-reloadable via dlopen)
 # ===========================================================================
-# The engine's 21 translation units. Shared by both platform branches below so the
+# The engine's 22 translation units. Shared by both platform branches below so the
 # Windows and Linux builds can never drift to different source sets.
 set(BOT_ENGINE_SOURCES
     players/bot/bot_engine.cpp   # lifecycle: registration, hibernation, persistence
@@ -138,6 +138,11 @@ set(BOT_ENGINE_SOURCES
     players/bot/bot_roam.cpp     # ambient roam: off-screen staging + nearby wander
     players/bot/bot_csv.cpp      # BOT_CSV: tolerant CSV reader/writer + authored-data dump
     players/bot/bot_csvedit.cpp  # BOT_CSV: in-game CSV editors + file-reading viewers
+    players/bot/bot_spar.cpp     # #87 sparring outside depots
+    players/bot/bot_recovery.cpp # #99 fruitless-fight + death-loop rules
+    players/bot/bot_realism.cpp  # #102 realism: bed sleep (#27), disguised rescue teleports (#104)
+    players/bot/bot_learning.cpp # #30 passive spawn auto-claim, #96 learned danger zones
+    players/bot/bot_verb.cpp     # #91 player command verbs: PM/party/panel, security ladder
 )
 
 if(UNIX)

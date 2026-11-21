@@ -674,6 +674,15 @@ verbs.party = function(id, a)
         g_game.partyLeave()
         return reply(id, true, 'OK party leave')
     end
+    if a.op == 'say' then
+        -- #91: the party channel (id 1) must be joined before the server accepts talk in it
+        pcall(g_game.joinChannel, 1)
+        scheduleEvent(function()
+            g_game.talkChannel(MessageModes.Channel, 1, a.text or '')
+            reply(id, true, 'OK party say')
+        end, 600)
+        return
+    end
     local c = findCreatureByName(a.name or '', false)
     if not c then return stuck(id, 'party', 'not-visible') end
     g_game.partyInvite(c:getId())
@@ -702,6 +711,22 @@ local function onOwnTrade(name, items) emit('trade_own', { name = tostring(name)
 local function onCounterTrade(name, items) emit('trade_counter', { name = tostring(name), n = items and #items or 0 }) end
 local function onCloseTrade() emit('trade_close', {}) end
 local function onOpenNpcTrade(items) emit('npc_trade', { n = items and #items or 0 }) end
+
+-- #26: drive the bot-control panel (mods/game_botcontrol) like a player clicking it.
+verbs.botpanel = function(id, a)
+    local m = modules.game_botcontrol
+    if not m or not m.dump then return stuck(id, 'botpanel', 'module-missing') end
+    local op = a.op or 'dump'
+    if op == 'open' then m.show()
+    elseif op == 'close' then m.hide()
+    elseif op == 'select' then m.selectBot(a.arg)
+    elseif op == 'click' then
+        local sent, why = m.click(a.arg)
+        if not sent then return stuck(id, 'botpanel', why or 'click-failed') end
+        return reply(id, true, 'OK botpanel click sent=' .. sent .. ' ' .. m.dump())
+    end
+    reply(id, true, 'OK botpanel ' .. op .. ' ' .. m.dump())
+end
 
 verbs.channel_say = function(id, a)
     g_game.talkChannel(a.mode or MessageModes.Channel, a.channel, a.text)

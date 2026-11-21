@@ -539,6 +539,11 @@ void BotEngine::refreshLivenessCfgIfStale(int64_t maxAgeMs) {
 	c.houseDummyPct            = static_cast<int32_t>(cm.getNumber(BOT_HOUSE_DUMMY));
 	c.houseLockerPct           = static_cast<int32_t>(cm.getNumber(BOT_HOUSE_LOCKER));
 	c.houseShrinePct           = static_cast<int32_t>(cm.getNumber(BOT_HOUSE_SHRINE));
+	c.bedSleepPct              = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_BED_SLEEP_PCT)), 0, 100);
+	c.bedSleepMinSec           = std::max(10, static_cast<int32_t>(cm.getNumber(BOT_BED_SLEEP_MIN_SEC)));
+	c.bedSleepMaxSec           = std::max(c.bedSleepMinSec, static_cast<int32_t>(cm.getNumber(BOT_BED_SLEEP_MAX_SEC)));
+	c.rescueDisguise           = cm.getBoolean(BOT_RESCUE_DISGUISE);
+	c.rescueMaxDeferSec        = std::max(5, static_cast<int32_t>(cm.getNumber(BOT_RESCUE_MAX_DEFER_SEC)));
 	c.houseSettleSec           = static_cast<int32_t>(cm.getNumber(BOT_HOUSE_SETTLE_SEC));
 	c.poiWeightRewardShrine    = static_cast<int32_t>(cm.getNumber(BOT_POI_REWARD_SHRINE));
 	c.poiWeightImbuingShrine   = static_cast<int32_t>(cm.getNumber(BOT_POI_IMBUING_SHRINE));

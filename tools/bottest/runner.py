@@ -486,10 +486,32 @@ class Runner:
         return await self.player_verb(actor, "attack", name=" ".join(pos))
 
     async def v_party(self, actor, pos, kw):
-        """party invite <name> | party leave."""
+        """party invite <name> | party leave | party say <text> (party channel, #91 verbs)."""
         if not pos:
-            return {"ok": False, "kind": "infra", "text": "party needs invite <name> | leave"}
+            return {"ok": False, "kind": "infra", "text": "party needs invite <name> | leave | say <text>"}
+        if pos[0] == "say":
+            return await self.player_verb(actor, "party", op="say", text=" ".join(pos[1:]))
         return await self.player_verb(actor, "party", op=pos[0], name=" ".join(pos[1:]))
+
+    async def v_botpanel(self, actor, pos, kw):
+        """botpanel open|close|dump|select <name>|click <action> [expect=re] [timeout=S] (#26 panel,
+        modules.game_botcontrol in the harness client). With expect=, `dump` is retried every 0.5 s
+        until the panel state matches or timeout (default 10 s)."""
+        op = pos[0] if pos else "dump"
+        arg = " ".join(pos[1:])
+        r = await self.player_verb(actor, "botpanel", op=op, arg=arg)
+        want = kw.get("expect")
+        if not want or not r.get("ok"):
+            return r
+        deadline = time.time() + float(kw.get("timeout", 10))
+        while not re.search(want, r.get("text", "")):
+            if time.time() > deadline:
+                return {"ok": False, "kind": "fail", "text": f'FAIL check=botpanel~{want} got="{r.get("text", "")[:400]}"'}
+            await asyncio.sleep(0.5)
+            r = await self.player_verb(actor, "botpanel", op="dump", arg="")
+            if not r.get("ok"):
+                return r
+        return r
 
     async def v_trade(self, actor, pos, kw):
         """trade <name> [slot=1] | trade cancel. Server answer = client events trade_own / trade_close."""
@@ -922,6 +944,12 @@ class Runner:
         first = out.strip().splitlines()[0][:160]
         if kw.get("as"):
             self.vars[kw["as"]] = out.strip()
+        if kw.get("capture"):  # capture=NAME:regex-with-one-group -> $NAME (e.g. a position in the reply)
+            cname, _, crx = kw["capture"].partition(":")
+            m = re.search(crx, out)
+            if not m:
+                return {"ok": False, "kind": "fail", "text": f'FAIL check=cmd-capture~{crx} got="{first}" file={f.name}'}
+            self.vars[cname] = m.group(1)
         if kw.get("expect") and not re.search(kw["expect"], out):
             return {"ok": False, "kind": "fail",
                     "text": f'FAIL check=cmd-reply~{kw["expect"]} got="{first}" via={via} file={f.name}'}

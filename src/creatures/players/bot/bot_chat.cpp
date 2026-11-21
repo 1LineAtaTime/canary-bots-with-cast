@@ -70,6 +70,12 @@ void BotEngine::loadBotChatPhrases() {
 		chatCfg_.replyDelayMinMs = num("replyDelayMinMs", chatCfg_.replyDelayMinMs);
 		chatCfg_.replyDelayMaxMs = num("replyDelayMaxMs", chatCfg_.replyDelayMaxMs);
 		chatCfg_.replyCooldownPerBotMs = num("replyCooldownPerBotMs", chatCfg_.replyCooldownPerBotMs);
+		chatCfg_.convoOwnerWindowMs = std::max(0, num("convoOwnerWindowMs", chatCfg_.convoOwnerWindowMs));
+		chatCfg_.convoExchangeCap = std::max(1, num("convoExchangeCap", chatCfg_.convoExchangeCap));
+		chatCfg_.convoReplyChancePct = std::clamp(num("convoReplyChancePct", chatCfg_.convoReplyChancePct), 0, 100);
+		chatCfg_.convoReplyCooldownMs = std::max(0, num("convoReplyCooldownMs", chatCfg_.convoReplyCooldownMs));
+		chatCfg_.replyIntentGate = std::max(0, num("replyIntentGate", chatCfg_.replyIntentGate));
+		chatCfg_.convoAntiRepeat = std::clamp(num("convoAntiRepeat", chatCfg_.convoAntiRepeat), 0, 20);
 
 		// BOT_PVP_REALISM tunables (same _meta.config block, hot-reloadable).
 		pvpCfg_ = PvpCfg {};  // reset so missing keys fall back to defaults
@@ -723,17 +729,82 @@ namespace {
 	}
 }
 
+// #105: does `lowerText` (lowercased, punctuation already turned into spaces, padded with a space
+// on both ends) address this bot by name? The full name, or its first word when that word is at
+// least 3 letters ("santiago, how much?"). Word-bounded so "al" never matches "all".
+namespace {
+	std::string chatLowerPadded(const std::string& text) {
+		std::string lower = " ";
+		lower.reserve(text.size() + 2);
+		for (char ch : text) {
+			char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+			if (c == '!' || c == '?' || c == '.' || c == ',' || c == ':' || c == ';') c = ' ';
+			lower += c;
+		}
+		lower += ' ';
+		return lower;
+	}
+
+	bool chatAddressesName(const std::string& lowerPadded, const std::string& botName) {
+		std::string name;
+		name.reserve(botName.size());
+		for (char ch : botName) name += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+		if (name.empty()) return false;
+		if (lowerPadded.find(" " + name + " ") != std::string::npos) return true;
+		const size_t sp = name.find(' ');
+		if (sp == std::string::npos || sp < 3) return false;
+		return lowerPadded.find(" " + name.substr(0, sp) + " ") != std::string::npos;
+	}
+
+	int32_t chatWordCount(const std::string& lowerPadded) {
+		int32_t n = 0;
+		bool in = false;
+		for (char c : lowerPadded) {
+			if (c == ' ') { in = false; continue; }
+			if (!in) { ++n; in = true; }
+		}
+		return n;
+	}
+
+	// Intent strength of the keyword group alone. Concrete questions are always worth an answer;
+	// a social filler is, only when it is the whole line ("hi", "ty m8") -- buried in a long
+	// sentence it is the player talking to someone else.
+	int32_t chatKeywordScore(const std::string& group, int32_t words) {
+		if (group.empty() || group == "generic") return 0;
+		if (group == "price_query" || group == "trade_query") return 3;
+		return words <= 4 ? 3 : 2;
+	}
+
+	int64_t s_lastConvoLogMs = 0;
+}
+
 void BotEngine::onPlayerSayNearBots(uint32_t playerId, const Position& pos, const std::string& text) {
 	if (replyCatalog_.empty() || chatCfg_.replyChancePct <= 0) return;
-	const std::string group = classifyReplyTrigger(text, /*isPm=*/false);
-	if (group.empty()) return;
 	const int64_t now = OTSYS_TIME();
 
-	// One queued reply per player at a time — stops "hi hi hi" from queueing a
+	// One queued reply per player at a time -- stops "hi hi hi" from queueing a
 	// chorus before the first reply even fires.
 	for (const auto& pending : pendingReplies_) {
 		if (pending.playerId == playerId) return;
 	}
+
+	// #105: the conversation this line belongs to. A thread lives while the player keeps talking
+	// (each line re-arms the window), so it is judged against the PREVIOUS line's time.
+	if (conversations_.size() > 256) {
+		std::erase_if(conversations_, [&](const auto& kv) {
+			return now - kv.second.lastSayMs > std::max<int64_t>(chatCfg_.convoOwnerWindowMs, 60000);
+		});
+	}
+	Conversation& convo = conversations_[playerId];
+	const bool threadLive = convo.ownerGuid != 0 && now - convo.lastSayMs < chatCfg_.convoOwnerWindowMs;
+	if (!threadLive) {
+		convo = Conversation {};
+	}
+	convo.lastSayMs = now;
+
+	const std::string lower = chatLowerPadded(text);
+	const int32_t words = chatWordCount(lower);
+	std::string group = classifyReplyTrigger(text, /*isPm=*/false);
 
 	// Pick the NEAREST eligible bot within earshot (most natural responder). A bot that is standing
 	// still (IDLE/DWELLING) is preferred over a walking traveller at any distance: it will still
@@ -744,44 +815,105 @@ void BotEngine::onPlayerSayNearBots(uint32_t playerId, const Position& pos, cons
 	const int32_t delayMax = std::max(chatCfg_.replyDelayMinMs, chatCfg_.replyDelayMaxMs);
 	const int32_t delayFloor = std::min(chatCfg_.replyDelayMinMs, 800);
 	constexpr int32_t kEarshotMarginMs = 200;
-	BotState* chosen = nullptr;
-	int32_t bestRank = INT32_MAX;
-	bool chosenWalking = false;
-	int32_t chosenStayMs = 0;
-	Position chosenBodyPos;
+	struct Cand {
+		BotState* bot = nullptr;
+		int32_t rank = INT32_MAX;
+		bool walking = false;
+		int32_t stayMs = 0;
+		Position bodyPos;
+	};
+	Cand best;       // nearest eligible bot (opens a thread)
+	Cand addressed;  // a bot the line names
+	Cand owner;      // the thread's owner, when it can answer
+	const char* ownerWhy = "absent";
 	uint32_t inRange = 0, ineligible = 0, cooling = 0, leaving = 0;
 	std::array<uint32_t, 9> inelByState {};
 	for (auto& bot : bots_) {
 		if (!bot.active || !inSayEarshot(bot.currentPos, pos)) continue;
 		inRange++;
+		const bool isOwner = threadLive && bot.guid == convo.ownerGuid;
+		const bool named = chatAddressesName(lower, bot.name);
 		const ReplyEligibility e = localReplyEligibility(bot);
 		if (e == ReplyEligibility::No) {
 			ineligible++;
 			const auto si = static_cast<size_t>(bot.state);
 			if (si < inelByState.size()) inelByState[si]++;
+			if (isOwner) ownerWhy = "ineligible";
 			continue;
 		}
-		if (now - bot.lastReplyTimeMs < chatCfg_.replyCooldownPerBotMs) { cooling++; continue; }
+		// The owner of a live thread (and a bot addressed by name) answers on the short
+		// conversation floor; everyone else on the long ambient per-bot cooldown.
+		const int32_t cd = (isOwner || named) ? chatCfg_.convoReplyCooldownMs : chatCfg_.replyCooldownPerBotMs;
+		if (now - bot.lastReplyTimeMs < cd) {
+			cooling++;
+			if (isOwner) ownerWhy = "cooling";
+			continue;
+		}
 		const auto body = g_game().getPlayerByGUID(bot.guid);
 		if (!body || body->isRemoved()) { ineligible++; continue; }
 		const Position bodyPos = body->getPosition();
 		const int32_t stayMs = earshotRemainingMs(*body, body->listWalkDir, pos, delayMax);
-		if (stayMs < delayFloor + kEarshotMarginMs) { leaving++; continue; }
+		if (stayMs < delayFloor + kEarshotMarginMs) {
+			leaving++;
+			if (isOwner) ownerWhy = "leaving";
+			continue;
+		}
 		const bool walking = e == ReplyEligibility::Walking || !body->listWalkDir.empty();
 		const int32_t dist = std::max(
 			std::abs(static_cast<int32_t>(bodyPos.x) - static_cast<int32_t>(pos.x)),
 			std::abs(static_cast<int32_t>(bodyPos.y) - static_cast<int32_t>(pos.y)));
 		// Standing first; among walkers, the one that stays on screen longest, then the nearest.
 		const int32_t rank = walking ? 1000 + (delayMax - stayMs) / 100 * 10 + dist : dist;
-		if (rank < bestRank) {
-			bestRank = rank;
-			chosen = &bot;
-			chosenWalking = walking;
-			chosenStayMs = stayMs;
-			chosenBodyPos = bodyPos;
-		}
+		const Cand c { &bot, rank, walking, stayMs, bodyPos };
+		if (isOwner) owner = c;
+		if (named && rank < addressed.rank) addressed = c;
+		if (rank < best.rank) best = c;
 	}
-	if (!chosen) {
+
+	// Who may answer. Addressed by name beats everything (and takes the thread over); inside a
+	// live thread ONLY the owner may answer; otherwise the nearest eligible bot opens a thread.
+	Cand chosen;
+	const char* ownReason = "first";
+	bool inThread = false;
+	if (addressed.bot) {
+		chosen = addressed;
+		inThread = threadLive && addressed.bot->guid == convo.ownerGuid;
+		ownReason = threadLive ? "transfer" : "addressed";
+		if (group.empty()) group = "generic";
+	} else if (threadLive && !owner.bot && std::string_view(ownerWhy) == "cooling") {
+		// The owner is right here and just answered: the thread is still its own. Nobody else
+		// jumps in; the player's next line (past the short floor) goes to the owner again.
+		if (now - s_lastConvoLogMs >= 1000) {
+			s_lastConvoLogMs = now;
+			g_logger().info("[CHAT_CONVO] held owner_guid={} player={} reason=owner-cooling others_in_range={}",
+				convo.ownerGuid, playerId, inRange);
+		}
+		return;
+	} else if (threadLive && owner.bot) {
+		chosen = owner;
+		inThread = true;
+	} else {
+		// No thread, or its owner walked off / went busy (absent, leaving, ineligible): a thread
+		// whose owner is gone must not silence everyone else for as long as the player talks.
+		if (threadLive) {
+			g_logger().info("[CHAT_CONVO] release owner_guid={} player={} reason=owner-{}", convo.ownerGuid, playerId, ownerWhy);
+			const int64_t keepSay = convo.lastSayMs;
+			convo = Conversation {};
+			convo.lastSayMs = keepSay;
+		}
+		chosen = best;
+	}
+	if (inThread && convo.ended) {
+		if (now - s_lastConvoLogMs >= 1000) {
+			s_lastConvoLogMs = now;
+			g_logger().info("[CHAT_CONVO] silent bot='{}' player={} reason=ended exchanges={}",
+				chosen.bot->name, playerId, convo.exchanges);
+		}
+		return;
+	}
+
+	if (!chosen.bot) {
+		if (group.empty()) return;
 		if (now - s_lastNoResponderLogMs >= 1000) {
 			s_lastNoResponderLogMs = now;
 			std::string inel;
@@ -795,49 +927,108 @@ void BotEngine::onPlayerSayNearBots(uint32_t playerId, const Position& pos, cons
 		}
 		return;
 	}
-	if (uniform_random(1, 100) > chatCfg_.replyChancePct) {
-		if (now - s_lastSkippedLogMs >= 1000) {
+
+	// Intent gate. A line nobody could take as meant for a bot is not answered at all.
+	const int32_t score = chatKeywordScore(group, words) + (addressed.bot ? 3 : 0) + (inThread ? 1 : 0);
+	if (group.empty() || score < chatCfg_.replyIntentGate) {
+		if ((inThread || addressed.bot) && now - s_lastSkippedLogMs >= 1000) {
 			s_lastSkippedLogMs = now;
-			g_logger().info("[CHAT_REPLY] skipped bot='{}' group={} reason=chance({}%)", chosen->name, group, chatCfg_.replyChancePct);
+			g_logger().info("[CHAT_REPLY] skipped bot='{}' group={} reason=intent(score={} gate={})",
+				chosen.bot->name, group.empty() ? "-" : group, score, chatCfg_.replyIntentGate);
 		}
 		return;
+	}
+	const int32_t chance = (inThread || addressed.bot) ? chatCfg_.convoReplyChancePct : chatCfg_.replyChancePct;
+	if (uniform_random(1, 100) > chance) {
+		if (now - s_lastSkippedLogMs >= 1000) {
+			s_lastSkippedLogMs = now;
+			g_logger().info("[CHAT_REPLY] skipped bot='{}' group={} reason=chance({}%)", chosen.bot->name, group, chance);
+		}
+		return;  // an opening line that lost the roll opens no thread: the next line gets a fresh pick
+	}
+
+	// Thread bookkeeping. A new owner starts a fresh thread; the cap answer is the last one.
+	if (!inThread) {
+		convo.ownerGuid = chosen.bot->guid;
+		convo.exchanges = 0;
+		convo.ended = false;
+		convo.recentLines.clear();
+		g_logger().info("[CHAT_CONVO] own bot='{}' player={} reason={} score={}", chosen.bot->name, playerId, ownReason, score);
+	}
+	convo.exchanges++;
+	if (group == "bye" || convo.exchanges >= chatCfg_.convoExchangeCap) {
+		const bool capped = group != "bye";
+		convo.ended = true;
+		if (capped && replyCatalog_.count("bye") > 0) group = "bye";  // close the thread politely
+		g_logger().info("[CHAT_CONVO] end bot='{}' player={} exchanges={} reason={}",
+			chosen.bot->name, playerId, convo.exchanges, capped ? "cap" : "bye");
 	}
 
 	// A walker answers from the quick end of the typing delay: it keeps walking while it types, and
 	// a 5 s pause would carry it out of earshot. Either way the reply must land while the body is
 	// still on the speaker's screen (stayMs, from its walk queue), so the delay is capped there.
-	int32_t delay = chosenWalking
+	int32_t delay = chosen.walking
 		? uniform_random(chatCfg_.replyDelayMinMs, std::min(delayMax, chatCfg_.replyDelayMinMs + 1000))
 		: uniform_random(chatCfg_.replyDelayMinMs, delayMax);
-	if (delay > chosenStayMs - kEarshotMarginMs) {
-		delay = std::max(delayFloor, chosenStayMs - kEarshotMarginMs);
+	if (delay > chosen.stayMs - kEarshotMarginMs) {
+		delay = std::max(delayFloor, chosen.stayMs - kEarshotMarginMs);
 	}
-	chosen->lastReplyTimeMs = now;  // reserve immediately so the next say can't double-book
-	pendingReplies_.push_back({ now + delay, chosen->guid, playerId, /*isPm=*/false, group });
+	chosen.bot->lastReplyTimeMs = now;  // reserve immediately so the next say cannot double-book
+	pendingReplies_.push_back({ now + delay, chosen.bot->guid, playerId, /*isPm=*/false, group });
 	if (now - s_lastQueuedLogMs >= 1000) {
 		s_lastQueuedLogMs = now;
-		g_logger().info("[CHAT_REPLY] queued bot='{}' st={} walking={} dist={} group={} delayMs={} stayMs={} bot=({},{},{})",
-			chosen->name, botStateName(chosen->state), chosenWalking ? 1 : 0,
-			std::max(std::abs(static_cast<int32_t>(chosenBodyPos.x) - static_cast<int32_t>(pos.x)),
-			         std::abs(static_cast<int32_t>(chosenBodyPos.y) - static_cast<int32_t>(pos.y))),
-			group, delay, chosenStayMs, chosenBodyPos.x, chosenBodyPos.y, chosenBodyPos.z);
+		g_logger().info("[CHAT_REPLY] queued bot='{}' st={} walking={} dist={} group={} delayMs={} stayMs={} bot=({},{},{}) convo={}/{} score={} inRange={}",
+			chosen.bot->name, botStateName(chosen.bot->state), chosen.walking ? 1 : 0,
+			std::max(std::abs(static_cast<int32_t>(chosen.bodyPos.x) - static_cast<int32_t>(pos.x)),
+			         std::abs(static_cast<int32_t>(chosen.bodyPos.y) - static_cast<int32_t>(pos.y))),
+			group, delay, chosen.stayMs, chosen.bodyPos.x, chosen.bodyPos.y, chosen.bodyPos.z,
+			convo.exchanges, chatCfg_.convoExchangeCap, score, inRange);
 	}
 }
 
 void BotEngine::onPlayerPmToBot(uint32_t botGuid, uint32_t playerId, const std::string& text) {
+	// #91: a PM that is a command verb ("follow", "@ek stay", "who") is answered by the verb layer
+	// (bot_verb.cpp) and never also gets a small-talk reply. Ordinary chat falls through.
+	if (const auto speakerCreature = g_game().getCreatureByID(playerId)) {
+		if (const auto speaker = speakerCreature->getPlayer();
+		    speaker && handleVerb(fmt::format("pm:{}", botGuid), speaker, botGuid, text, nullptr)) {
+			return;
+		}
+	}
 	if (replyCatalog_.empty() || chatCfg_.pmReplyChancePct <= 0) return;
 	BotState* bot = getBotState(botGuid);
 	if (!bot) return;
 	const int64_t now = OTSYS_TIME();
-	// Hard 10s floor between PM replies per bot — a PM is direct, so the usual
+	// Hard 10s floor between PM replies per bot -- a PM is direct, so the usual
 	// reply cooldown would feel like being ignored, but instant machine-gun
 	// replies to spam would be worse.
 	if (now - bot->lastReplyTimeMs < 10000) return;
 	for (const auto& pending : pendingReplies_) {
 		if (pending.botGuid == botGuid && pending.isPm) return;
 	}
+	// #105: a PM is addressed by definition, so it opens (or continues) a thread owned by this bot,
+	// and the same cap applies: past it the bot stops answering until the player goes quiet.
+	Conversation& convo = conversations_[playerId];
+	const bool threadLive = convo.ownerGuid == botGuid && now - convo.lastSayMs < chatCfg_.convoOwnerWindowMs;
+	if (!threadLive) {
+		convo = Conversation {};
+		convo.ownerGuid = botGuid;
+	}
+	convo.lastSayMs = now;
+	if (convo.ended) {
+		g_logger().info("[CHAT_CONVO] silent bot='{}' player={} reason=ended exchanges={} pm=1", bot->name, playerId, convo.exchanges);
+		return;
+	}
 	if (uniform_random(1, 100) > chatCfg_.pmReplyChancePct) return;
-	const std::string group = classifyReplyTrigger(text, /*isPm=*/true);
+	std::string group = classifyReplyTrigger(text, /*isPm=*/true);
+	convo.exchanges++;
+	if (group == "bye" || convo.exchanges >= chatCfg_.convoExchangeCap) {
+		const bool capped = group != "bye";
+		convo.ended = true;
+		if (replyCatalog_.count("bye") > 0) group = "bye";
+		g_logger().info("[CHAT_CONVO] end bot='{}' player={} exchanges={} reason={} pm=1",
+			bot->name, playerId, convo.exchanges, capped ? "cap" : "bye");
+	}
 
 	bot->lastReplyTimeMs = now;
 	pendingReplies_.push_back({
@@ -858,8 +1049,18 @@ void BotEngine::processPendingReplies(int64_t now) {
 
 		auto catIt = replyCatalog_.find(reply.group);
 		if (catIt == replyCatalog_.end() || catIt->second.empty()) continue;
-		const uint32_t lineIdx = static_cast<uint32_t>(uniform_random(
-			0, static_cast<int32_t>(catIt->second.size()) - 1));
+		// #105 anti-repeat: inside a thread the owner does not say one of its last few lines again
+		// ("you just said that"). A handful of re-rolls; a tiny catalog may still repeat.
+		auto convoIt = conversations_.find(reply.playerId);
+		Conversation* convo = (convoIt != conversations_.end() && convoIt->second.ownerGuid == reply.botGuid)
+			? &convoIt->second : nullptr;
+		uint32_t lineIdx = 0;
+		for (int attempt = 0; attempt < 6; ++attempt) {
+			lineIdx = static_cast<uint32_t>(uniform_random(0, static_cast<int32_t>(catIt->second.size()) - 1));
+			if (!convo) break;
+			const size_t h = std::hash<std::string> {}(catIt->second[lineIdx]);
+			if (std::find(convo->recentLines.begin(), convo->recentLines.end(), h) == convo->recentLines.end()) break;
+		}
 		const std::string& line = catIt->second[lineIdx];
 
 		// Re-resolve both parties — either may have moved on in the delay window.
@@ -901,7 +1102,17 @@ void BotEngine::processPendingReplies(int64_t now) {
 		// #122: always-on server truth for replies (they are rare: one per player say at most).
 		// bot_chat_emissions has been dark since 2026-06-22 by design -- botTelemetryEnabled
 		// defaults false (faaf0d585, public-distribution prep) -- so acceptance reads this line.
-		g_logger().info("[CHAT_REPLY] said bot='{}' pm={} group={}", botPlayer->getName(), reply.isPm ? 1 : 0, reply.group);
+		// #105: owner=1 when the speaker owns the player's thread -- the acceptance invariant
+		// (a local reply from a non-owner, owner=0, would mean another bot jumped in).
+		const bool isOwner = convo != nullptr;
+		if (convo && chatCfg_.convoAntiRepeat > 0) {
+			convo->recentLines.push_back(std::hash<std::string> {}(line));
+			if (convo->recentLines.size() > static_cast<size_t>(chatCfg_.convoAntiRepeat)) {
+				convo->recentLines.erase(convo->recentLines.begin());
+			}
+		}
+		g_logger().info("[CHAT_REPLY] said bot='{}' pm={} group={} owner={} convo={}", botPlayer->getName(),
+			reply.isPm ? 1 : 0, reply.group, isOwner ? 1 : 0, convo ? convo->exchanges : 0);
 
 		if (BotState* botState = getBotState(reply.botGuid)) {
 			botState->lastChatTimeMs = now;  // a reply counts as chat for ambient pacing

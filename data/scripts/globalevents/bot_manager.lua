@@ -13,215 +13,16 @@
 -- Game.loadBotPlayer succeeds (#57). They used to be set in one pass over BotPlayers two seconds
 -- after the LAST bot loaded (~50 s at 500 bots), and a bot that hibernated in between had already
 -- left BotPlayers: it kept the same Player object in the hibernation pool, without the storages.
--- The table is built on first use so the Storage constants are certainly loaded.
--- Idea and shape from dandpb/canary-bots-with-cast 9e37f3032e (initializeBotQuestAccess).
-local botQuestStorages
+-- #83: the table now lives in data/bot/authored/bot_storages.csv, level- and vocation-gated
+-- (data/scripts/lib/bot_storages.lua). Idea and shape from dandpb/canary-bots-with-cast
+-- 9e37f3032e (initializeBotQuestAccess).
 local questAccessCount = 0
 local questAccessFailures = 0
+local questAccessApplied, questAccessGated = 0, 0
 local function initializeBotQuestAccess(player)
-	if not botQuestStorages then
-		botQuestStorages = {
-			-- The New Frontier (Farmine access — full quest complete)
-			[Storage.Quest.U8_54.TheNewFrontier.Questline] = 29,  -- final state per freequests
-			[Storage.Quest.U8_54.TheNewFrontier.Mission01] = 3,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission02[1]] = 4,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission02.Beaver1] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission02.Beaver2] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission02.Beaver3] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission03] = 3,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission04] = 2,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission05[1]] = 2,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission05.KingTibianus] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission05.Leeland] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission05.Angus] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission05.Wyrdin] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission05.Telas] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission05.Humgolf] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission06] = 5,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission07[1]] = 2,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission08] = 2,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission09[1]] = 3,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission10[1]] = 2,
-			[Storage.Quest.U8_54.TheNewFrontier.Mission10.MagicCarpetDoor] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.TomeofKnowledge] = 12,  -- all 10 tome rewards from Cael (Snake Teleport, Corruption Hole, Zao Palace, etc.)
-			[Storage.Quest.U8_54.TheNewFrontier.ZaoPalaceDoors] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.SnakeHeadTeleport] = 1,
-			[Storage.Quest.U8_54.TheNewFrontier.CorruptionHole] = 1,
-			-- Children of the Revolution (Dragonblaze Peaks / Muggy Plains teleport access — quest shown complete)
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.Questline] = 21,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.Mission00] = 2,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.Mission01] = 3,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.Mission02] = 5,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.Mission03] = 3,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.Mission04] = 6,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.Mission05] = 3,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.SpyBuilding01] = 1,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.SpyBuilding02] = 1,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.SpyBuilding03] = 1,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.StrangeSymbols] = 1,
-			[Storage.Quest.U8_54.ChildrenOfTheRevolution.teleportAccess] = 1,
-			-- Wrath of the Emperor (Zao teleport network — mystic flames at (33136,31248/9,6) need TeleportAccess.Rebel + BossRoom)
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Questline] = 29,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission01] = 3,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission02] = 3,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission03] = 3,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission04] = 3,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission05] = 3,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission06] = 5,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission07] = 6,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission08] = 2,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission09] = 2,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission10] = 6,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission11] = 2,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Mission12] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.TeleportAccess.Rebel] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.TeleportAccess.Zlak] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.TeleportAccess.Zizzle] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.TeleportAccess.SleepingDragon] = 2,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.TeleportAccess.InnerSanctum] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.TeleportAccess.AwarnessEmperor] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.TeleportAccess.Wote10] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.TeleportAccess.BossRoom] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Bosses.Fury] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Bosses.Wrath] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Bosses.Scorn] = 1,
-			[Storage.Quest.U8_6.WrathOfTheEmperor.Bosses.Spite] = 1,
-			-- Threatened Dreams (Feyrist shrine access)
-			[Storage.Quest.U11_40.ThreatenedDreams.Mission01[1]] = 16,
-			-- In Service of Yalahar (all 6 city gates: Alchemist/Trade/Arena/Cemetery/Sunken/Factory — quest shown complete)
-			[Storage.Quest.U8_4.InServiceOfYalahar.TheWayToYalahar] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Questline] = 51,  -- >= 45 unlocks all gate mechanisms
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission01] = 6,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission02] = 8,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission03] = 6,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission04] = 6,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission05] = 8,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission06] = 5,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission07] = 5,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission08] = 4,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission09] = 2,
-			[Storage.Quest.U8_4.InServiceOfYalahar.Mission10] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SewerPipe01] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SewerPipe02] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SewerPipe03] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SewerPipe04] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.DiseasedDan] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.DiseasedBill] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.DiseasedFred] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.AlchemistFormula] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.BadSide] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.GoodSide] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.MrWestDoor] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.MrWestStatus] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.TamerinStatus] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.MorikSummon] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.QuaraState] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.QuaraSplasher] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.QuaraSharptooth] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.QuaraInky] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.MatrixState] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.NotesPalimuth] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.NotesAzerus] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.DoorToAzerus] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.DoorToBog] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.DoorToLastFight] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.DoorToMatrix] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.DoorToQuara] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.TownsCounter] = 5,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.AbDendriel] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.Darashia] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.Venore] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.Ankrahmun] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.PortHope] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.Thais] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.LibertyBay] = 1,
-			[Storage.Quest.U8_4.InServiceOfYalahar.SearoutesAroundYalahar.Carlin] = 1,
-			-- Forgotten Knowledge (Thais fire portal hub + all element teleports — quest shown complete)
-			[Storage.Quest.U11_02.ForgottenKnowledge.Tomes] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessDeath] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessViolet] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessEarth] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessFire] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessIce] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessGolden] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessLast] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessPortals] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessMachine] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.AccessLavaTeleport] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.LadyTenebrisKilled] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.LloydKilled] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.ThornKnightKilled] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.DragonkingKilled] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.HorrorKilled] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.TimeGuardianKilled] = 1,
-			[Storage.Quest.U11_02.ForgottenKnowledge.LastLoreKilled] = 1,
-			-- The Secret Library (full questline complete — Asura Palace mirror, Lotus/Eye Key chests, library teleport)
-			[Storage.Quest.U11_80.TheSecretLibrary.Questlog] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.LibraryPermission] = 7,  -- 7 = quest done, unlocks library teleport at (32177,31925,7)
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.Questline] = 7,   -- max value (mission complete)
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.FlammingOrchid] = 1,  -- required for Asura Palace mirror (aid 4910)
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.SkeletonNotes] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.StrandHair] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.LotusKey] = 1,     -- chest collected flag (key item: 28476)
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.EyeKey] = 1,       -- chest collected flag (key item: 28477)
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.ScribbledNotes] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.EbonyPiece] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.PeacockBallad] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.BlackSkull] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.SilverChimes] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.Asuras.Fragrance] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.FalconBastion.Questline] = 3,
-			[Storage.Quest.U11_80.TheSecretLibrary.FalconBastion.FalconBastionAccess] = 1,
-			-- KillingBosses gates the Falcon Bastion doors (>=4), boats (>=3) and boss
-			-- entrance (>=5) via actions_doors.lua/movements_bossEntrance.lua. 5 = all open.
-			-- Required by the "Falcons" hunt route (use: waypoints land on these doors).
-			[Storage.Quest.U11_80.TheSecretLibrary.FalconBastion.KillingBosses] = 5,
-			[Storage.Quest.U11_80.TheSecretLibrary.Darashia.Questline] = 9,
-			[Storage.Quest.U11_80.TheSecretLibrary.LiquidDeath.Questline] = 8,
-			[Storage.Quest.U11_80.TheSecretLibrary.MoTA.Questline] = 8,
-			[Storage.Quest.U11_80.TheSecretLibrary.MoTA.LeverPermission] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.MoTA.FinalBasin] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.MoTA.SkullSample] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.MoTA.YellowGem] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.MoTA.GreenGem] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.MoTA.RedGem] = 1,
-			[Storage.Quest.U11_80.TheSecretLibrary.SmallIslands.Questline] = 4,
-			-- Kilmaresh (Issavi sphynx caves / Cobra Bastion region access — mirrors freequests).
-			[Storage.Quest.U12_20.KilmareshQuest.AccessDoor] = 1,
-			[Storage.Quest.U12_20.KilmareshQuest.Second.Investigating] = 1,
-			[Storage.Quest.U12_20.KilmareshQuest.Sixth.GryphonMask] = 1,
-			[Storage.Quest.U12_20.KilmareshQuest.Sixth.MirrorMask] = 1,
-			[Storage.Quest.U12_20.KilmareshQuest.Sixth.IvoryMask] = 1,
-			[Storage.Quest.U12_20.KilmareshQuest.Sixth.SilverMask] = 1,
-			-- Ferumbras Ascension (seal-room hunt access — mirrors freequests + main entrance Access).
-			[Storage.Quest.U10_90.FerumbrasAscension.Access] = 1,
-			[Storage.Quest.U10_90.FerumbrasAscension.FirstDoor] = 1,
-			[Storage.Quest.U10_90.FerumbrasAscension.MonsterDoor] = 1,
-			[Storage.Quest.U10_90.FerumbrasAscension.TarbazDoor] = 1,
-			[Storage.Quest.U10_90.FerumbrasAscension.HabitatsAccess] = 1,
-			[Storage.Quest.U10_90.FerumbrasAscension.TheLordOfTheLiceAccess] = 1,
-			[Storage.Quest.U10_90.FerumbrasAscension.Statue] = 1,
-			-- The Lost Brother (single-storage quest)
-			[Storage.Quest.U10_80.TheLostBrotherQuest] = 3,
-			-- Lion's Rock (Darashia inner sanctum — entrance teleport at (33128,32308,8)
-			-- gates on Questline >= 4; 11 is the final post-reward value)
-			[Storage.Quest.U10_70.LionsRock.Questline] = 11,
-			[Storage.Quest.U10_70.LionsRock.OuterSanctum.Skeleton] = 1,
-			[Storage.Quest.U10_70.LionsRock.OuterSanctum.LionsStrength] = 1,
-			[Storage.Quest.U10_70.LionsRock.OuterSanctum.LionsBeauty] = 1,
-			[Storage.Quest.U10_70.LionsRock.OuterSanctum.LionsTears] = 1,
-			[Storage.Quest.U10_70.LionsRock.InnerSanctum.SnakeSign] = 1,
-			[Storage.Quest.U10_70.LionsRock.InnerSanctum.LizardSign] = 1,
-			[Storage.Quest.U10_70.LionsRock.InnerSanctum.ScorpionSign] = 1,
-			[Storage.Quest.U10_70.LionsRock.InnerSanctum.HyenaSign] = 1,
-			[Storage.Quest.U10_70.LionsRock.InnerSanctum.Message] = 1,
-			-- Wagon Ticket (Kazordoon ore wagons — year 2099)
-			[Storage.WagonTicket] = 2147483647,  -- max INT32 (~year 2038)
-		}
-	end
-	for key, value in pairs(botQuestStorages) do
-		player:setStorageValue(key, value)
-	end
+	local applied, gated = BotStorages.apply(player)
+	questAccessApplied = questAccessApplied + applied
+	questAccessGated = questAccessGated + gated
 	questAccessCount = questAccessCount + 1
 end
 
@@ -445,7 +246,7 @@ function botStartup.onStartup()
 				addEvent(function()
 					-- Set quest storages so bots can use wagons, shrines, levers, teleports
 					-- Quest/access storages are now set per bot right after its load (#57).
-					logger.info("[BotManager] Set quest/access storages on {} bots (wagons, shrines, quests)", questAccessCount)
+					logger.info("[BOT_STORAGES] applied to bots={} rowsSet={} rowsGated={} (wagons, shrines, quests; level-gated)", questAccessCount, questAccessApplied, questAccessGated)
 					if questAccessFailures > 0 then
 						logger.error("[BotManager] initializeBotQuestAccess FAILED on {} bot(s) (first 3 errors logged above)", questAccessFailures)
 					end
@@ -528,6 +329,8 @@ function botManager.onThink(interval)
 				end
 				local rv = BotSystem.executeReload(opts)
 				resultText = (rv and rv.message) or "reload returned nil"
+			elseif low == "storages" then
+				resultText = BotStorages.dump(botName)
 			else
 				-- 3rd arg labels the BOT_TEST_HARNESS `cmd` audit record only.
 				resultText = Game.botCommand(botName, cmd, "queue") or ""

@@ -83,3 +83,20 @@ CREATE TABLE IF NOT EXISTS `bot_hub_presence_60s` (
   KEY `ts_idx` (`ts`),
   KEY `hub_idx` (`hub_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---- Learned hunt-danger zones (also 25_bot_hunt_danger.sql for upgrades) ----
+CREATE TABLE IF NOT EXISTS `bot_hunt_danger` (
+  `script_id` INT UNSIGNED NOT NULL,
+  `pos_x` SMALLINT UNSIGNED NOT NULL,
+  `pos_y` SMALLINT UNSIGNED NOT NULL,
+  `pos_z` TINYINT UNSIGNED NOT NULL,
+  `radius` TINYINT UNSIGNED NOT NULL,
+  `min_party` TINYINT UNSIGNED NOT NULL DEFAULT 2,
+  `score` TINYINT UNSIGNED NOT NULL,
+  `deaths` INT UNSIGNED NOT NULL DEFAULT 0,
+  `near_deaths` INT UNSIGNED NOT NULL DEFAULT 0,
+  `last_seen` BIGINT NOT NULL,
+  `expires_at` BIGINT NOT NULL,
+  PRIMARY KEY (`script_id`, `pos_x`, `pos_y`, `pos_z`),
+  KEY `expires_idx` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

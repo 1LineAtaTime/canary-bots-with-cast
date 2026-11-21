@@ -179,6 +179,11 @@ bool BedItem::sleep(const std::shared_ptr<Player> &player) {
 	const auto client = player->client;
 	const bool walkAccepted = g_dispatcher().addWalkEvent([player, self, client] {
 		g_game().map.moveCreature(player, self->getTile());
+		if (!client) {
+			// #27 bot players have no client to log out through. The bot engine takes the body
+			// off the map itself (hibernation) and keeps the sleeper on the bed until it wakes.
+			return;
+		}
 		const auto logoutEvent = g_dispatcher().scheduleEvent(
 			SCHEDULER_MINTICKS, [client] { client->logout(false, false); }, "ProtocolGame::logout", DispatcherLane::PlayerAction, player->getID()
 		);

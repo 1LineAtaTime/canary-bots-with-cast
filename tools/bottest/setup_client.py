@@ -66,6 +66,14 @@ def install_mod(dest: Path):
     if tgt.exists():
         shutil.rmtree(tgt)
     shutil.copytree(HERE / "otc_mod" / "harness_ctl", tgt)
+    # #26: the repo's bot-control panel, so scenarios can drive it (botpanel verb). The user's own
+    # clients are never touched; this only ever writes into the harness copy.
+    panel = HERE.parent.parent / "otclient" / "modules" / "game_botcontrol"
+    if panel.is_dir():
+        ptgt = dest / "mods" / "game_botcontrol"
+        if ptgt.exists():
+            shutil.rmtree(ptgt)
+        shutil.copytree(panel, ptgt)
 
 
 def main():
@@ -84,7 +92,7 @@ def main():
         if not (dest / "otclient_gl_x64.exe").exists():
             raise SystemExit(f"{dest} is not a harness copy")
         install_mod(dest)
-        print(f"OK mod installed into {dest / 'mods' / 'harness_ctl'}")
+        print(f"OK mods installed into {dest / 'mods'} (harness_ctl, game_botcontrol)")
         return
     if not (src / "otclient_gl_x64.exe").exists():
         raise SystemExit(f"no otclient_gl_x64.exe in {src}")

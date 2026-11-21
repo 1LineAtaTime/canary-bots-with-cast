@@ -753,6 +753,66 @@
 	BOOL(ALLOW_PLAYER_CAST,               "allowPlayerCast",             false)
 
 // ============================================================================
+// #87 sparring (batch 7 combat, bot_spar.cpp). Expanded at the very END of ConfigKey_t
+// (after BOT_CAMERA_CONFIG_KEYS), so no existing ordinal moves. Needs a FULL rebuild.
+// ============================================================================
+#define BOT_SPAR_CONFIG_KEYS(INT, BOOL, STR)                                     \
+	/* #87 sparring (bot_spar.cpp): two awake bots of a similar level outside a      \
+	   depot party up, fight to 30 % HP, heal each other, disband. [SPAR] lines. */   \
+	BOOL(BOT_SPAR_ENABLE,                  "botSparEnable",                 true)     \
+	/* Most pairs sparring at once (live; the virtual twin has its own equal cap). */ \
+	INT (BOT_SPAR_MAX_PAIRS,               "botSparMaxPairs",               1)        \
+	/* Chance per 60 s pairing scan of an eligible bot near a depot. */              \
+	INT (BOT_SPAR_CHANCE_PCT,              "botSparChancePct",              3)        \
+	/* Levels within this % of the higher one may pair. */                          \
+	INT (BOT_SPAR_LEVEL_BAND_PCT,          "botSparLevelBandPct",           20)       \
+	/* A bot that just sparred waits this long before the next spar. */             \
+	INT (BOT_SPAR_COOLDOWN_SEC,            "botSparCooldownSec",            900)      \
+	/* The same two bots do not spar again for this long. */                        \
+	INT (BOT_SPAR_REMATCH_SEC,             "botSparRematchSec",             3600)     \
+	/* csv of town names that spar ("" = every town with a depot POI). */           \
+	STR (BOT_SPAR_TOWNS,                   "botSparTowns",                  "")
+
+// ============================================================================
+// #102 realism (batch 7): bed sleep (#27) and disguised rescue teleports (#104).
+// Expanded at the very END of ConfigKey_t (after BOT_CAMERA_CONFIG_KEYS), so no existing ordinal
+// moves. Read by the .so through livenessCfg_ (bot_poi.cpp). Needs a FULL rebuild.
+// ============================================================================
+#define BOT_REALISM_CONFIG_KEYS(INT, BOOL, STR)                                   \
+	/* #27: % of house visits that end with the bot going to bed when its floor   \
+	   has a free, complete bed: it lies down (stock BedItem::sleep, bot branch)  \
+	   and hibernates on it, the bed shows it as the sleeper, and it wakes on the \
+	   bed after botBedSleepMinSec..MaxSec. 0 = never. */                         \
+	INT (BOT_BED_SLEEP_PCT,                "botBedSleepPct",                10)       \
+	INT (BOT_BED_SLEEP_MIN_SEC,            "botBedSleepMinSec",             900)      \
+	INT (BOT_BED_SLEEP_MAX_SEC,            "botBedSleepMaxSec",             3600)     \
+	/* #104: a rescue teleport (teleport home, to a patrol start, party catch-up)  \
+	   never happens in sight of a real player or cast viewer: the bot walks out   \
+	   of view first, or lands off-screen near the destination. Past              \
+	   botRescueMaxDeferSec it teleports anyway, dressed as a teleport scroll. */  \
+	BOOL(BOT_RESCUE_DISGUISE,              "botRescueDisguise",             true)     \
+	INT (BOT_RESCUE_MAX_DEFER_SEC,         "botRescueMaxDeferSec",          90)
+
+// ============================================================================
+// Batch 7 "learning" keys (#30 passive spawn auto-claim, #96 learned danger zones).
+// Expanded at the very END of ConfigKey_t (after BOT_CAMERA_CONFIG_KEYS), so no existing
+// ordinal moves. Read by the .so (bot_learning.cpp). Needs a FULL rebuild.
+// ============================================================================
+#define BOT_LEARNING_CONFIG_KEYS(INT, BOOL, STR)                                     \
+	/* #30: a real player dwelling in a spawn group's area claims it implicitly */      \
+	BOOL(BOT_SPAWN_AUTOCLAIM_ENABLE,       "botSpawnAutoClaimEnable",       true)       \
+	/* #30: seconds inside the area before the claim (fighting there: 20 s) */          \
+	INT (BOT_SPAWN_AUTOCLAIM_DWELL_SEC,    "botSpawnAutoClaimDwellSec",     60)         \
+	/* #30: no move and no attack for this long releases the claim */                   \
+	INT (BOT_SPAWN_AUTOCLAIM_IDLE_SEC,     "botSpawnAutoClaimIdleSec",      180)        \
+	/* #30: seconds out of the area before the claim releases */                        \
+	INT (BOT_SPAWN_AUTOCLAIM_LEAVE_SEC,    "botSpawnAutoClaimLeaveSec",     60)         \
+	/* #96: record + honour learned hunt-danger zones */                                \
+	BOOL(BOT_DANGER_ZONES_ENABLE,          "botDangerZonesEnable",          true)       \
+	/* #96: HP% at or below which a hunting bot records a near-death */                 \
+	INT (BOT_DANGER_NEAR_DEATH_PCT,        "botDangerNearDeathPct",         20)
+
+// ============================================================================
 // Every BOT_* table above, for code that must visit ALL bot keys regardless of where each table
 // is expanded in ConfigKey_t (the order here is NOT the enum order and must not be used as one).
 //
@@ -773,4 +833,7 @@
 	BOT_SHRINE_CONFIG_KEYS(INT, BOOL, STR)              \
 	BOT_AUDIT_CONFIG_KEYS(INT, BOOL, STR)               \
 	BOT_PVP_SANITY_CONFIG_KEYS(INT, BOOL, STR)          \
-	BOT_CAMERA_CONFIG_KEYS(INT, BOOL, STR)
+	BOT_CAMERA_CONFIG_KEYS(INT, BOOL, STR)              \
+	BOT_SPAR_CONFIG_KEYS(INT, BOOL, STR)                \
+	BOT_REALISM_CONFIG_KEYS(INT, BOOL, STR)             \
+	BOT_LEARNING_CONFIG_KEYS(INT, BOOL, STR)

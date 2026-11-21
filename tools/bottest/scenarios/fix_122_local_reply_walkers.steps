@@ -10,6 +10,14 @@
 # rare, one per player say at most). bot_chat_emissions stays dark by design: botTelemetryEnabled
 # defaults false since 2026-06-22 (faaf0d585); that is config, not breakage.
 # PRECONDITION: normal AI, 500 bots, one harness player (p1). Same 15 lines as baseline B7, part 1.
+# Responders are STAGED, not left to luck (b7i_r2 failed with bots_in_range=0 on a build with no chat
+# change): $S1..$S3 are woken and teleported onto the player's depot tile before part 1, re-staged
+# half-way (an IDLE bot rerolls and walks off). Part 2 tests the walker path on purpose: the player
+# steps onto the depot~boat street, and each of $W1..$W3 (LOW-level, so it walks slowly through
+# earshot) is woken, teleported to the route node 32338,32222,7 (thais|depot~boat wp5) and sent on a
+# boat trip (`travel venore` -> TRAVELING walk_to_boat), then greeted BY NAME two seconds later. The
+# addressed walker is chosen over any standing bot, so the "queued ... st=TRAVELING" expect checks the
+# #122 walker path, not the crowd. Vars: S1 S2 S3 W1 W2 W3 (any awake-able bots; wave.py sets them).
 # Acceptance (single run): >= 3 local replies said (baseline 0/15; spec chance 60 %, 60 s per-bot
 # cooldown, so ~5-9 is the expectation when responders exist), AND >= 1 reply queued to a TRAVELING
 # (walking) bot -- the new path, so the run cannot pass on standing bots alone (bl_b7b: 3 of the 5
@@ -23,7 +31,14 @@
 @p1 goto 32369,32215,7 range=2 stuck=15 timeout=120
 @p1 goto 32351,32215,7 range=2 stuck=15 timeout=120
 @p1 goto 32347,32218,7 range=2 stuck=15 timeout=120
-@p1 hold 20
+# --- stage the standing responders on the player's depot tile
+@srv cmd "$S1" wake
+@srv cmd "$S2" wake
+@srv cmd "$S3" wake
+@srv cmd "$S1" teleport 32347,32218,7 expect="teleported"
+@srv cmd "$S2" teleport 32347,32218,7 expect="teleported"
+@srv cmd "$S3" teleport 32347,32218,7 expect="teleported"
+@p1 hold 10
 @p1 say hi
 @p1 hold 15
 @p1 say hello
@@ -38,6 +53,11 @@
 @p1 hold 15
 @p1 say wts demon shield
 @p1 hold 15
+# re-stage: idle bots reroll and walk off
+@srv cmd "$S1" teleport 32347,32218,7
+@srv cmd "$S2" teleport 32347,32218,7
+@srv cmd "$S3" teleport 32347,32218,7
+@p1 hold 3
 @p1 say yo
 @p1 hold 15
 @p1 say price of soft boots?
@@ -54,9 +74,31 @@
 @p1 hold 15
 @p1 say hello there
 @p1 hold 15
-@srv audit mark "F122 end"
 @srv expect src=srv k=chat_reply msg~="\] said bot=.* pm=0 " min=3 within=420
+# --- part 2: walkers. The player stands on the depot~boat street; each walker is placed on the route
+# and sent to the boat, then greeted by first name while it walks past.
+@p1 goto 32336,32219,7 range=1 stuck=15 timeout=60
+@p1 hold 8
+@srv cmd "$W1" wake
+@srv cmd "$W1" teleport 32338,32222,7 expect="teleported"
+@srv cmd "$W1" travel venore expect="traveling to"
+@p1 hold 2
+@p1 say hi $W1_FIRST how are you
+@p1 hold 10
+@srv cmd "$W2" wake
+@srv cmd "$W2" teleport 32338,32222,7 expect="teleported"
+@srv cmd "$W2" travel venore expect="traveling to"
+@p1 hold 2
+@p1 say hi $W2_FIRST how are you
+@p1 hold 10
+@srv cmd "$W3" wake
+@srv cmd "$W3" teleport 32338,32222,7 expect="teleported"
+@srv cmd "$W3" travel venore expect="traveling to"
+@p1 hold 2
+@p1 say hi $W3_FIRST how are you
+@p1 hold 10
+@srv audit mark "F122 end"
 @srv expect src=srv k=chat_reply msg~="\] queued bot=.* st=TRAVELING" min=1 within=420
-@srv expect-none src=srv msg~="Lua Script Error" within=420
+@srv expect-none src=srv msg~="Lua Script Error" within=600
 @srv audit off
 @p1 logout

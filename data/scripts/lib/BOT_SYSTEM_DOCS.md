@@ -165,6 +165,37 @@ ambushes targets:
   victim; `botGangMaxLevelRatio` (default 4) — no raid when the strongest seated
   attacker is already that many times the victim's level (`[GANG] declined RAID ...
   reason=outleveled`).
+- Squad tactics (#28): one **FOCUS** target per raid, held 2.2–3.8 s; a switch needs a
+  candidate 30+ HP points lower, a stalled (no new HP low 10 s) or unreachable focus, or a
+  defender hitting a squad mate (`[GANG] focus from= to= reason=`). **TRAP_TARGET** when the
+  focus has ≤3 open escape tiles or ≤60 % HP: members wall escape tiles nearest-first on a 1.5 s
+  per-bot cooldown and druids paralyze it (`[GANG] trap`, `[GANG] trap-wall`). **DISENGAGE** when
+  the focus is unseen 20 s, the session passes 5 min, or half the squad is below 35 % HP / 8 %
+  mana (`[GANG] disengage reason=unseen|session_time|squad_low`).
+
+**Exiva chase** (#28/#103, every PK, not only raids) — once the target is off screen the bot
+stops reading its position: it casts the real `exiva "name"`, turns the bearing into a direction
+and walks 4–10 steps (a couple more legs on the same bearing while the 12 s per-bot cooldown
+runs; 250 ms gap across all bots). An 18 s window, re-opened by every exiva that did not lose
+ground, and 3 strikes end the chase; another floor within 100 sqm means a floor change
+(`[GANG] exiva lost|cast|reacquired|giveup`).
+
+**Fruitless fights and death loops** (#99, `bot_recovery.cpp`) — a fight (hunt, self-defense or
+PK) in which no target reached a new HP low and nothing died for 60 s is dropped
+(`[FRUITLESS] drop`): a monster type is avoided for 30 min and the hunt bot leaves along a
+patrol waypoint the pathfinder accepts (`[FRUITLESS] leave`); a PvP fight walks back to the
+pre-combat tile. Two deaths to the same creature type within 30 min avoid that type for 30 min,
+mark both death spots (hunts patrolling within 10 sqm are skipped, live and virtual) and abort
+the hunt the bot would resume after the respawn (`[DEATHLOOP] record|avoid|abort`).
+
+**Sparring** (#87, `bot_spar.cpp`, `botSpar*`) — two awake bots of a similar level
+(`botSparLevelBandPct`) within 12 sqm of a depot POI form a real party (partners never skull
+each other: `Player::onAttackedCreature` skips the skull/pz block for `isPartner`), trade capped
+hits (4–8 % of max HP, never below 26 %) until one is below 30 %, heal each other back to 90 %
+(exura sio, UH rune, else a UH-sized heal) and disband. Never a real player; per-bot cooldown,
+no rematch for `botSparRematchSec`, at most `botSparMaxPairs` pairs. Hibernated bots simulate it
+as a longer depot dwell. `/cavebot <bot> spar <otherBot>|stop` forces one (the only way for
+pinned bots). Journal: `[SPAR] start|stop|heal|end` (+`virtual=1`).
 
 **Force-logout on connection loss** (`forceLogoutOnConnectionLoss`) — a
 **server-wide** policy (applies to real players too, not just bots): when a
@@ -923,6 +954,67 @@ Two things that bite:
 | `/house "<name>" owner` | claim a free bot house (no house + can pay rent) |
 | `/house "<name>" sub-owner` | become sub-owner of a bot house |
 | `/house "<name>" release` | release a house you claimed (bot reclaims it) |
+
+### Bot command verbs (PM, party chat, control panel) — #91
+Players command bots the way playerbots users do: **PM a bot**, or type in the **party channel**, or
+click the **OTClient panel**. One engine layer (`bot_verb.cpp`) serves all three.
+
+`[#w|#p|#g] [@address[,address]] verb [args]` — e.g. `@ek stay`, `@ed heal me`, `@100-300 follow`,
+`@Sir_Bob invite`, `#p who`. In the party channel a message whose first word is not a verb is ordinary
+chat; with no `@address` every bot in your party answers.
+
+| Address | Matches |
+|---|---|
+| `@all` | everyone (the default) |
+| `@ek` `@knight` `@tank` / `@ed` `@druid` `@heal` / `@ms` `@sorc` / `@rp` `@paladin` / `@dps` | by vocation (dps = ms + rp) |
+| `@100-200`, `@500+`, `@250` | by level band |
+| `@Name`, `@First_Last`, `@Fir` | by name (`_` = space; first name or a 3+ letter prefix) |
+
+Replies go back where the command came from (PM → whisper, party → party channel, panel → panel);
+`#w` / `#p` / `#g` override (guild falls back to whisper if the bot is not in your guild).
+
+**Security ladder** — every refusal says why:
+
+| Rung | Who | Verbs |
+|---|---|---|
+| stranger | anyone | `help` `who` `stats` `lfg` `wts` `invite`/`join` `leave` `summon <ek,ed..> [min,max] [teleport]` |
+| party | a member of the bot's party | `follow` `stay` `attack [name\|my target]` `flee` `come` `heal [me\|name]` `hunt` `loot` `status` |
+| leader | the human who leads the bot's party | `kick` |
+| gm | gamemaster account or access group | `cmd <any /cavebot subcommand>` |
+
+A red/black-skulled player is refused everything ("I don't deal with murderers"). Rate limit: 6
+commands per 10 s per player, then one "slow down".
+
+What the orders do (human-led party members only; erased when the bot leaves the party):
+`stay` holds the tile and fights only what it can reach from it; `follow` clears every order;
+`flee` (20 s) / `come` (8 s) drop the target and stick to the leader; `attack` forces a target
+(without a name: your current target; players only if you are fighting them); `hunt` attacks any
+monster within 6 tiles of the leader when the leader has no target; `heal` (druids) casts exura sio
+now and keeps you first in line for 30 s; `loot` is refused by design (bots never loot while a human
+is in their party); `invite` sends you a real party invite the bot then accepts; `summon` is
+`/party`.
+
+Journal: `[BOT_VERB] from=… src=pm|party|opcode verb=… target=… level=… need=… result=… reply=…`
+for every verb, and `[BOT_VERB] apply bot=… mode=… tgt=… leaderDist=…` (≤ 1 per 5 s per bot) when an
+order changes what a bot does.
+
+### OTClient control panel (`otclient/modules/game_botcontrol`) — #26 / #94
+A floating **Bot Control** window (top-menu bot icon, or `Ctrl+Shift+B`): the bots in your party and
+the bots on your screen with level, HP/MP, AI state and current order; buttons Follow, Stay, Attack
+(my target), Flee, Heal me, Hunt, Invite, Kick, Summon; a reply line. "Only the selected bot" sends
+the order to the selected row instead of `@all`.
+
+**Install** (OTClient 4.2 / OTClient Redemption): copy the folder `otclient/modules/game_botcontrol`
+into the client's `mods/` directory (so `mods/game_botcontrol/game_botcontrol.otmod` exists) and
+restart the client. It autoloads; nothing else to configure.
+
+**Protocol** — ExtendedOpcode **120** (`data/scripts/creaturescripts/bot/bot_control_opcode.lua`).
+Client → server is plain text: `list`, or `cmd <verb text>` (exactly what you would type in party
+chat). Server → client is JSON: `{"t":"list","me","inParty","leader","bots":[{name,guid,cid,voc,
+level,hp,mp,state,order,target,party,dist}]}` and `{"t":"res","verb","ok","text","replies":[{bot,ok,
+msg,result}]}`. The server enables extended opcodes at login for every OTClient
+(`ProtocolGame::sendClientLoginPreamble`), so the stock Tibia client never reaches this handler; the
+security ladder is enforced server-side, never by the panel.
 
 ---
 

@@ -35,6 +35,12 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		}
 	}
 
+	// #91 bot command verbs: `verb <pm:<guid>|party|opcode> <speakerCreatureId> <text>` (bot_verb.cpp).
+	// Any botName: the party-channel hook (game.cpp) and the opcode handler (Lua) both pass "_global".
+	if (command.rfind("verb ", 0) == 0) {
+		return verbCommand(command.substr(5));
+	}
+
 	// Global commands — don't need a specific bot
 	// An explicit operator choice wins over debug isolation's restore latch (#124 review 3): turning
 	// isolation off must not overturn a `schedule on|off` given while it was on.
@@ -1295,6 +1301,14 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// #153. Listed here in the SAME commit as the table (see the NOTE above).
 		out += "[BOT_CFG] BOT_CAMERA keys (src/config/bot_config_keys.hpp)\n";
 		BOT_CAMERA_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
+		out += "[BOT_CFG] BOT_SPAR keys (src/config/bot_config_keys.hpp)\n";
+		BOT_SPAR_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
+		// #102 realism (batch 7). Listed here in the SAME commit as the table (see the NOTE above).
+		out += "[BOT_CFG] BOT_REALISM keys (src/config/bot_config_keys.hpp)\n";
+		BOT_REALISM_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
+		// Batch 7 (#30, #96). Listed here in the SAME commit as the table (see the NOTE above).
+		out += "[BOT_CFG] BOT_LEARNING keys (src/config/bot_config_keys.hpp)\n";
+		BOT_LEARNING_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
 #undef BOT_CFG_DUMP_INT
 #undef BOT_CFG_DUMP_BOOL
 #undef BOT_CFG_DUMP_STR
@@ -1454,6 +1468,58 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			}
 		}
 		return fmt::format("Bot '{}' not found.", targetName);
+	}
+
+	// ---- realism: #102 bed sleepers + disguised-rescue counters (batch 7) ----
+	if (command == "realism") {
+		return realismStatus();
+	}
+
+	// ---- danger: #96 learned hunt-danger zones (list|add|clear|check) ----
+	if (command == "danger" || command.rfind("danger ", 0) == 0) {
+		return dangerCommand(command.size() > 7 ? command.substr(7) : "");
+	}
+
+	// ---- spawngroups: #29 physical spawn groups + how many bots hunt each one now ----
+	// multiHeld counts groups that more than one bot is hunting right now: after #29 the
+	// pick paths keep it at 0 (party members share the leader's script and count once).
+	if (command == "spawngroups") {
+		std::map<std::string, std::vector<const HuntScript*>> groups;
+		std::unordered_map<uint32_t, const HuntScript*> byId;
+		for (const auto& s : huntScripts_) {
+			byId[s.id] = &s;
+			if (!s.isQuest && s.scriptCategory == "hunt") {
+				groups[s.spawnGroup].push_back(&s);
+			}
+		}
+		std::map<std::string, std::set<uint32_t>> hunters; // group -> distinct holders
+		for (const auto& b : bots_) {
+			if (b.huntScriptId == 0) {
+				continue;
+			}
+			auto it = byId.find(b.huntScriptId);
+			if (it == byId.end() || it->second->isQuest || it->second->scriptCategory != "hunt") {
+				continue;
+			}
+			hunters[it->second->spawnGroup].insert(b.partyHuntId != 0 ? b.partyHuntId | 0x80000000u : b.guid);
+		}
+		size_t merged = 0, multiHeld = 0, held = 0;
+		std::string lines;
+		for (const auto& [key, members] : groups) {
+			const size_t h = hunters.count(key) ? hunters[key].size() : 0;
+			held += h > 0 ? 1 : 0;
+			multiHeld += h > 1 ? 1 : 0;
+			if (members.size() < 2 && h < 2) {
+				continue;
+			}
+			merged += members.size() >= 2 ? 1 : 0;
+			lines += fmt::format("  {} n={} hunters={}:", key, members.size(), h);
+			for (const auto* s : members) {
+				lines += fmt::format(" {}'{}'", s->id, s->name);
+			}
+			lines += "\n";
+		}
+		return fmt::format("[SPAWN_GROUPS] groups={} merged={} held={} multiHeld={}\n{}", groups.size(), merged, held, multiHeld, lines);
 	}
 
 	// ---- whohunts <search>: Show which bot has a hunt script reserved ----
@@ -1693,7 +1759,8 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			std::string sn;
 			for (const auto& s : huntScripts_) { if (s.id == it->second.scriptId) { sn = s.name; break; } }
 			int minLeft = static_cast<int>((it->second.expiresAt - now) / 60000) + 1;
-			out += fmt::format("  script {} '{}' -> {} (~{} min left)\n", it->second.scriptId, sn, it->second.ownerName, minLeft);
+			out += fmt::format("  script {} '{}' -> {} (~{} min left){} group={}\n", it->second.scriptId, sn, it->second.ownerName, minLeft,
+				it->second.autoClaim ? " auto" : "", it->second.spawnGroup);
 			n++;
 			++it;
 		}
@@ -1922,7 +1989,18 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			// walk-in path read past the end of an EMPTY vector — undefined behaviour that
 			// reported a formed party with no members and then segfaulted the server.
 			if (teleportAssembly) {
+				// A hibernated pick has no Player until it is woken, and activateBotForParty
+				// refuses a bot without one: summon 'ek,ed ... teleport' then formed the party
+				// with only one of the two (#91). Wake it first, as the walk-in path does.
+				if (auto hIt = guidToIndex_.find(sel.guid); hIt != guidToIndex_.end() && bots_[hIt->second].hibernated) {
+					s_forceWakeGuid = sel.guid;   // bypass the density band for an explicit party wake
+					if (!wakeBot(sel.guid)) {
+						g_logger().info("[PARTY_CREATE] wake failed guid={} voc={}", sel.guid, vocShortName(sel.vocId));
+						continue;
+					}
+				}
 				if (!activateBotForParty(sel.guid, leaderCreatureId, openTiles[i])) {
+					g_logger().info("[PARTY_CREATE] activate failed guid={} voc={}", sel.guid, vocShortName(sel.vocId));
 					continue;
 				}
 			} else if (!prepareWalkInMember(sel.guid)) {
@@ -2045,6 +2123,21 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 	for (auto& bot : bots_) {
 		if (bot.name != botName) continue;
 		if (bot.hibernated) {
+			// #27: a bed sleeper IS hibernated (it lies on the bed with no body in the world), so its
+			// bed status / bed timer / bed wake must be served here, before the generic "wake first".
+			if (command == "bed status") {
+				return bedSleepStatus(bot);
+			}
+			if (command == "bed wake") {
+				return forceBedWake(bot);
+			}
+			if (command.rfind("bed timer ", 0) == 0) {
+				auto it = bedSleepers_.find(bot.guid);
+				if (it == bedSleepers_.end()) return "not sleeping";
+				const int32_t secs = std::max(0, std::atoi(command.c_str() + 10));
+				it->second.untilMs = OTSYS_TIME() + secs * 1000LL;
+				return fmt::format("bed timer: wakes in {}s", secs);
+			}
 			// PERF HARNESS: `probe on` is allowed through for the same reason partyhunt is --
 			// it handles the wake itself. Waking here and BREAKING (rather than returning) hands
 			// the now-awake bot to the normal per-bot handler below, which does the actual
@@ -2150,6 +2243,37 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// specific interior (one with a known dummy, one with a known locker) gets tested — and
 		// houseinfo is what confirms the harvest actually saw that furniture, including whether a
 		// house's own door is one the planner treats as key-locked.
+		// ---- #27 bed [<houseId>] | bed wake | bed status ----
+		// `bed` is `house bed`: walk into a bot house on this floor with a free bed and lie down
+		// in it (then hibernate on it). `bed wake` ends the sleep now; `bed status` reports it.
+		if (command == "bed status") {
+			return bedSleepStatus(bot);
+		}
+		if (command == "bed wake") {
+			return forceBedWake(bot);
+		}
+		// `bed timer <secs>`: the sleeper wakes through its own timer in <secs> (the natural path).
+		if (command.rfind("bed timer ", 0) == 0) {
+			auto it = bedSleepers_.find(bot.guid);
+			if (it == bedSleepers_.end()) return "not sleeping";
+			const int32_t secs = std::max(0, std::atoi(command.c_str() + 10));
+			it->second.untilMs = OTSYS_TIME() + secs * 1000LL;
+			return fmt::format("bed timer: wakes in {}s", secs);
+		}
+		if (command == "bed" || command.rfind("bed ", 0) == 0) {
+			const std::string id = command.size() > 4 ? command.substr(4) : "";
+			return forceHouseVisit(bot, id.empty() ? "bed" : id + " bed");
+		}
+		// ---- #104 rescue: run the engine's teleport-home rescue now, through the disguise gate ----
+		if (command == "rescue") {
+			if (bot.hibernated || !bot.getPlayer()) return "rescue: bot is hibernated (no body to move)";
+			const Position before = bot.getPlayer()->getPosition();
+			teleportToTemple(bot, /*rescue=*/true);
+			const bool deferred = pendingRescues_.count(bot.guid) > 0;
+			const Position after = bot.getPlayer()->getPosition();
+			return fmt::format("rescue: {} from=({},{},{}) now=({},{},{})", deferred ? "deferred (watched)" : "done",
+				before.x, before.y, before.z, after.x, after.y, after.z);
+		}
 		if (command == "house" || command.rfind("house ", 0) == 0) {
 			const size_t sp = command.find(' ');
 			return forceHouseVisit(bot, sp == std::string::npos ? "" : command.substr(sp + 1));
@@ -2442,6 +2566,63 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		}
 
 		// ---- stop: Halt everything ----
+		// ---- huntabort <scriptId> [n]: #97 test verb. Starts hunt <scriptId> and aborts it with a
+		// COUNTED reason, n times (default 1), each from the tile the bot stands on now: the bot is
+		// put back on that tile before every round, so the rounds are "the same tile" exactly and
+		// the scenario does not race the bot's walking. Whatever the abort's recovery route set
+		// up is released between rounds (same teardown as `stop`). The breaker's own reset (temple
+		// teleport) on the 5th consecutive abort is left in place.
+		if (command.rfind("huntabort", 0) == 0) {
+			auto player = bot.getPlayer();
+			if (!player) return fmt::format("Bot '{}' is not awake.", botName);
+			std::istringstream in(command.substr(9));
+			uint32_t sid = 0, rounds = 1;
+			in >> sid >> rounds;
+			const HuntScript* script = nullptr;
+			for (const auto& s : huntScripts_) {
+				if (s.id == sid) { script = &s; break; }
+			}
+			if (!script || script->isQuest) return fmt::format("Usage: huntabort <hunt scriptId> [rounds] (script {} not found or a quest)", sid);
+			if (bot.huntScriptId != 0) return fmt::format("Bot '{}' is hunting {}; stop it first.", botName, bot.huntScriptId);
+			const Position origin = player->getPosition();
+			std::string streaks;
+			for (uint32_t r = 0; r < rounds && r < 20; r++) {
+				if (player->getPosition() != origin) {
+					BOT_TELEPORT(player, origin, true);
+					bot.currentPos = origin;
+				}
+				activeHunts_[script->id] = bot.guid;
+				if (!script->spawnGroup.empty()) activeSpawnGroups_[script->spawnGroup] = bot.guid;
+				bot.huntScriptId = script->id;
+				bot.huntTownId = script->townId;
+				bot.huntStartTime = OTSYS_TIME();
+				bot.huntPhase = HuntPhase::PREPARING;
+				bot.state = BotAIState::HUNTING;
+				const bool hadStreak = s_huntAbortLoop.count(bot.guid) > 0;
+				abortHunt(bot, "forced abort");
+				auto it = s_huntAbortLoop.find(bot.guid);
+				const uint32_t streak = it == s_huntAbortLoop.end() ? 0 : it->second.count;
+				streaks += fmt::format(" {}", streak == 0 && hadStreak ? std::string("RESET") : std::to_string(streak));
+				if (bot.huntScriptId != 0) { // recovery route re-reserved a script: release it
+					activeHunts_.erase(bot.huntScriptId);
+					for (auto& s : huntScripts_) {
+						if (s.id == bot.huntScriptId && !s.spawnGroup.empty()) { activeSpawnGroups_.erase(s.spawnGroup); break; }
+					}
+					bot.huntScriptId = 0;
+				}
+				bot.recoveryWaypoints.clear();
+				bot.isRecoveryRoute = false;
+				bot.followingCityRoute = false;
+				bot.cityRouteWps.clear();
+				bot.cityRouteIdx = 0;
+				bot.hasWalkTarget = false;
+				bot.state = BotAIState::IDLE;
+			}
+			bot.stopCooldownUntil = OTSYS_TIME() + 300000; // stand still like `stop`
+			const Position now = player->getPosition();
+			return fmt::format("huntabort {} x{} for '{}': streak after each round:{} | origin=({},{},{}) now=({},{},{})",
+				sid, rounds, botName, streaks, origin.x, origin.y, origin.z, now.x, now.y, now.z);
+		}
 		if (command == "stop") {
 			if (bot.huntScriptId > 0) {
 				// Release hunt reservation directly — don't use abortHunt which tries recovery routes
@@ -2462,7 +2643,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				castLogError(bot, fmt::format("HUNT STOP: script={} kills={}", bot.huntScriptId, bot.huntKillCount));
 				trackNavEvent("hunt_abort", bot, bot.huntScriptId, getHuntScriptName(bot, huntScripts_),
 					bot.townId, "hunt", fmt::format("reason=stop command kills={}", bot.huntKillCount));
-				teleportToTemple(bot);
+				teleportToTemple(bot, /*rescue=*/false);
 				bot.huntScriptId = 0;
 				bot.huntKillCount = 0;
 				bot.huntIgnoredMonsters.clear();
@@ -2873,7 +3054,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 							existBot.huntScriptId, existBot.huntKillCount, botName));
 						trackNavEvent("hunt_abort", existBot, existBot.huntScriptId, getHuntScriptName(existBot, huntScripts_),
 							existBot.townId, "hunt", fmt::format("reason=evicted for {} kills={}", botName, existBot.huntKillCount));
-						teleportToTemple(existBot);
+						teleportToTemple(existBot, /*rescue=*/false);
 						existBot.huntScriptId = 0;
 						existBot.huntKillCount = 0;
 						existBot.huntIgnoredMonsters.clear();
@@ -2902,7 +3083,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 							existBot.huntScriptId, existBot.huntKillCount, botName));
 						trackNavEvent("hunt_abort", existBot, existBot.huntScriptId, getHuntScriptName(existBot, huntScripts_),
 							existBot.townId, "hunt", fmt::format("reason=spawnGroup evicted for {} kills={}", botName, existBot.huntKillCount));
-						teleportToTemple(existBot);
+						teleportToTemple(existBot, /*rescue=*/false);
 						existBot.huntScriptId = 0;
 						existBot.huntKillCount = 0;
 						existBot.huntIgnoredMonsters.clear();
@@ -3230,6 +3411,12 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		}
 
 		// ---- teleport x,y,z: Instant teleport ----
+		// ---- huntpatrol <scriptId> / testdie: #30 + #96 test drivers (bot_learning.cpp) ----
+		if (command.rfind("huntpatrol ", 0) == 0 || command == "testdie" || command.rfind("aipause ", 0) == 0
+		    || command.rfind("testmonster ", 0) == 0 || command.rfind("testhp ", 0) == 0) {
+			return learningBotCommand(bot, player, botName, command);
+		}
+
 		if (command.size() > 9 && command.substr(0, 9) == "teleport ") {
 			auto args = command.substr(9);
 			int x, y, z;
@@ -3601,6 +3788,24 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				return fmt::format("Item {} not found on tile", itemId);
 			}
 			return "Usage: removeitem <id> <x,y,z>";
+		}
+
+		// ---- spar <otherBot> | spar stop: #87 force a spar between two awake bots (pinned bots
+		// spar ONLY this way). Both must be engine bots; the rest of the pairing rules apply except
+		// the cooldown / rematch / chance / depot-radius gates. ----
+		if (command == "spar stop") {
+			if (!isSparring(bot.guid)) return fmt::format("Bot '{}' is not sparring.", botName);
+			endSpar(bot.guid, "command");
+			return fmt::format("Spar of '{}' ended.", botName);
+		}
+		if (command.size() > 5 && command.substr(0, 5) == "spar ") {
+			std::string otherName = command.substr(5);
+			BotState* otherPtr = nullptr;
+			for (auto& b : bots_) {
+				if (strcasecmp(b.name.c_str(), otherName.c_str()) == 0) { otherPtr = &b; break; }
+			}
+			if (!otherPtr) return fmt::format("Bot '{}' not found (spar partners must be bots).", otherName);
+			return startSpar(bot, *otherPtr, /*forced=*/true);
 		}
 
 		// ---- pk <target name>: Force PK attack ----

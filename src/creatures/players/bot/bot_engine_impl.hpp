@@ -1231,6 +1231,11 @@ char gridSymbolForTile(const Position& pos, Tile* tile) {
 // resolves botCountTeleport() against `this`, so it is usable only inside BotEngine members —
 // which is exactly where every teleport call site lives.
 #define BOT_TELEPORT(...) (botCountTeleport(__func__), g_game().internalTeleport(__VA_ARGS__))
+// #104: a RESCUE teleport (the bot is lost, stuck or behind, and the engine jumps it). Same call
+// shape as BOT_TELEPORT plus the BotState, but routed through rescueTeleport(), which hides the jump
+// from any real player or cast viewer. Non-rescue jumps (admin commands, wake placement, boats, the
+// Adventurer's Stone, reload) stay on BOT_TELEPORT.
+#define BOT_RESCUE_TELEPORT(bot, player, dest, push) rescueTeleport((bot), (player), (dest), (push), __func__)
 
 // ---- Hunt/nav helpers shared across engine modules (Phase 11) ----
 // Stateless: constants and pure functions, so the per-TU copy is harmless.
@@ -1594,6 +1599,17 @@ inline std::unordered_map<uint32_t, int64_t> s_leavingPhaseStart;               
 
 inline std::unordered_map<uint32_t, int64_t> s_huntTravelStart;                  // guid → TRAVEL_TO phase start time
 
+// #97 abort-loop breaker: consecutive hunt aborts from (about) the same tile, per bot.
+// Reset by a completed hunt (finishResupplyAndReroll / virtual resupply done) or by an
+// abort somewhere else. HUNT_ABORT_LOOP_LIMIT-th abort in a row -> town reset + [ABORTLOOP].
+struct BotHuntAbortLoop {
+	Position pos;
+	uint32_t count = 0;
+};
+inline std::unordered_map<uint32_t, BotHuntAbortLoop> s_huntAbortLoop; // guid -> last abort tile + streak
+inline constexpr uint32_t HUNT_ABORT_LOOP_LIMIT = 5;
+inline constexpr int32_t HUNT_ABORT_LOOP_RADIUS = 2; // "same tile", tolerant of a 1-2 tile drift
+
 // Every activate/wake path seeds tickCounter with a per-bot phase instead of 0, so bots that
 // activate or wake in the same batch don't share tick phase and collide on the same %TICK_FREQ_*
 // dispatcher windows forever. 30 = lcm(2,3,5,10) covers all TICK_FREQ_* cadences; *7 decorrelates
@@ -1605,6 +1621,40 @@ inline uint32_t botInitialTickPhase(uint32_t guid) {
 }
 
 inline std::unordered_map<uint32_t, uint32_t> s_partyLeaderId;       // guid → leader creature ID
+
+// #91/#92: a standing order a player gave a human-led party member by verb (bot_verb.cpp).
+// FOLLOW is the default party behaviour (no entry needed). STAY holds the tile and fights only
+// what it can reach without walking. FLEE disengages and sticks to the leader until fleeUntilMs
+// (`come` is a short FLEE). HUNT widens the target pick to any monster near the leader.
+// attackTargetId (any mode but FLEE) is a forced target; healTargetId gives a druid's exura sio
+// to one player until healUntilMs. Erased in exitPartyMode, so it never outlives the party.
+enum class PartyOrderMode : uint8_t { FOLLOW = 0, STAY = 1, FLEE = 2, HUNT = 3 };
+struct PartyOrder {
+	PartyOrderMode mode = PartyOrderMode::FOLLOW;
+	Position stayPos;
+	uint32_t attackTargetId = 0;
+	uint32_t healTargetId = 0;
+	int64_t healUntilMs = 0;
+	int64_t fleeUntilMs = 0;
+	uint32_t issuerId = 0;
+	int64_t lastApplyLogMs = 0;
+};
+inline std::unordered_map<uint32_t, PartyOrder> s_partyOrder;          // guid → order
+inline const char* partyOrderModeName(PartyOrderMode m) {
+	switch (m) {
+		case PartyOrderMode::STAY: return "stay";
+		case PartyOrderMode::FLEE: return "flee";
+		case PartyOrderMode::HUNT: return "hunt";
+		default: return "follow";
+	}
+}
+// Per-speaker verb rate limit (creature id → recent command times).
+struct VerbRate {
+	std::vector<int64_t> times;
+	int64_t lastListMs = 0;
+	int64_t warnedUntilMs = 0;
+};
+inline std::unordered_map<uint32_t, VerbRate> s_verbRate;
 
 // BOT_PARTY_INVITE_RENDEZVOUS: PARTY_MAX_BOTS (was 4) is GONE. A player may conscript as many
 // bots as they ask for — some quests need a full team. Human-led members are also exempt from
@@ -2766,8 +2816,18 @@ inline std::shared_ptr<Creature> pickEkTankTarget(const std::shared_ptr<Player>&
 	// Primary: the leader's explicit target, same floor as the member, within leash of the leader.
 	// PLAYERS AND BOTS QUALIFY, not just monsters: if the leader targets or attacks someone, the
 	// party joins in. Previously this was monster-only, so a leader in PvP fought alone.
+	// #91 follow-up: a PLAYER qualifies only when it is fighting our side (defence, never aggression).
+	auto hostileToUs = [&](const std::shared_ptr<Creature>& c) -> bool {
+		const auto cp = c ? c->getPlayer() : nullptr;
+		if (!cp) return true; // monsters are always fair game
+		const auto at = cp->getAttackedCreature();
+		if (!at) return false;
+		if (at == humanLeader || at == ekPlayer) return true;
+		const auto ap = at->getPlayer();
+		return ap && (humanLeader->isPartner(ap) || ekPlayer->isPartner(ap));
+	};
 	if (auto ht = humanLeader->getAttackedCreature();
-		ht && ht->getHealth() > 0 && !ht->isRemoved() && !friendlyFire(ht)
+		ht && ht->getHealth() > 0 && !ht->isRemoved() && !friendlyFire(ht) && hostileToUs(ht)
 		&& ht->getPosition().z == ekPos.z && cheb(ht->getPosition(), humanPos) <= PARTY_LEASH_DIST) {
 		return ht;
 	}
@@ -3489,6 +3549,15 @@ struct GangSession {
 	uint8_t openMode = 0;       // 0 = nuke-first, 1 = engage-then-trap (50/50, per session)
 	int64_t nukeHoldUntil = 0;  // mode 1: suppress nukes until this time (trap first)
 	std::unordered_map<uint64_t, GangTileClaim> wallClaims; // packedPos -> who walls it
+	// #28 squad tactics. focusId = the ONE creature every member hits (starts as targetId, the
+	// raid victim); held until focusLockUntil so the squad commits instead of oscillating.
+	uint32_t focusId = 0;
+	int64_t focusLockUntil = 0;
+	int64_t focusLastHpDropMs = 0; // last time the focus reached a new HP low (stall detect)
+	int32_t focusLowHp = 0;
+	int64_t startedMs = 0;   // first member tick after the burst (DISENGAGE session clock)
+	int64_t lastSeenMs = 0;  // last time ANY member had the focus on screen
+	bool trapLogged = false; // TRAP_TARGET entered (logged once per session)
 };
 
 inline std::unordered_map<uint32_t, GangSession> s_gangSessions; // sessionId -> session
@@ -3599,6 +3668,94 @@ inline void leaveGang(uint32_t guid) {
 	}
 	s_gangByGuid.erase(si);
 }
+
+// ============================================================================
+// #28 / #103 exiva probe chase of a lost PvP target (bot_combat.cpp pvpHandleLostTarget).
+// Off screen the bot no longer reads the target's exact position: it casts the real exiva, turns
+// the bearing into a direction, and walks 4-10 steps that way.
+// ============================================================================
+struct ExivaChase {
+	int64_t lostSinceMs = 0;    // 0 = target on screen
+	int64_t lastProgressMs = 0; // window anchor: lost time, then every exiva that did not lose ground
+	int64_t nextCastMs = 0;     // per-bot cooldown
+	int32_t lastDist = -1;      // distance at the previous exiva
+	int32_t strikes = 0;        // exivas that lost ground / could not walk
+	int32_t legs = 0;           // extra legs walked on the last bearing while the cooldown runs
+	int8_t bearingDx = 0, bearingDy = 0;
+};
+inline std::unordered_map<uint32_t, ExivaChase> s_exivaChase; // guid -> chase state
+inline int64_t s_exivaLastGlobalMs = 0;                       // 250 ms population-wide gap
+inline constexpr int64_t EXIVA_BOT_COOLDOWN_MS = 12000;
+inline constexpr int64_t EXIVA_GLOBAL_GAP_MS = 250;
+inline constexpr int64_t EXIVA_WINDOW_MS = 18000;
+inline constexpr int32_t EXIVA_MAX_STRIKES = 3;
+inline constexpr int32_t EXIVA_FLOOR_RANGE = 100; // exiva "close" band: cross-floor chase allowed
+inline constexpr int32_t EXIVA_MAX_LEGS = 2;      // bearing legs walked between two exivas
+inline constexpr int64_t GANG_UNSEEN_DISENGAGE_MS = 20000;
+inline constexpr int64_t GANG_SESSION_MAX_MS = 5 * 60 * 1000;
+inline constexpr int64_t GANG_TRAP_WALL_CD_MS = 1500;
+
+// ============================================================================
+// #87 sparring (bot_spar.cpp). Two awake bots of a similar level outside a depot form a REAL
+// party (partners never skull each other on this server: Player::onAttackedCreature skips the
+// skull/pz block for isPartner), trade capped hits until one is below 30 %, heal each other back,
+// then disband. Never a real player, never lethal.
+// ============================================================================
+enum class SparPhase : uint8_t { APPROACH, FIGHT, HEAL };
+struct SparPair {
+	uint32_t id = 0;
+	uint32_t a = 0, b = 0;      // guids; a = party leader (created the party)
+	SparPhase phase = SparPhase::APPROACH;
+	int64_t startMs = 0;
+	int64_t phaseMs = 0;
+	bool partyOurs = false;     // we created the Canary party -> we disband it
+	bool forced = false;        // /cavebot spar
+	int32_t hits = 0, heals = 0;
+	int32_t minHpPctA = 100, minHpPctB = 100;
+};
+inline std::unordered_map<uint32_t, SparPair> s_sparPairs;   // pairId -> pair
+inline std::unordered_map<uint32_t, uint32_t> s_sparByGuid;  // guid -> pairId
+inline std::unordered_map<uint32_t, int64_t> s_sparNextHit;  // guid -> next hit / heal time
+inline std::unordered_map<uint32_t, int64_t> s_sparCooldown; // guid -> no new spar before
+inline std::unordered_map<uint64_t, int64_t> s_sparRematch;  // packed pair -> no rematch before
+inline std::unordered_map<uint32_t, int64_t> s_sparNextScan; // guid -> next pairing scan
+inline uint32_t s_sparSeq = 1;
+inline uint64_t sparPairKey(uint32_t x, uint32_t y) {
+	return x < y ? (static_cast<uint64_t>(x) << 32) | y : (static_cast<uint64_t>(y) << 32) | x;
+}
+inline bool isSparring(uint32_t guid) { return s_sparByGuid.count(guid) > 0; }
+inline constexpr int32_t SPAR_STOP_HP_PCT = 30;    // fight until one is below this
+inline constexpr int32_t SPAR_FLOOR_HP_PCT = 26;   // a hit never takes anyone below this
+inline constexpr int32_t SPAR_HEALED_HP_PCT = 90;  // heal phase ends when both are back here
+inline constexpr int64_t SPAR_FIGHT_MAX_MS = 180000;
+inline constexpr int64_t SPAR_HEAL_MAX_MS = 60000;
+inline constexpr int64_t SPAR_APPROACH_MAX_MS = 20000;
+inline constexpr int32_t SPAR_DEPOT_RADIUS = 12;   // "outside the depot": within this of a depot POI
+inline constexpr int32_t SPAR_PARTNER_RADIUS = 7;
+inline constexpr int64_t SPAR_SCAN_MS = 60000; // one pairing roll per bot per minute
+
+// ============================================================================
+// #99 recovery: fruitless fights + death loops (bot_recovery.cpp). Bot-local, engine-lifetime.
+// ============================================================================
+struct FightProgress {
+	int64_t engagedSinceMs = 0;
+	int64_t lastProgressMs = 0;  // last new HP low on any target, or a kill
+	int64_t lastEngagedMs = 0;   // last tick the bot had a target (fight-over detect)
+	std::unordered_map<uint32_t, int32_t> lowHp; // creature id -> lowest HP seen
+};
+inline std::unordered_map<uint32_t, FightProgress> s_fightProgress; // guid -> current fight
+struct BotDeathRecord { std::string type; Position pos; int64_t ms = 0; };
+inline std::unordered_map<uint32_t, std::vector<BotDeathRecord>> s_botDeaths; // guid -> recent deaths
+// guid -> lowercase creature type -> avoid until (death loop / fruitless fight, 30 min each)
+inline std::unordered_map<uint32_t, std::unordered_map<std::string, int64_t>> s_avoidType;
+struct AvoidSpot { Position pos; int64_t untilMs = 0; };
+inline std::unordered_map<uint32_t, std::vector<AvoidSpot>> s_avoidSpots; // guid -> death spots
+inline std::unordered_set<uint32_t> s_deathLoopAbortPending; // abort the resumed hunt after respawn
+inline constexpr int64_t FRUITLESS_MS = 60000;
+inline constexpr int64_t FIGHT_OVER_GAP_MS = 8000;
+inline constexpr int64_t DEATH_LOOP_WINDOW_MS = 30 * 60 * 1000;
+inline constexpr int64_t DEATH_AVOID_MS = 30 * 60 * 1000;
+inline constexpr int32_t DEATH_SPOT_RADIUS = 10;
 
 // --------------------------------------------------------------------------
 // Shared engine-wide definitions (Phase 11 module split)
@@ -4232,6 +4389,9 @@ inline constexpr uint16_t ROPE_ITEM_ID = 3003;
 inline std::unordered_map<uint32_t, int64_t> s_idleStartTime;     // guid → when bot entered IDLE
 
 // s_travelStartTime already defined at line ~755
+// #107 test driver `aipause on`: guids whose 200 ms heal/supply/support slot is held too, so a
+// test can kill the bot (aiPaused alone keeps healing on purpose: death pause, spawn safety).
+inline std::unordered_set<uint32_t> s_testNoDefense;
 inline std::unordered_map<uint32_t, int64_t> s_partyStartTime;    // guid → when bot joined party
 
 class BotEngine : public IBotEngine {
@@ -4651,7 +4811,18 @@ private:
 	const ResolvedSpell* selectAoeSpell(BotState& bot, Direction& outBestDir,
 		int32_t* outBestCount = nullptr, double* outBestScore = nullptr,
 		const std::shared_ptr<Creature>& pvpTarget = nullptr);
-	void castAoeSpell(BotState& bot, const ResolvedSpell* spell, Direction bestDir);
+	// Returns false when nothing was cast (no target, mana budget, or a protected bystander in the area).
+	bool castAoeSpell(BotState& bot, const ResolvedSpell* spell, Direction bestDir, uint32_t spareId = 0);
+	// #91 follow-up: a bot in a party led by a REAL player never starts PvP. It may hit a player only in
+	// defence: one that is attacking it, its leader or a partner. true = blocked ([PVP_SKIP] logged).
+	bool humanPartyPvpBlocked(BotState& bot, const std::shared_ptr<Creature>& target, const char* site);
+	// true when the bot is in (or walking in to) a party led by a real player. Works hibernated too.
+	bool inHumanLedParty(const BotState& bot) const;
+	// #91 follow-up: would this AoE (spell+dir, or a rune at runeCenter) clip a player it must spare?
+	// anyPlayer=true (PvP target): every player except self/spareId counts. false (monster target):
+	// only real players and, in a human-led party, the bot's own partners. Returns the victim's name.
+	std::string aoeClipsBystander(BotState& bot, const ResolvedSpell* spell, Direction dir,
+		const Position* runeCenter, uint32_t spareId, bool anyPlayer, const char* site);
 
 	// Rune system — uses real server RuneSpell::executeUse() path
 	std::shared_ptr<Item> findRuneInBackpack(const std::shared_ptr<Player>& player, uint16_t runeItemId);
@@ -4719,6 +4890,7 @@ private:
 		const Position& threatPos);
 	void endHunt(BotState& bot);
 	void abortHunt(BotState& bot, const std::string& reason);
+	bool noteHuntAbortLoop(BotState& bot, const Position& pos, const std::string& reason, bool isVirtual); // #97
 	void finishResupplyAndReroll(BotState& bot);
 	bool findNearestRecoveryRoute(BotState& bot);
 
@@ -5478,7 +5650,7 @@ private:
 	// destination the planner can route to.
 	// SHRINE is appended, never inserted: HouseMode is persisted nowhere, but it IS logged as an
 	// integer by [HOUSE_VISIT_START], so renumbering would silently reinterpret old journal lines.
-	enum class HouseMode : uint8_t { IDLE = 0, HIRELING = 1, DUMMY = 2, LOCKER = 3, SHRINE = 4 };
+	enum class HouseMode : uint8_t { IDLE = 0, HIRELING = 1, DUMMY = 2, LOCKER = 3, SHRINE = 4, BED = 5 };
 	enum class HousePhase : uint8_t { APPROACH = 0, IDLE = 1 };
 	struct HouseRun {
 		uint32_t houseId = 0;
@@ -5500,6 +5672,55 @@ private:
 	// True once the bot is physically inside the house it claimed — the gate for arming the settle
 	// deadline, for the displacement guard, and for the exact-tile arrival test.
 	bool isInsideRunHouse(const BotState& bot) const;
+
+	// ---- #102 realism (batch 7), bot_realism.cpp + bot_house.cpp ----
+	// #27 bed sleep. A bot in bedSleepers_ lies in that bed: awake for a moment while the stock
+	// BedItem::sleep walk event puts it on the bed, then hibernated (tickRealismTimers) and frozen
+	// -- virtualTick skips it and wakeBot refuses it -- until untilMs, when it wakes ON the bed.
+	struct BedSleep {
+		Position bedPos;
+		uint32_t houseId = 0;
+		int64_t sinceMs = 0;
+		int64_t untilMs = 0;
+		int64_t retryMs = 0;
+	};
+	std::unordered_map<uint32_t, BedSleep> bedSleepers_;
+	bool bedWakeForce_ = false;  // set around the engine's own timed/forced wake of a sleeper
+	int64_t nextBedTickMs_ = 0;
+	std::vector<std::pair<Position, Position>> houseBedSpots(const std::vector<Position>& idleTiles,
+		uint32_t houseId, uint32_t guid) const;
+	bool startBedSleep(BotState& bot, const Position& bedPos, uint32_t houseId, const char* why);
+	bool bedSleepRefusesWake(const BotState& bot) const;
+	bool bedWakePlacement(const BotState& bot, Position& placeAt) const;
+	void finishBedWake(BotState& bot, const std::shared_ptr<Player>& player, const char* path);
+	std::string bedSleepStatus(const BotState& bot) const;
+	std::string forceBedWake(BotState& bot);
+	// #104 disguised rescues. rescueTeleport() is the one gate the rescue sites use (via
+	// BOT_RESCUE_TELEPORT); a deferred one lives in pendingRescues_ and owns the bot's tick
+	// (tickPendingRescue) until it can jump unseen, or the deadline passes.
+	struct PendingRescue {
+		Position dest;
+		bool push = true;
+		const char* site = "";
+		int64_t startMs = 0;
+		int64_t deadlineMs = 0;
+		int64_t nextWalkMs = 0;
+		int32_t walks = 0;
+	};
+	std::unordered_map<uint32_t, PendingRescue> pendingRescues_;
+	struct RescueStats {
+		uint64_t direct = 0, offscreen = 0, deferred = 0, hidden = 0, fallback = 0, dropped = 0;
+	} rescueStats_;
+	ReturnValue rescueTeleport(BotState& bot, const std::shared_ptr<Player>& player, const Position& dest,
+		bool push, const char* site);
+	void executePendingRescue(BotState& bot, const std::shared_ptr<Player>& player, const Position& landing,
+		const char* how);
+	bool tickPendingRescue(BotState& bot);
+	bool rescueWatched(const Position& p, const Position& self, bool selfIsCamera) const;
+	void flushPendingRescue(BotState& bot, const char* why);
+	void dropPendingRescue(uint32_t guid, const char* why);
+	void tickRealismTimers();
+	std::string realismStatus() const;
 
 	// Claims. Separate from s_approachReservations on purpose: that table is released by
 	// clearPlannerWalk, which fires on ordinary POI arrival — exactly when a house visitor still
@@ -5912,7 +6133,7 @@ private:
 	bool pvpRunPendingWall(BotState& bot);                             // two-tick: place wall on vacated tile
 
 	// Teleport helpers
-	void teleportToTemple(BotState& bot);
+	void teleportToTemple(BotState& bot, bool rescue = true);
 
 	// Cast: turn the bot's broadcast on and re-assert its cast_broadcasters row (async). The ONE
 	// switch every path that brings a bot back into the world goes through -- activateBot, wakeBot
@@ -6034,6 +6255,24 @@ private:
 		const std::shared_ptr<Party>& party);
 	void declinePartyInvite(BotState& bot, const std::shared_ptr<Party>& party, const char* reason);
 
+	// ---- #91 bot command verbs (bot_verb.cpp) ----
+	// `_global verb <pm:<guid>|party|opcode> <speakerCreatureId> <text>` entry; the PM hook
+	// (onPlayerPmToBot) calls handleVerb directly. Returns true when `text` was a verb (handled,
+	// even if refused), false when it is ordinary chat. jsonOut (opcode only) gets the result.
+	std::string verbCommand(const std::string& args);
+	bool handleVerb(const std::string& src, const std::shared_ptr<Player>& speaker, uint32_t pmBotGuid,
+		const std::string& text, std::string* jsonOut);
+	std::string verbStateJson(const std::shared_ptr<Player>& speaker);
+	// Applied each doPartyFollow tick before the default targeting; true = the order consumed the tick.
+	bool applyPartyOrder(BotState& bot, const std::shared_ptr<Player>& player, const std::shared_ptr<Party>& party,
+		const std::shared_ptr<Player>& leader, int32_t leaderDist,
+		const std::function<void(const std::shared_ptr<Creature>&)>& syncSecure);
+	// The human-led follow walk (teleport on z-change / too far, else path to the leader).
+	void partyFollowMove(BotState& bot, const std::shared_ptr<Player>& player,
+		const std::shared_ptr<Player>& leader, int32_t leaderDist, int32_t followDist);
+	bool tryHealFriend(BotState& bot, const std::shared_ptr<Player>& player,
+		const std::shared_ptr<Player>& target, const char* why, std::string* failReason);
+
 	// Assembly supervisor + enrolment (bot_party.cpp).
 	void tickPartyAssembly(int64_t nowMs);
 	// Drives an assembling member's walk from INSIDE its own per-tick pass, mirroring
@@ -6134,6 +6373,29 @@ private:
 	void maintainGangBox(BotState& bot);      // surround + escape-tile magic walls (from doPKAttack)
 	void gangParalyzeIfFleeing(BotState& bot); // ED-only paralyze on a fleeing victim (from doPKAttack)
 	bool pvpPlaceWallAt(BotState& bot, const Position& tile); // place a magic wall on a specific tile
+	// #28 squad tactics + #103 exiva chase (bot_combat.cpp).
+	bool pvpHandleLostTarget(BotState& bot, const std::shared_ptr<Player>& player, const std::shared_ptr<Creature>& target);
+	bool gangTickSession(BotState& bot); // DISENGAGE + FOCUS election; true = bot left the raid
+	uint32_t gangFocusOf(uint32_t guid) const;
+	// #87 sparring (bot_spar.cpp).
+	bool handleSpar(BotState& bot);             // true = consumed the tick
+	void checkSparStart(BotState& bot);         // pairing scan from doIdle / doDwelling
+	std::string startSpar(BotState& a, BotState& b, bool forced);
+	void endSpar(uint32_t guid, const char* reason);
+	bool sparEligible(const BotState& bot, bool forced) const;
+	bool sparNearDepot(const BotState& bot) const;
+	void sparHit(BotState& bot, const std::shared_ptr<Player>& self, const std::shared_ptr<Player>& other, SparPair& pr);
+	bool sparHeal(BotState& bot, const std::shared_ptr<Player>& self, const std::shared_ptr<Player>& other, SparPair& pr);
+	bool sparSuppressesHealing(const BotState& bot) const;
+	void virtualMaybeSpar(BotState& bot); // virtual twin: a depot dwell rolls a simulated spar
+	// #99 recovery (bot_recovery.cpp).
+	bool fightProgressTick(BotState& bot, const std::shared_ptr<Creature>& target, const char* kind);
+	void fightProgressKill(uint32_t guid);
+	void fightProgressReset(uint32_t guid);
+	void recordBotDeath(BotState& bot, const std::shared_ptr<Player>& player);
+	bool isCreatureTypeAvoided(uint32_t guid, const std::string& name) const;
+	bool isScriptDeathAvoided(uint32_t guid, const HuntScript& s) const;
+	void avoidCreatureType(uint32_t guid, const std::string& name, int64_t untilMs, const char* why);
 
 	// State persistence helpers (used by saveAllStates, restoreAllStates, activateBot, forceDeactivateBot)
 	void saveSingleBotState(const BotState& bot);
@@ -6336,6 +6598,7 @@ private:
 		uint32_t scriptId = 0;
 		std::string spawnGroup;     // may be empty
 		int64_t expiresAt = 0;      // absolute OTSYS_TIME() ms deadline
+		bool autoClaim = false;     // #30: written by the passive detector, released by it too
 	};
 	std::unordered_map<uint32_t, PlayerSpawnClaim> playerClaims_;   // scriptId -> claim
 	std::unordered_map<uint32_t, int64_t> lastClaimByGuid_;         // ownerGuid -> last successful claim ms (anti-grief)
@@ -6390,6 +6653,87 @@ private:
 	static constexpr int64_t PLAYER_CLAIM_COOLDOWN_MS = 30 * 1000LL;   // anti-grief: min gap between a player's claims
 	static constexpr int32_t PLAYER_CLAIM_MAX_DIST = 8;               // Chebyshev tiles from a patrol wp to count as "inside" the spawn
 	static constexpr int32_t PLAYER_CLAIM_AMBIGUITY_SLACK = 4;        // runner-up within this many tiles of best => ambiguous
+
+	// ---- #30 passive spawn auto-claim (bot_learning.cpp) ----
+	// A real player who stays inside a #29 spawn group's area (or fights its monsters there) for
+	// botSpawnAutoClaimDwellSec claims that group implicitly, exactly as if they had typed
+	// `/cavebot claim`: every pick path already honours playerClaims_ by spawnGroup, live and
+	// virtual. The claim is released when the player leaves the area, goes idle, enters a town or
+	// logs out. Bots already hunting the group are sent out (LEAVING), not teleported.
+	struct AutoClaimTrack {
+		std::string group;          // spawn group currently being dwelt in
+		uint32_t scriptId = 0;      // nearest script of that group (the claim row's key)
+		int64_t enteredAt = 0;      // first sweep seen inside `group`
+		int64_t lastInArea = 0;     // last sweep seen inside `group`
+		int64_t lastActive = 0;     // last sweep the player moved or attacked
+		int64_t fightMs = 0;        // accumulated time spent attacking a monster in the area
+		Position lastPos;
+		bool claimed = false;
+		bool setEngaged = false;    // we (not the command) wrote playerHuntEngaged_
+		std::string playerName;     // for the release line: the player may be offline by then
+	};
+	std::unordered_map<uint32_t, AutoClaimTrack> autoClaimTrack_;   // real player guid -> track
+	int64_t autoClaimLastSweep_ = 0;
+	static constexpr int64_t AUTOCLAIM_SWEEP_MS = 5000;
+	static constexpr int64_t AUTOCLAIM_FIGHT_SHORTCUT_MS = 20000;   // fighting there claims after 20 s
+	static constexpr int64_t AUTOCLAIM_ROW_TTL_MS = 5 * 60 * 1000LL; // refreshed every sweep; lapses if the sweep stops
+	void tickLearning(int64_t nowMs);   // one call site in tick(): #30 sweep + #96 report
+	void tickSpawnAutoClaim(int64_t nowMs);
+	int32_t distToSpawnGroup(const Position& pos, const std::string& group) const;
+	uint32_t autoClaimEvictGroup(const std::string& group, const std::string& owner);
+	void autoClaimRelease(uint32_t guid, AutoClaimTrack& t, const char* reason);
+
+	// ---- #96 learned hunt-danger zones (bot_learning.cpp) ----
+	// A bot death (radius 14, +45) or near-death (radius 12, +20) inside a hunt records a zone keyed
+	// by script; score caps at 100 and a zone lives 7 days after its last event. Persisted async to
+	// `bot_hunt_danger` (database/bots/25_bot_hunt_danger.sql). Consumers: solo target choice and
+	// patrol-waypoint choice skip zones (waypoints live + virtual), and a script with established
+	// danger (max score >= 60 or deaths >= 2) becomes party-only: solo picks skip it and party
+	// formation tries it first (live + virtual).
+	struct DangerZone {
+		uint32_t scriptId = 0;
+		Position center;
+		int32_t radius = 12;
+		uint32_t minParty = 2;      // a party at least this big ignores the zone
+		int32_t score = 0;
+		uint32_t deaths = 0;
+		uint32_t nearDeaths = 0;
+		int64_t lastSeenS = 0;      // unix seconds
+		int64_t expiresAtS = 0;     // unix seconds
+	};
+	struct DangerSummary {
+		int32_t maxScore = 0;
+		uint32_t deaths = 0;
+		uint32_t nearDeaths = 0;
+		uint32_t zones = 0;
+	};
+	std::vector<DangerZone> dangerZones_;
+	std::unordered_map<uint32_t, DangerSummary> dangerSummary_;      // scriptId -> unexpired totals
+	std::unordered_set<uint32_t> dangerNearDisarmed_;                // guid: near-death fired, waiting for HP to recover
+	mutable uint32_t dangerAvoidTarget_ = 0, dangerAvoidWp_ = 0, dangerAvoidPick_ = 0, dangerConvert_ = 0;
+	int64_t dangerLastReport_ = 0;
+	static constexpr int32_t DANGER_DEATH_RADIUS = 14;
+	static constexpr int32_t DANGER_NEAR_RADIUS = 12;
+	static constexpr int32_t DANGER_DEATH_SCORE = 45;
+	static constexpr int32_t DANGER_NEAR_SCORE = 20;
+	static constexpr int32_t DANGER_SCORE_CAP = 100;
+	static constexpr int64_t DANGER_TTL_S = 7LL * 24 * 3600;
+	static constexpr int32_t DANGER_PARTY_SCORE = 60;
+	static constexpr uint32_t DANGER_PARTY_DEATHS = 2;
+	static constexpr int32_t DANGER_NEAR_REARM_PCT = 50;
+	void loadDangerZones();
+	void rebuildDangerSummary();
+	void recordDanger(const BotState& bot, uint32_t scriptId, const Position& pos, bool death, const char* why);
+	uint32_t dangerPartySize(const BotState& bot) const;
+	bool dangerAvoids(const BotState& bot, uint32_t scriptId, const Position& pos) const;
+	bool dangerWantsParty(uint32_t scriptId) const;
+	void dangerNoteHealth(BotState& bot, const std::shared_ptr<Player>& player);
+	void dangerNoteDeath(BotState& bot, const std::shared_ptr<Player>& player);
+	size_t dangerSkipPatrolIdx(const BotState& bot, const HuntScript& s, size_t idx, bool isVirtual);
+	void dangerPreferForParty(std::vector<const HuntScript*>& eligible, const char* path);
+	void dangerReport(int64_t nowMs);
+	std::string dangerCommand(const std::string& args);
+	std::string learningBotCommand(BotState& bot, const std::shared_ptr<Player>& player, const std::string& botName, const std::string& command);
 
 	// Area matrix table (parsed from data/scripts/lib/register_spells.lua at engine init).
 	// Used by isInAreaMatrix for exact-source-of-truth AOE hit prediction.
@@ -6479,6 +6823,10 @@ private:
 		// BOT_ACTIVITY_PCT TABLE C. Replaced the single houseSubActivityPct dial.
 		int32_t houseIdlePct = 26, houseHirelingPct = 20, houseDummyPct = 20, houseLockerPct = 19;
 		int32_t houseShrinePct = 15;
+		// #102 realism (batch 7): bed sleep (#27) and disguised rescues (#104).
+		int32_t bedSleepPct = 10, bedSleepMinSec = 900, bedSleepMaxSec = 3600;
+		bool rescueDisguise = true;
+		int32_t rescueMaxDeferSec = 90;
 		int32_t fishPct = 0;
 		int32_t fishMaxDist = 150, fishMaxDz = 7;
 		int32_t fishCastIntervalMinMs = 1000, fishCastIntervalMaxMs = 2000;
@@ -6599,8 +6947,32 @@ private:
 		int32_t pmReplyChancePct = 90;   // PM reply chance
 		int32_t replyDelayMinMs = 1500, replyDelayMaxMs = 5000;  // human typing delay
 		int32_t replyCooldownPerBotMs = 60000;
+		// #105 conversation ownership. One bot owns a player's conversation from its first answer
+		// until the player has been silent for convoOwnerWindowMs; within that window no other bot
+		// answers him (unless he addresses another bot by name, which hands the thread over). The
+		// owner answers follow-ups at convoReplyChancePct after a convoReplyCooldownMs floor instead
+		// of the 60 s per-bot reply cooldown, and falls silent after convoExchangeCap answers. A
+		// line is answered only when its intent score reaches replyIntentGate (keyword 2-3,
+		// addressed by name +3, inside an owned thread +1). convoAntiRepeat = how many of the
+		// owner's last lines it will not say again in the same thread.
+		int32_t convoOwnerWindowMs = 30000;
+		int32_t convoExchangeCap = 10;
+		int32_t convoReplyChancePct = 90;
+		int32_t convoReplyCooldownMs = 4000;
+		int32_t replyIntentGate = 3;
+		int32_t convoAntiRepeat = 5;
 	};
 	ChatCfg chatCfg_;
+
+	// #105: one record per real player (creature id) who has spoken near bots recently.
+	struct Conversation {
+		uint32_t ownerGuid = 0;     // the bot that owns the thread (0 = none yet)
+		int64_t lastSayMs = 0;      // the player's last line near bots (window anchor)
+		int32_t exchanges = 0;      // answers the owner has given in this thread
+		bool ended = false;         // cap reached or the player said bye: owner stays silent
+		std::vector<size_t> recentLines; // hashes of the owner's last lines (anti-repeat)
+	};
+	std::unordered_map<uint32_t, Conversation> conversations_;
 
 
 	// BOT_PVP_REALISM: tunables for realistic PvP movement + field-rune play.
@@ -6757,6 +7129,7 @@ private:
 	std::string reloadBotData();
 	uint32_t loadMetaCsv();
 	void loadHuntScriptsCsv(std::vector<HuntScript>& out, uint32_t nextScriptId);
+	void assignPhysicalSpawnGroups(std::vector<HuntScript>& scripts); // #29 bot_data.cpp
 	// Rebuilt after the commit, from the world / live registries / config.
 	void rebuildDerivedTables();
 	void rebuildFidgetItemPool();
@@ -6823,6 +7196,8 @@ private:
 	static constexpr int32_t HEAL_LONG_CD_THRESHOLD_S = 30;  // spells with cd > this are emergency-only (e.g. exura gran ico @ 600s)
 	static constexpr int32_t HEAL_COOLDOWN = 1;
 	static constexpr int32_t PK_TIMEOUT = 60;
+	static constexpr int64_t PK_MAX_DURATION_MIN_MS = 60000;  // #172 per-fight cap, lower bound
+	static constexpr int64_t PK_MAX_DURATION_MAX_MS = 360000; // #172 per-fight cap, upper bound
 	// Absolute ceiling for an ordinary hunt, measured from huntStartTime. Raised 3600 -> 5400 on
 	// 2026-08-05; see the "Absolute hunt ceilings" table above bot_engine_impl.hpp's quest budgets
 	// for the arithmetic that forces this value. Two independent reasons:

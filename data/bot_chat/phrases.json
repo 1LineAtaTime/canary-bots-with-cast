@@ -13,7 +13,13 @@
    "pmReplyChancePct": 90,
    "replyDelayMinMs": 1500,
    "replyDelayMaxMs": 5000,
-   "replyCooldownPerBotMs": 60000
+   "replyCooldownPerBotMs": 60000,
+   "convoOwnerWindowMs": 30000,
+   "convoExchangeCap": 10,
+   "convoReplyChancePct": 90,
+   "convoReplyCooldownMs": 4000,
+   "replyIntentGate": 3,
+   "convoAntiRepeat": 5
   }
  },
  "idle": {

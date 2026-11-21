@@ -1,0 +1,110 @@
+# SCENARIO: b7_control_verbs   SEED: 0   CAMERAS: none   BOTCFG: auto
+# #91/#92/#93: player command verbs by PM and party chat, the security ladder, the GM rung.
+# p1 = Harness One (party leader, normal player), p2 = Harness Two (stranger), p3 = GOD (gamemaster).
+# Run: runner.py b7_control_verbs.steps --profile lxc-port-dropin --var GODPW=<god pw>
+# Server truth: always-on journal lines
+#   [BOT_VERB] from='<speaker>' src=<pm|party|opcode> verb=<v> target='<bot>' level=<have> need=<need> result=<r> reply='<text>'
+#   [BOT_VERB] apply bot='<bot>' mode=<stay|flee|attack|hunt|heal> tgt='<name>' pos=(..) leaderDist=<n>   (<= 1 per 5 s per bot)
+# Acceptance: every verb gets a [BOT_VERB] line with the expected result AND a reply the client sees;
+#   stay holds (leaderDist >= 4 after the leader walks 7 tiles away), follow closes the gap again
+#   (leaderDist <= 3 on the next stay), heal casts exura sio on the leader, attack takes the leader's
+#   target, flee disengages; a stranger's party verb is refused politely; a GM may use the GM-only cmd.
+#   No bot AoE may clip the level-8 leader or the stranger: in a4 the ED's UE on the rat killed both,
+#   disconnecting them, so flee/kick/rate_limit never ran. Checked by the expect-none on 'You are dead'.
+@srv audit kinds cmd,state
+@srv audit on expect="enabled=on"
+@srv audit mark "B7C verbs start"
+@p1 login
+@p1 goto 32369,32215,7 range=2 stuck=15 timeout=120
+@p2 login char="Harness Two"
+@p2 goto 32366,32215,7 range=2 stuck=15 timeout=120
+@p2 wait-see any-bot timeout=180 as=S1
+# --- stranger rung: a stranger verb is answered, a party verb is refused with the reason
+@p2 pm $S1 who
+@srv expect src=srv msg~="\[BOT_VERB\] from='Harness Two' src=pm verb=who target='$S1' level=stranger need=stranger result=ok" min=1 within=60
+@p2 pm $S1 follow
+@srv expect src=srv msg~="\[BOT_VERB\] from='Harness Two' src=pm verb=follow target='$S1' level=stranger need=party result=denied:not_in_party" min=1 within=60
+@srv expect src=cli:p2 k=see_talk text~="not in my party" min=1 within=60
+@p2 pm $S1 cmd status
+@srv expect src=srv msg~="\[BOT_VERB\] from='Harness Two' src=pm verb=cmd .*result=denied:gm_only" min=1 within=60
+# --- p1 summons an EK + ED party (the player-facing /cavebot party create, through the summon verb)
+@p1 pm $S1 summon ek,ed [1,3000] teleport
+@srv expect src=srv msg~="\[BOT_VERB\] from='Harness One' src=pm verb=summon .*result=ok" min=1 within=60
+@p1 hold 8
+# wait until BOTH summoned bots joined (each party verb below expects 2 replies)
+@p1 botpanel open expect="visible=true"
+@p1 botpanel dump expect="2 bot\(s\) in party" timeout=90
+@p1 botpanel close expect="visible=false"
+@p1 party say @all status
+@srv expect src=srv msg~="\[BOT_VERB\] from='Harness One' src=party verb=status .*level=leader need=party result=ok" min=2 within=30
+@srv expect src=cli:p1 k=see_talk text~="order follow" min=1 within=30
+# --- stay: the bots hold while the leader walks 7 tiles west
+@p1 party say @all stay
+@srv expect src=srv msg~="src=party verb=stay .*result=ok reply='Holding here.'" min=2 within=30
+@p1 goto 32362,32215,7 range=0 stuck=15 timeout=60
+@p1 hold 8
+@srv expect src=srv msg~="\[BOT_VERB\] apply bot='.*' mode=stay .*leaderDist=([4-9]|1[0-9])" min=2 within=12
+# --- follow: the order is cleared and the bots come to the leader again
+@p1 party say @all follow
+@srv expect src=srv msg~="src=party verb=follow .*result=ok" min=2 within=30
+@p1 hold 12
+@p1 party say @all stay
+@p1 hold 6
+@srv expect src=srv msg~="\[BOT_VERB\] apply bot='.*' mode=stay .*leaderDist=[0-3] stayAt" min=1 within=8
+@p1 party say follow
+@srv expect src=srv msg~="src=party verb=follow .*result=ok" min=2 within=30
+# --- heal: the druid casts exura sio on the leader (only the druid is addressed)
+@p1 party say @ed heal me
+@srv expect src=srv msg~="src=party verb=heal .*level=leader need=party result=ok:(cast|queued)" min=1 within=30
+@srv expect src=srv msg~="\[BOT_VERB\] apply bot='.*' mode=heal tgt='Harness One'" min=1 within=40
+# --- attack: the GM summons a passive 1500-HP Modified Gnarlhound 4 tiles off the leader; the leader
+# does NOT target it, so nothing engages it until the order names it. (Members mirror the leader's own
+# target and hit monsters adjacent to the leader, even under `stay` -- by design: stay holds position,
+# it does not stop fighting in range. r1/r2: the deer the leader clicked died before the order arrived.)
+@p3 login char=GOD acct=@god pw=$GODPW
+@p3 say /goto Harness One
+@p3 hold 3
+@p3 goto 32366,32215,7 range=0 stuck=10 timeout=30
+@p3 say /m modified gnarlhound
+@p1 wait-see "Modified Gnarlhound" timeout=30 as=RAT
+@p1 party say @all attack modified gnarlhound
+@srv expect src=srv msg~="src=party verb=attack .*result=ok:Modified Gnarlhound" min=1 within=30
+@srv expect src=srv msg~="\[BOT_VERB\] apply bot='.*' mode=attack tgt='Modified Gnarlhound'" min=1 within=30
+@p1 attack stop
+# --- flee: disengage and stick to the leader
+@p1 party say @all flee
+@srv expect src=srv msg~="src=party verb=flee .*result=ok" min=2 within=30
+@srv expect src=srv msg~="\[BOT_VERB\] apply bot='.*' mode=flee" min=1 within=15
+# --- GM rung: the GM-only verb works for the gamemaster on any bot
+@p3 pm $S1 cmd status
+@srv expect src=srv msg~="\[BOT_VERB\] from='GOD' src=pm verb=cmd target='$S1' level=gm need=gm result=ok" min=1 within=60
+@p3 pm $S1 stats
+@srv expect src=srv msg~="\[BOT_VERB\] from='GOD' src=pm verb=stats .*level=gm .*result=ok" min=1 within=60
+# --- leader-only kick: the EK leaves the party
+@p1 party say @ek kick
+@srv expect src=srv msg~="src=party verb=kick .*level=leader need=leader result=ok:left" min=1 within=30
+# --- rate limit (verb limiter: 6 commands per 10 s per speaker) through the panel OPCODE path. Chat
+# reaches it only when spaced: every PM and party line goes through Canary's maxMessageBuffer=4 mute
+# (+1 per 1.5 s), so a back-to-back chat burst is muted after ~4 (r1). The opcode path has no mute.
+@p1 botpanel open expect="visible=true"
+@p1 botpanel dump expect="bot\(s\) in party" timeout=30
+@p1 botpanel click follow
+@p1 botpanel click follow
+@p1 botpanel click follow
+@p1 botpanel click follow
+@p1 botpanel click follow
+@p1 botpanel click follow
+@p1 botpanel click follow
+@p1 botpanel click follow
+@srv expect src=srv msg~="from='Harness One' src=opcode verb=follow .*result=rate_limited" min=1 within=30
+@p1 botpanel close expect="visible=false"
+@srv audit mark "B7C verbs end"
+# #91 follow-up: a member of a human-led party never opens PvP, so it never carries a skull
+@srv expect-none src=srv msg~="\[PARTY_SKULL\]" within=900
+@srv expect-none src=cli:p1 k=see_msg text~="You are dead" within=900
+@srv expect-none src=cli:p2 k=see_msg text~="You are dead" within=900
+@srv expect-none src=srv msg~="Lua Script Error" within=900
+@p1 party leave
+@p3 logout
+@p2 logout
+@p1 logout

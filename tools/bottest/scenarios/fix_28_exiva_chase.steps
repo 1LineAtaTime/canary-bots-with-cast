@@ -1,0 +1,25 @@
+# SCENARIO: fix_28_exiva_chase   SEED: 0   CAMERAS: none   BOTCFG: auto
+# Fix #28 / #103 - exiva probe chase of a lost PvP target. Once the target is off screen the bot
+# stops reading its position: it casts the REAL exiva (find_person.lua), turns the bearing into a
+# direction and walks 4-10 steps that way (12 s per-bot cooldown, 250 ms population gap, 18 s
+# window, 3 strikes, cross-floor within 100 sqm -> floor change).
+# Run: runner.py fix_28_exiva_chase.steps --var A=<attacker bot> --var V=<victim bot, >= 2x A's level>
+# PRECONDITION: debug mode with both pinned (`/cavebot reload debug,$A,$V`). V outlevels A 2x so its
+# own self-defense mostly ignores A (83 %), which keeps V where the test puts it.
+# The victim "walks off-screen" by teleport: 18 sqm west of A, on a Thais street (B5 tile).
+# Acceptance: [GANG] exiva lost, then >= 1 "exiva cast" with band=close bearing=-1,* and steps>0
+# (A walked toward V), then "exiva reacquired" (A closed in) - all for A, within 60 s.
+@srv cmd "$A" stop
+@srv cmd "$V" stop
+@srv cmd "$A" teleport 32369,32215,7
+@srv cmd "$V" teleport 32365,32214,7
+@srv sleep 3
+@srv cmd "$A" pk $V expect="attacking player"
+@srv sleep 3
+@srv cmd "$V" teleport 32351,32215,7
+@srv expect src=srv msg~="\[GANG\] exiva lost guid=[0-9]+ name='$A' target='$V'" min=1 wait=15
+@srv expect src=srv msg~="\[GANG\] exiva cast guid=[0-9]+ name='$A' target='$V' band=close bearing=-1,-?[01] dist=[0-9]+ steps=([4-9]|10)" min=1 wait=20
+@srv expect src=srv msg~="\[GANG\] exiva reacquired guid=[0-9]+ name='$A' target='$V'" min=1 wait=45
+@srv cmd "$A" stop
+@srv cmd "$V" stop
+@srv expect-none src=srv msg~="Lua Script Error"

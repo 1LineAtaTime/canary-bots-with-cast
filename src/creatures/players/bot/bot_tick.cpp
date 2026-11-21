@@ -677,6 +677,9 @@ void BotEngine::virtualTick(int64_t budget_ms) {
 
 		lastMs = now;
 
+		// #27: a bot asleep in a bed is frozen where it lies -- no virtual hunt, walk or travel.
+		if (!bedSleepers_.empty() && bedSleepers_.count(bot.guid) > 0) continue;
+
 		switch (bot.state) {
 			case BotAIState::IDLE:
 				virtualAdvanceIdle(bot, per_bot_elapsed);
@@ -855,6 +858,7 @@ void BotEngine::virtualAdvanceIdle(BotState &bot, int64_t elapsed_ms) {
 		    : uniform_random(g_configManager().getNumber(BOT_DWELL_POI_MIN_SEC), g_configManager().getNumber(BOT_DWELL_POI_MAX_SEC));
 		bot.dwellUntil = OTSYS_TIME() + dwellTime * 1000LL;
 		bot.state = BotAIState::DWELLING;
+		virtualMaybeSpar(bot); // #87 virtual twin: a depot dwell may be a simulated spar
 		return;
 	}
 
@@ -1218,6 +1222,9 @@ void BotEngine::virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms) {
 			if (bot.isPartyHuntLeader && bot.partyHuntId > 0) {
 				dissolveVirtualPartyHunt(bot.partyHuntId, "virtual_safety_timeout");
 			}
+			// #97 twin: the virtual release already snaps the bot home (below), so a loop
+			// here needs no extra action, only the same streak bookkeeping + signal.
+			noteHuntAbortLoop(bot, bot.currentPos, "virtual safety timeout", true);
 			// Terminal outcome, same teardown the virtual resupply-complete path performs.
 			bot.followingCityRoute = false;
 			bot.cityRouteWps.clear();
@@ -1393,6 +1400,7 @@ void BotEngine::virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms) {
 			}
 			// Phase 6: index-based, 1 waypoint per 5s.
 			size_t newIdx = advanceWaypointIdx(bot.guid, bot.huntWaypointIdx, script->patrolWaypoints.size(), elapsed_ms);
+			newIdx = dangerSkipPatrolIdx(bot, *script, newIdx, true);   // #96 virtual twin of the live skip
 			bot.huntWaypointIdx = newIdx;
 			if (newIdx < script->patrolWaypoints.size()) {
 				bot.currentPos = script->patrolWaypoints[newIdx].pos;
@@ -1514,6 +1522,7 @@ void BotEngine::virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms) {
 				bot.cityRouteIdx = 0;
 				activeHunts_.erase(bot.huntScriptId);
 				if (!script->spawnGroup.empty()) activeSpawnGroups_.erase(script->spawnGroup);
+				s_huntAbortLoop.erase(bot.guid); // #97 twin: a completed virtual hunt ends the streak
 				bot.huntScriptId = 0;
 				bot.huntKillCount = 0;
 				bot.huntTargetId = 0;
@@ -1739,6 +1748,8 @@ bool BotEngine::virtualTryStartHunt(BotState &bot) {
 		}
 		if (isScriptPlayerClaimed(s.id, s.spawnGroup)) return false; // player spawn-claim
 		if (isScriptHuntRepelled(s)) return false; // hunt-flagged player nearby
+		if (dangerWantsParty(s.id)) { dangerAvoidPick_++; return false; } // #96: party-only now
+		if (isScriptDeathAvoided(bot.guid, s)) return false; // #99 death loop: avoided type / death spot
 		// Empty targetNames is allowed for non-quest hunts — bot attacks all monsters during PATROLLING.
 		return true;
 	};
@@ -1932,6 +1943,7 @@ bool BotEngine::virtualTryStartPartyHunt(BotState &bot, int32_t forceScriptId) {
 
 	auto rng = std::mt19937(std::random_device{}());
 	std::shuffle(eligible.begin(), eligible.end(), rng);
+	if (forceScriptId == 0) dangerPreferForParty(eligible, "virtual");   // #96 party conversion
 
 	size_t bestEdCount = rosterBestEd, bestMsCount = rosterBestMs, bestRpCount = rosterBestRp;
 
@@ -2212,6 +2224,8 @@ void BotEngine::forceDeactivateBot(uint32_t guid) {
 	stopHouseTrainingIfActive(bot);
 	endHouseVisit(guid, "force_deactivate");
 	endShrineVisit(guid, "force_deactivate");
+	dropPendingRescue(guid, "force_deactivate");
+	bedSleepers_.erase(guid);  // the bed keeps the sleeper; activation gets it up (#27)
 
 	auto& db = Database::getInstance();
 
@@ -2279,6 +2293,7 @@ void BotEngine::forceDeactivateBot(uint32_t guid) {
 	// partyHuntId), so a bot holding a STALE Canary party — engine state already zero — matched
 	// neither and had its Player destroyed with the party still attached. If it was the Canary
 	// leader that party becomes unreclaimable by any stock call. Last exit, covers both.
+	endSpar(guid, "deactivate"); // #87
 	reclaimStaleCanaryParty(guid, "forceDeactivateBot");
 
 	// True offline: remove bot from game world
@@ -2375,6 +2390,7 @@ void BotEngine::forceDeactivateBotForReload(uint32_t guid) {
 	stopHouseTrainingIfActive(bot);
 	endHouseVisit(guid, "reload");
 	endShrineVisit(guid, "reload");
+	dropPendingRescue(guid, "reload");
 
 	// Release hunt reservation if hunting
 	if (bot.huntScriptId > 0) {
@@ -2433,9 +2449,18 @@ void BotEngine::pauseBotForDeath(uint32_t guid) {
 	// 1 second offline pause (server processes death: despawn, condition cleanup, skull clearing)
 	bot.deathPauseUntil = OTSYS_TIME() + 1000;
 	bot.lastDeathTime = OTSYS_TIME();
+	// #96: record the death zone NOW — onDeath runs before Player::death() teleports the bot, so
+	// the position is still the death tile and the hunt reservation is intact.
+	dangerNoteDeath(bot, bot.getPlayer());
 
 	// Clear combat/target state but preserve hunt/travel state
 	auto player = bot.getPlayer();
+	// #99: who was killing us, and where — read before the target fields are cleared below.
+	recordBotDeath(bot, player);
+	fightProgressReset(guid);
+	s_exivaChase.erase(guid);
+	// #87: a spar never kills, but anything else might; the pair (and its party) ends here.
+	endSpar(guid, "death");
 	if (player) {
 		player->setAttackedCreature(nullptr);
 		// Keep a strong reference to prevent Player destruction after despawn()
@@ -2588,7 +2613,7 @@ bool BotEngine::reactivateBotForReload(uint32_t guid) {
 				}
 			}
 		} else if (spawnRoll <= 85) {
-			teleportToTemple(bot);
+			teleportToTemple(bot, /*rescue=*/false);
 			spawned = true;
 		} else if (depotPos.x > 0) {
 			// findPZBoundaryTile keeps radius=8 — its job is finding the PZ boundary
@@ -2602,7 +2627,7 @@ bool BotEngine::reactivateBotForReload(uint32_t guid) {
 		}
 
 		if (!spawned) {
-			teleportToTemple(bot);
+			teleportToTemple(bot, /*rescue=*/false);
 		}
 	}
 	// Cast (#131). A bot that was AWAKE at reload kept its Player, so its broadcast is still on and
@@ -2686,6 +2711,10 @@ bool BotEngine::reactivateBotForReload(uint32_t guid) {
 	// without waiting out MOUNT_REROLL_MIN_INTERVAL_MS when testing this.
 	rollMountForReconnect(bot, player);
 
+	// #27: the fresh engine does not know about a sleep started before the reload; a bed that still
+	// names this bot is stale -- get up from it.
+	finishBedWake(bot, player, "reload");
+
 	bot.postActivationReroll = true;
 
 	// cast=kept: was already broadcasting (awake at reload); cast=restored: #131's case.
@@ -2695,7 +2724,7 @@ bool BotEngine::reactivateBotForReload(uint32_t guid) {
 	return true;
 }
 
-void BotEngine::teleportToTemple(BotState& bot) {
+void BotEngine::teleportToTemple(BotState& bot, bool rescue) {
 	auto player = bot.getPlayer();
 	if (!player) return;
 	auto town = player->getTown();
@@ -2703,7 +2732,13 @@ void BotEngine::teleportToTemple(BotState& bot) {
 
 	// Use temple position directly from towns.xml — same as /town command
 	auto templePos = town->getTemplePosition();
-	BOT_TELEPORT(player, templePos, true);
+	// #104: the engine's "teleport home" is a rescue and is hidden from watchers; admin commands
+	// and the reload path ask for the plain jump.
+	if (rescue) {
+		BOT_RESCUE_TELEPORT(bot, player, templePos, true);
+	} else {
+		BOT_TELEPORT(player, templePos, true);
+	}
 	bot.currentPos = templePos;
 
 	// Update navigation townId to match actual position
@@ -3888,6 +3923,9 @@ void BotEngine::tick() {
 		wakeStatsWindowStartMs_ = OTSYS_TIME();
 	}
 
+	// #30 passive spawn auto-claim sweep (5 s) + #96 danger summary (60 s). bot_learning.cpp.
+	tickLearning(OTSYS_TIME());
+
 	// Player spawn-claim sweep (~15s): expire 1h claims + auto-release on owner logout.
 	// getPlayerByGUID(guid, false) only checks the in-memory online-players map (no DB hit).
 	static int64_t s_lastClaimSweep = 0;
@@ -4243,6 +4281,9 @@ void BotEngine::tick() {
 	}
 	uint32_t budgetDeferred = 0, budgetServed = 0, budgetObservedExempt = 0;
 
+	// #102 realism: bed sleepers (hibernate the ones that lay down, wake the ones whose sleep ended).
+	tickRealismTimers();
+
 	uint32_t deactivatedThisTick = 0;
 	int jitter_awakeCount = 0;
 	int jitter_hibCount = 0;
@@ -4274,7 +4315,7 @@ void BotEngine::tick() {
 		// Healing runs at a fixed 200ms regardless of state tick rate (tick() is a
 		// cycleEvent(100) — game.cpp restartBotTickLoop — and TICK_FREQ_HEAL is 2).
 		// Heal stays active even when aiPaused — bots in spawns would die otherwise.
-		if ((bot.tickCounter % TICK_FREQ_HEAL) == 0) {
+		if ((bot.tickCounter % TICK_FREQ_HEAL) == 0 && !s_testNoDefense.contains(bot.guid)) {
 			doHealing(bot);
 
 			// BOT_SUPPLY_REALISM. Deliberately HERE and not in processBot: processBot
@@ -4323,6 +4364,9 @@ void BotEngine::tick() {
 		}
 
 		if (bot.aiPaused) continue; // skip AI state machine; heal above still runs
+
+		// #104: a deferred rescue teleport owns the bot until it can jump unseen (heal still ran).
+		if (!pendingRescues_.empty() && tickPendingRescue(bot)) continue;
 
 		// Wake-stagger gate: freshly-woken bots skip AI for N ticks (heal already ran).
 		// Spreads the post-wake AI burst across multiple dispatcher windows so 13
@@ -4590,6 +4634,7 @@ void BotEngine::processBot(BotState& bot) {
 	// Sync position
 	bot.lastPos = bot.currentPos;
 	bot.currentPos = player->getPosition();
+	dangerNoteHealth(bot, player);   // #96 near-death while working a spawn
 
 	// Detect teleportation — clear stale walk state and navigation
 	if (bot.lastPos.x != 0) {
@@ -4887,7 +4932,7 @@ void BotEngine::processBot(BotState& bot) {
 									return;
 								}
 							}
-							BOT_TELEPORT(player, rejoinPos);
+							BOT_RESCUE_TELEPORT(bot, player, rejoinPos, true);
 							bot.currentPos = rejoinPos;
 							bot.state = BotAIState::PARTY;
 							castLog(bot, fmt::format("DEATH: Party hunt still active, re-joining EK at ({},{},{})",
@@ -4917,6 +4962,13 @@ void BotEngine::processBot(BotState& bot) {
 		castLog(bot, fmt::format("DEATH: Temple chill over, resuming state={}",
 			botStateName(bot.state)));
 		// Hunt/travel state fields are still intact, bot will continue where it left off
+		// #99: ...unless that hunt is a death loop (second death to the same creature type in
+		// 30 min). Then it is abandoned instead of walked back into; hunt selection skips it.
+		if (s_deathLoopAbortPending.erase(bot.guid) > 0 && bot.state == BotAIState::HUNTING
+		    && bot.huntScriptId != 0 && bot.partyHuntId == 0) {
+			g_logger().info("[DEATHLOOP] abort guid={} name='{}' hunt={}", bot.guid, bot.name, bot.huntScriptId);
+			abortHunt(bot, "death_loop");
+		}
 	}
 
 	// Detect z-change for attack grace period
@@ -5099,6 +5151,9 @@ void BotEngine::doIdle(BotState& bot) {
 		if (handleGangStaging(bot)) return;
 	}
 
+	// #87: a sparring bot is owned by the spar until it ends (consumes the tick).
+	if (!s_sparByGuid.empty() && handleSpar(bot)) return;
+
 	// BOT_PARTY_INVITE_RENDEZVOUS: a member walking in to join a party. MUST come before the
 	// activation fallback below, which would teleport it to its temple, and before every walk
 	// this function can otherwise start. Consumes the tick, exactly like gang staging.
@@ -5132,7 +5187,8 @@ void BotEngine::doIdle(BotState& bot) {
 	// PK re-engage: if recently-fought target reappears within 7 tiles, resume fight
 	// Window: 60s OR while bot still has PZ-lock (whichever is longer)
 	auto reIt = s_reengageTarget.find(bot.guid);
-	if (reIt != s_reengageTarget.end() && s_debugPinned.count(bot.guid) > 0) {
+	if (reIt != s_reengageTarget.end() && (s_debugPinned.count(bot.guid) > 0 || inHumanLedParty(bot))) {
+		// #91 follow-up: a human-led party member never resumes an old fight either.
 		// Debug-pinned: resuming an old fight is self-initiated PvP (#124). Drop the memory.
 		s_reengageTarget.erase(reIt);
 		s_reengageUntil.erase(bot.guid);
@@ -5226,6 +5282,10 @@ void BotEngine::doIdle(BotState& bot) {
 	// handler at the top of doIdle next tick.
 	checkGangJump(bot);
 	if (bot.state != BotAIState::IDLE || s_gangByGuid.count(bot.guid)) return;
+
+	// #87: two bots of a similar level near a depot may start a spar.
+	checkSparStart(bot);
+	if (isSparring(bot.guid)) return;
 
 	// PZ-blocked roaming (Feature 2): while genuinely pz-locked, mill around non-PZ space instead
 	// of routing into a depot/temple/boat PZ.
@@ -5886,9 +5946,16 @@ void BotEngine::doDwelling(BotState& bot) {
 		if (handleAssemblyStaging(bot)) return;
 	}
 
+	// #87: sparring owns the tick (the spar may have started from this dwell).
+	if (!s_sparByGuid.empty() && handleSpar(bot)) return;
+
 	// Vigilante: scan for PKers (DWELLING state)
 	checkVigilante(bot);
 	if (bot.state != BotAIState::DWELLING) return;
+
+	// #87: the depot dwell is where most spars start.
+	checkSparStart(bot);
+	if (isSparring(bot.guid)) return;
 
 	// PZ-blocked roaming (Feature 2): mill around non-PZ space while pz-locked instead of the
 	// depot-anchored dwell walks below (which would route into a PZ).
