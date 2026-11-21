@@ -647,7 +647,7 @@ jobs:
         EXIT_FILE: srv/canary.exit
         ALLOWLIST: beta-meta/.github/beta/smoke_error_allowlist.txt
       run: |
-        set -uo pipefail
+        set +e -uo pipefail   # the runner shell is bash -e; grep exits 1 on no match
         S=${GITHUB_STEP_SUMMARY:-/dev/stdout}
         [ -f "$LOG" ] || { echo "::error::no boot log"; exit 1; }
         ERR_RE='lua (script )?error|\[(error|critical)\]'
