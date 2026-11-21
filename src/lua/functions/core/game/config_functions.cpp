@@ -33,6 +33,23 @@ void ConfigFunctions::init(lua_State* L) {
 		}
 	}
 #undef registerMagicEnumIn
+
+	// FORK(bot) #154: register the bot-fork keys by NAME, independent of magic_enum. magic_enum
+	// only enumerates ordinals up to MAGIC_ENUM_RANGE_MAX (500, src/pch.hpp); the BOT_* tables
+	// are expanded after the core keys, and every upstream sync inserts more core keys mid-enum,
+	// so BOT_* ordinals cross 500 and the loop above silently skips them. Lua then reads
+	// configKeys.BOT_X as nil and every configManager.get*(nil) quietly returns a fallback.
+	// The values are the real ordinals, so re-registering a key the loop already saw is a no-op.
+#define BOT_CFG_LUA_KEY(enumKey, luaKey, defaultValue) \
+	Lua::registerVariable(L, "configKeys", #enumKey, static_cast<lua_Number>(enumKey));
+	BOT_ALL_CONFIG_KEY_TABLES(BOT_CFG_LUA_KEY, BOT_CFG_LUA_KEY, BOT_CFG_LUA_KEY)
+#undef BOT_CFG_LUA_KEY
+	// Fork keys outside the tables: three in the alphabetical block (low ordinals today, but the
+	// block grows with every sync) and the ones appended at the very end of ConfigKey_t.
+	Lua::registerVariable(L, "configKeys", "BOT_PLAYERS_ONLINE", static_cast<lua_Number>(BOT_PLAYERS_ONLINE));
+	Lua::registerVariable(L, "configKeys", "BOT_PLAYERS_SHOW_AS_ONLINE", static_cast<lua_Number>(BOT_PLAYERS_SHOW_AS_ONLINE));
+	Lua::registerVariable(L, "configKeys", "BOT_PERSONALITY_REROLL_ON_RESTART", static_cast<lua_Number>(BOT_PERSONALITY_REROLL_ON_RESTART));
+	Lua::registerVariable(L, "configKeys", "FORCE_LOGOUT_ON_CONNECTION_LOSS", static_cast<lua_Number>(FORCE_LOGOUT_ON_CONNECTION_LOSS));
 }
 
 int ConfigFunctions::luaConfigManagerGetString(lua_State* L) {

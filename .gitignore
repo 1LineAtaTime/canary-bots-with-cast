@@ -31,10 +31,15 @@ bld/
 [Oo]bj/
 [Ll]og/
 build/
-vcproj/
+CMakeUserPresets.json
+/vcproj/.canary-shared-cache/
+/vcproj/.vcpkg-buildtrees/
+/vcproj/.vcpkg-packages/
+/vcproj/*
 !vcproj/canary.sln
 !vcproj/canary.vcxproj
 !vcproj/settings.props
+!vcproj/SharedVcpkgCache.targets
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -74,6 +79,8 @@ StyleCopReport.xml
 *_p.c
 *_h.h
 *.ilk
+*.exp
+*.lib
 *.meta
 *.obj
 *.iobj
@@ -216,6 +223,9 @@ ecf/
 rcf/
 
 # Windows Store app package directories and files
+
+# Local protocol payload probes used by /protocolprobe.
+/data/scripts/talkactions/god/protocol_probe.local.json
 AppPackages/
 BundleArtifacts/
 Package.StoreAssociation.xml
@@ -395,8 +405,10 @@ sftp-config.json
 # Binaries
 canary
 canary.old
+/backups/executables/
 
 # VCPKG
+.tools/
 vcpkg_installed
 
 # Cppcheck Cache
@@ -404,6 +416,7 @@ vcpkg_installed
 
 # DB Backups
 database_backup
+cache/lua-bytecode/
 
 # CLION
 cmake-build-*
@@ -412,6 +425,7 @@ compile_commands.json
 /enc_temp_folder
 
 /tools/*
+!/tools/fork_delta_check.sh
 !/tools/bot_population_generator/
 /tools/bot_population_generator/__pycache__/
 !/tools/bot_route_splice/
@@ -485,3 +499,4 @@ data/bot/authored/**/*.bak
 data/bot/authored/**/*.tmp
 data/bot/dumps/
 CMakeUserPresets.json
+canary-debug

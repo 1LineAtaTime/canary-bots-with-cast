@@ -417,7 +417,9 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// will plan with (kind, direction AND landing; USE-item mechanisms like
 		// sewers/ropes/shovels that v1 could not represent are included).
 		collectNavPortalsInRegion(x1, y1, z1, x2, y2, z2, dump.portals);
-		std::string path = fmt::format("/home/tibia/canary/navdump_{}_{}_{}.bin", x1, y1, z1);
+		// Relative to the server's working directory: a hard-coded /home/tibia/canary wrote a second
+		// instance's dump (the 15.25 port in /home/tibia/canary-1525, P5 #160) into the other tree.
+		std::string path = fmt::format("navdump_{}_{}_{}.bin", x1, y1, z1);
 		if (!dump.writeFile(path)) {
 			return fmt::format("dumpnav: FAILED to write {}", path);
 		}
@@ -1290,6 +1292,9 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// #123. Listed here in the SAME commit as the table (see the NOTE above).
 		out += "[BOT_CFG] BOT_PVP_SANITY keys (src/config/bot_config_keys.hpp)\n";
 		BOT_PVP_SANITY_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
+		// #153. Listed here in the SAME commit as the table (see the NOTE above).
+		out += "[BOT_CFG] BOT_CAMERA keys (src/config/bot_config_keys.hpp)\n";
+		BOT_CAMERA_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
 #undef BOT_CFG_DUMP_INT
 #undef BOT_CFG_DUMP_BOOL
 #undef BOT_CFG_DUMP_STR

@@ -98,10 +98,19 @@ switch ($action) {
 
 		$port = $config['lua']['gameProtocolPort'];
 
-		// Cast system: intercept @cast login before authentication
+		// Viewer logins: intercept "@cast" / "@livestream" before authentication (#153, cast C1).
+		// Both descriptors get the same list (bots + both kinds of human caster); the game server
+		// routes the selected name: a bot lands in the bot camera, a human livestream caster in
+		// upstream's livestream (ProtocolGame::routeViewerLogin).
 		$inputEmail_check = $request->email ?? "";
 		$inputAccountName_check = $request->accountname ?? "";
-		if ($inputEmail_check === "@cast" || $inputAccountName_check === "@cast") {
+		$viewerDescriptor = null;
+		foreach (["@cast", "@livestream"] as $descriptor) {
+			if ($inputEmail_check === $descriptor || $inputAccountName_check === $descriptor) {
+				$viewerDescriptor = $descriptor;
+			}
+		}
+		if ($viewerDescriptor !== null) {
 			$castWorld = [
 				"id" => 0,
 				"name" => $config["lua"]["serverName"],
@@ -120,11 +129,15 @@ switch ($action) {
 				"currenttournamentphase" => 2
 			];
 			// Show:
-			//   (a) real-player broadcasters in cast_broadcasters, AND
-			//   (b) every bot character (account_id = BOT_ACCOUNT_ID), even when hibernated.
+			//   (a) real-player broadcasters in cast_broadcasters (our /cast; only with
+			//       allowPlayerCast = true, #163 -- with it off the server never writes a human row),
+			//   (b) every bot character (account_id = BOT_ACCOUNT_ID), even when hibernated, AND
+			//   (c) upstream livestream casters that are live right now. active_livestream_casters
+			//       rows are never deleted: livestream_status is 0 after "!livestream off" and on
+			//       every login, so the status filter is what keeps stopped casters off the list.
 			// Hibernated bots' cast_broadcasters row is deleted by C++ (bot_engine.cpp::hibernateBot
 			// line 2432), but they should still appear in the cast list — selecting one triggers
-			// castViewerLogin (protocolgame.cpp:746-755) which calls wakeBot synchronously, then
+			// ProtocolGame::botCameraLogin which calls wakeBot synchronously, then
 			// the viewer connects to the freshly-woken Player. Stream OFF for hibernated stays
 			// correct because the in-memory castBroadcasting flag is set false on hibernate and
 			// true on wake.
@@ -137,18 +150,21 @@ switch ($action) {
 			//     when botPlayersOnline < total — see data/scripts/lib/bot_system.lua:15)
 			//   - independent of the botPlayersShowAsOnline config (separate concern)
 			//   - independent of the 10-min players_online update cycle (instant on register)
-			//   - hibernated bots are kept (wake-on-click still works via castViewerLogin)
-			// Table contract: data-otservbr-global/migrations/60.lua.
+			//   - hibernated bots are kept (wake-on-click still works via botCameraLogin)
+			// Table contract: database/bots/00_bot_schema.sql (bot_active_players), schema.sql
+			// (cast_broadcasters, active_livestream_casters).
 			$broadcasters = Player::where(function ($q) {
-				// Inner closure → grouped OR: (id IN cast_broadcasters OR id IN bot_active_players)
+				// Inner closure → grouped OR of the three sources
 				$q->whereIn("id", function ($sub) {
 					$sub->select("player_id")->from("cast_broadcasters");
 				})->orWhereIn("id", function ($sub) {
 					$sub->select("player_id")->from("bot_active_players");
+				})->orWhereIn("id", function ($sub) {
+					$sub->select("caster_id")->from("active_livestream_casters")->where("livestream_status", ">", 0);
 				});
 			})
 				// notDeleted() chained OUTSIDE the closure so it AND-binds to the full disjunction:
-				//   (id IN cast_broadcasters OR id IN bot_active_players) AND deletion = 0
+				//   (id IN cast_broadcasters OR id IN bot_active_players OR id IN live casters) AND deletion = 0
 				// MyAAC scopeNotDeleted (system/src/Models/Player.php:72) maps to `WHERE deletion = 0`.
 				// The column is `deletion` (BIGINT, 0 = alive), NOT `deleted_at`.
 				->notDeleted()
@@ -180,16 +196,15 @@ switch ($action) {
 				$first = false;
 			}
 			$castSession = [
-				// The part after the newline is the cast-operator password. The game server
-				// splits this session key on "\n" (protocolgame.cpp onRecvFirstMessage) and
-				// compares the tail against castOperatorPassword to decide whether this viewer
-				// may drive the bot with /cavebot from Cast Chat. The legacy 7171 login path
-				// already forwards it this way (protocollogin.cpp:43); this endpoint used to
-				// hardcode an empty tail, which silently disabled operator mode for every
-				// viewer that logged in through the web service.
-				// Watching stays unauthenticated: a wrong or absent password just yields an
-				// ordinary read-only viewer, exactly as before.
-				"sessionkey" => "@cast\n" . ($request->password ?? ""),
+				// The part after the newline is the password tail. The game server splits this
+				// session key on "\n" (protocolgame.cpp onRecvFirstMessage). For a bot it is
+				// compared against castOperatorPassword (may this viewer drive the bot with
+				// /cavebot from Cast Chat?); for a human livestream caster it is the livestream
+				// password upstream checks. The descriptor the user typed is kept, so the server
+				// can route "@cast" and "@livestream" (protocollogin.cpp forwards it the same way).
+				// Watching a bot stays unauthenticated: a wrong or absent password just yields an
+				// ordinary read-only viewer.
+				"sessionkey" => $viewerDescriptor . "\n" . ($request->password ?? ""),
 				"lastlogintime" => 0,
 				"ispremium" => true,
 				"premiumuntil" => time() + 30 * 86400,
@@ -227,19 +242,14 @@ switch ($action) {
 
 		$characters = [];
 
-		$inputEmail = $request->email ?? false;
-		$inputAccountName = $request->accountname ?? false;
+		// #169: strict, trimmed inputs. The old loose `!= false` checks were false for "", so an
+		// empty email ran no WHERE at all and ->first() handed back account #1. A blank email AND a
+		// blank account name is now refused like any wrong login (same text, rate limiter counted).
+		$inputEmail = trim((string)($request->email ?? ''));
+		$inputAccountName = trim((string)($request->accountname ?? ''));
 		$inputToken = $request->token ?? false;
-
-		$account = Account::query();
-		if ($inputEmail != false) { // login by email
-			$account->where('email', $inputEmail);
-		}
-		else if($inputAccountName != false) { // login by account name
-			$account->where('name', $inputAccountName);
-		}
-
-		$account = $account->first();
+		$byEmail = $inputEmail !== '';
+		$loginErrorText = ($byEmail || $inputAccountName === '' ? 'Email' : 'Account name') . ' or password is not correct.';
 
 		$ip = get_browser_real_ip();
 		$limiter = new RateLimit('failed_logins', setting('core.account_login_attempts_limit'), setting('core.account_login_ban_time'));
@@ -247,13 +257,22 @@ switch ($action) {
 		$limiter->load();
 
 		$ban_msg = 'A wrong account, password or secret has been entered ' . setting('core.account_login_attempts_limit') . ' times in a row. You are unable to log into your account for the next ' . setting('core.account_login_ban_time') . ' minutes. Please wait.';
+
+		$account = null;
+		if ($byEmail) { // login by email
+			$account = Account::query()->where('email', $inputEmail)->first();
+		}
+		else if ($inputAccountName !== '') { // login by account name
+			$account = Account::query()->where('name', $inputAccountName)->first();
+		}
+
 		if (!$account) {
 			$limiter->increment($ip);
 			if ($limiter->exceeded($ip)) {
 				sendError($ban_msg);
 			}
-			
-			sendError(($inputEmail != false ? 'Email' : 'Account name') . ' or password is not correct.');
+
+			sendError($loginErrorText);
 		}
 
 		$current_password = encrypt((USE_ACCOUNT_SALT ? $account->salt : '') . $request->password);
@@ -263,7 +282,7 @@ switch ($action) {
 				sendError($ban_msg);
 			}
 
-			sendError(($inputEmail != false ? 'Email' : 'Account name') . ' or password is not correct.');
+			sendError($loginErrorText);
 		}
 
 		$accountHasSecret = false;
@@ -356,7 +375,7 @@ switch ($action) {
 		$worlds = [$world];
 		$playdata = compact('worlds', 'characters');
 
-		$sessionKey = ($inputEmail !== false) ? $inputEmail : $inputAccountName; // email or account name
+		$sessionKey = $byEmail ? $inputEmail : $inputAccountName; // email or account name
 		$sessionKey .= "\n" . $request->password; // password
 		if (!fieldExist('istutorial', 'players')) {
 			$sessionKey .= "\n";

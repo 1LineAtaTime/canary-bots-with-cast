@@ -40,7 +40,11 @@ void SaveManager::saveAll() {
 	for (const auto &[_, player] : players) {
 		if (player->isDead()) {
 			player->loginPosition = player->getTemplePosition();
-		} else if (player->loginPosition != player->getTemplePosition()) {
+		} else if (player->isBotPlayer() || player->loginPosition != player->getTemplePosition()) {
+			// FORK(bot): upstream #3903 keeps a temple loginPosition sticky until the next logout,
+			// which refreshes it. Bots never log out, and Player::death leaves their
+			// loginPosition at the temple, so without this every later save would write the
+			// temple instead of where the bot is.
 			player->loginPosition = player->getPosition();
 		}
 

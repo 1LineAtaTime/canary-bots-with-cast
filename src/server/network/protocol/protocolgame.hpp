@@ -116,8 +116,13 @@ public:
 
 	void login(const std::string &name, uint32_t accnumber, OperatingSystem_t operatingSystem);
 	void logout(bool displayEffect, bool forced);
-	void castViewerLogin(const std::string &characterName);
+	// Bot camera (#153, cast C1). Ours is botCameraLogin; upstream's livestream viewer login is
+	// castViewerLogin(name, password, os) below. routeViewerLogin picks one for a @cast/@livestream
+	// login: a bot (awake or hibernated) or @cast -> botCameraLogin, anything else -> upstream.
+	void routeViewerLogin(const std::string &accountDescriptor, const std::string &characterName, const std::string &password, OperatingSystem_t operatingSystem);
+	void botCameraLogin(const std::string &characterName, OperatingSystem_t operatingSystem);
 	void sendCastViewerInit();
+	void sendBotCameraUpstreamBootstrap();
 	size_t getKnownCreatureCount() const { return knownCreatureSet.size(); }
 	uint64_t getCastPacketsSent() const { return m_castPacketsSent; }
 	uint32_t getCastViewerNumber() const { return m_castViewerNumber; }
@@ -679,8 +684,8 @@ private:
 	int64_t m_lastLagmarkMs = 0;
 
 	// Cast operator: this viewer authenticated with castOperatorPassword at login and may
-	// dispatch /cavebot into the watched BOT from Cast Chat. Decided at parseLoginPacket time
-	// (that is the only place the password field is in scope) and read in castViewerLogin.
+	// dispatch /cavebot into the watched BOT from Cast Chat. Decided in routeViewerLogin (the
+	// login password is in scope there) and read in botCameraLogin.
 	bool m_castOperator = false;
 	void executeCastOperatorCommand(const std::string &text);
 

@@ -700,6 +700,27 @@ namespace {
 		return a.z == b.z && std::abs(static_cast<int32_t>(a.x) - static_cast<int32_t>(b.x)) <= 8
 			&& std::abs(static_cast<int32_t>(a.y) - static_cast<int32_t>(b.y)) <= 6;
 	}
+
+	// #122 follow-up (P5): how long a responder's BODY stays in earshot of the speaker, replaying
+	// its pending walk queue (Creature::listWalkDir, consumed from the back) at its real step
+	// duration. Runs p5c_f122/p5p_f122b (cli-p1.ndjson): bots cross this 17x13 box in ~2 s median
+	// at ~100-150 ms/step, and the ones heading south to the (32345,32225) exit leave it in ~1 s --
+	// so a 1.5-2.5 s typing delay was a coin flip in BOTH builds. Also covers IDLE/DWELLING bots
+	// that are walking (a POI walk): p5p_f122b Dalgorsh was st=IDLE and moving 7 tiles/s.
+	// Returns horizonMs when the body is still in earshot at the horizon (or is not walking). The
+	// queue is one chunk: when it runs out we assume the bot stops; fire time re-checks anyway.
+	// walkDirs = the body's listWalkDir (protected in Creature; the BotEngine caller is a friend).
+	int32_t earshotRemainingMs(Player& body, const std::vector<Direction>& walkDirs, const Position& speaker, int32_t horizonMs) {
+		Position p = body.getPosition();
+		if (!inSayEarshot(p, speaker)) return 0;
+		int32_t t = 0;
+		for (auto it = walkDirs.rbegin(); it != walkDirs.rend() && t < horizonMs; ++it) {
+			t += std::max<int32_t>(50, body.getStepDuration(*it));
+			p = getNextPosition(*it, p);
+			if (!inSayEarshot(p, speaker)) return t;
+		}
+		return horizonMs;
+	}
 }
 
 void BotEngine::onPlayerSayNearBots(uint32_t playerId, const Position& pos, const std::string& text) {
@@ -717,31 +738,60 @@ void BotEngine::onPlayerSayNearBots(uint32_t playerId, const Position& pos, cons
 	// Pick the NEAREST eligible bot within earshot (most natural responder). A bot that is standing
 	// still (IDLE/DWELLING) is preferred over a walking traveller at any distance: it will still
 	// be there when the reply fires. A traveller is the fallback, not a giving-up point.
+	// P5 follow-up: "walking" is decided by the BODY (a non-empty walk queue), not by the AI state --
+	// an IDLE/DWELLING bot on a POI walk crosses the player's screen just as fast as a traveller. A
+	// candidate whose body leaves earshot before the shortest acceptable reply is skipped ("leaving").
+	const int32_t delayMax = std::max(chatCfg_.replyDelayMinMs, chatCfg_.replyDelayMaxMs);
+	const int32_t delayFloor = std::min(chatCfg_.replyDelayMinMs, 800);
+	constexpr int32_t kEarshotMarginMs = 200;
 	BotState* chosen = nullptr;
 	int32_t bestRank = INT32_MAX;
 	bool chosenWalking = false;
-	uint32_t inRange = 0, ineligible = 0, cooling = 0;
+	int32_t chosenStayMs = 0;
+	Position chosenBodyPos;
+	uint32_t inRange = 0, ineligible = 0, cooling = 0, leaving = 0;
+	std::array<uint32_t, 9> inelByState {};
 	for (auto& bot : bots_) {
 		if (!bot.active || !inSayEarshot(bot.currentPos, pos)) continue;
-		const int32_t dist = std::max(
-			std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(pos.x)),
-			std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(pos.y)));
 		inRange++;
 		const ReplyEligibility e = localReplyEligibility(bot);
-		if (e == ReplyEligibility::No) { ineligible++; continue; }
+		if (e == ReplyEligibility::No) {
+			ineligible++;
+			const auto si = static_cast<size_t>(bot.state);
+			if (si < inelByState.size()) inelByState[si]++;
+			continue;
+		}
 		if (now - bot.lastReplyTimeMs < chatCfg_.replyCooldownPerBotMs) { cooling++; continue; }
-		const int32_t rank = dist + (e == ReplyEligibility::Walking ? 100 : 0);
+		const auto body = g_game().getPlayerByGUID(bot.guid);
+		if (!body || body->isRemoved()) { ineligible++; continue; }
+		const Position bodyPos = body->getPosition();
+		const int32_t stayMs = earshotRemainingMs(*body, body->listWalkDir, pos, delayMax);
+		if (stayMs < delayFloor + kEarshotMarginMs) { leaving++; continue; }
+		const bool walking = e == ReplyEligibility::Walking || !body->listWalkDir.empty();
+		const int32_t dist = std::max(
+			std::abs(static_cast<int32_t>(bodyPos.x) - static_cast<int32_t>(pos.x)),
+			std::abs(static_cast<int32_t>(bodyPos.y) - static_cast<int32_t>(pos.y)));
+		// Standing first; among walkers, the one that stays on screen longest, then the nearest.
+		const int32_t rank = walking ? 1000 + (delayMax - stayMs) / 100 * 10 + dist : dist;
 		if (rank < bestRank) {
 			bestRank = rank;
 			chosen = &bot;
-			chosenWalking = e == ReplyEligibility::Walking;
+			chosenWalking = walking;
+			chosenStayMs = stayMs;
+			chosenBodyPos = bodyPos;
 		}
 	}
 	if (!chosen) {
 		if (now - s_lastNoResponderLogMs >= 1000) {
 			s_lastNoResponderLogMs = now;
-			g_logger().info("[CHAT_REPLY] none group={} at=({},{},{}) bots_in_range={} ineligible={} cooling={}",
-				group, pos.x, pos.y, pos.z, inRange, ineligible, cooling);
+			std::string inel;
+			for (size_t i = 0; i < inelByState.size(); ++i) {
+				if (inelByState[i]) {
+					inel += fmt::format("{}{}:{}", inel.empty() ? "" : ",", botStateName(static_cast<BotAIState>(i)), inelByState[i]);
+				}
+			}
+			g_logger().info("[CHAT_REPLY] none group={} at=({},{},{}) bots_in_range={} ineligible={} cooling={} leaving={} inel=[{}]",
+				group, pos.x, pos.y, pos.z, inRange, ineligible, cooling, leaving, inel);
 		}
 		return;
 	}
@@ -754,18 +804,23 @@ void BotEngine::onPlayerSayNearBots(uint32_t playerId, const Position& pos, cons
 	}
 
 	// A walker answers from the quick end of the typing delay: it keeps walking while it types, and
-	// a 5 s pause would carry it out of earshot.
-	const int32_t delayMax = std::max(chatCfg_.replyDelayMinMs, chatCfg_.replyDelayMaxMs);
-	const int32_t delay = chosenWalking
+	// a 5 s pause would carry it out of earshot. Either way the reply must land while the body is
+	// still on the speaker's screen (stayMs, from its walk queue), so the delay is capped there.
+	int32_t delay = chosenWalking
 		? uniform_random(chatCfg_.replyDelayMinMs, std::min(delayMax, chatCfg_.replyDelayMinMs + 1000))
 		: uniform_random(chatCfg_.replyDelayMinMs, delayMax);
+	if (delay > chosenStayMs - kEarshotMarginMs) {
+		delay = std::max(delayFloor, chosenStayMs - kEarshotMarginMs);
+	}
 	chosen->lastReplyTimeMs = now;  // reserve immediately so the next say can't double-book
 	pendingReplies_.push_back({ now + delay, chosen->guid, playerId, /*isPm=*/false, group });
 	if (now - s_lastQueuedLogMs >= 1000) {
 		s_lastQueuedLogMs = now;
-		g_logger().info("[CHAT_REPLY] queued bot='{}' st={} dist={} group={} delayMs={}",
-			chosen->name, chosenWalking ? "TRAVELING" : (chosen->state == BotAIState::IDLE ? "IDLE" : "DWELLING"),
-			bestRank % 100, group, delay);
+		g_logger().info("[CHAT_REPLY] queued bot='{}' st={} walking={} dist={} group={} delayMs={} stayMs={} bot=({},{},{})",
+			chosen->name, botStateName(chosen->state), chosenWalking ? 1 : 0,
+			std::max(std::abs(static_cast<int32_t>(chosenBodyPos.x) - static_cast<int32_t>(pos.x)),
+			         std::abs(static_cast<int32_t>(chosenBodyPos.y) - static_cast<int32_t>(pos.y))),
+			group, delay, chosenStayMs, chosenBodyPos.x, chosenBodyPos.y, chosenBodyPos.z);
 	}
 }
 
@@ -815,7 +870,14 @@ void BotEngine::processPendingReplies(int64_t now) {
 		if (!botPlayer && reply.isPm) {
 			botPlayer = getHibernatedBotPlayer(reply.botGuid);  // PMs work from hibernation
 		}
-		if (!botPlayer) continue;
+		if (!botPlayer) {
+			// Was silent: a local responder hibernated (left g_game) mid-delay. p5c_f122 Santiago
+			// Darkfrost was queued and never said/dropped.
+			if (!reply.isPm) {
+				g_logger().info("[CHAT_REPLY] dropped guid={} group={} reason=gone", reply.botGuid, reply.group);
+			}
+			continue;
+		}
 
 		if (reply.isPm) {
 			targetPlayer->sendPrivateMessage(botPlayer, TALKTYPE_PRIVATE_FROM, line);
@@ -827,8 +889,11 @@ void BotEngine::processPendingReplies(int64_t now) {
 			// #122: a walking responder may have moved on during the typing delay. A say is heard
 			// on the speaker's screen (8 x 6 tiles); past that the player would never see it, so
 			// do not pretend it was an answer.
-			if (!inSayEarshot(botPlayer->getPosition(), targetPlayer->getPosition())) {
-				g_logger().info("[CHAT_REPLY] dropped guid={} group={} reason=out-of-earshot", reply.botGuid, reply.group);
+			const Position botAt = botPlayer->getPosition();
+			const Position playerAt = targetPlayer->getPosition();
+			if (!inSayEarshot(botAt, playerAt)) {
+				g_logger().info("[CHAT_REPLY] dropped guid={} group={} reason=out-of-earshot bot=({},{},{}) player=({},{},{})",
+					reply.botGuid, reply.group, botAt.x, botAt.y, botAt.z, playerAt.x, playerAt.y, playerAt.z);
 				continue;
 			}
 			g_game().internalCreatureSay(botPlayer, TALKTYPE_SAY, line, /*ghostMode=*/false);

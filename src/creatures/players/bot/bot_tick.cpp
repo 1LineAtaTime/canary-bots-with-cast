@@ -2610,7 +2610,7 @@ bool BotEngine::reactivateBotForReload(uint32_t guid) {
 	// flag is already true). A bot that was HIBERNATED at reload is a different Player: executeReload
 	// re-materialized it from the DB (Game.loadBotPlayer), or recoverOrphanForReload re-attached the
 	// pooled one, and hibernateBot had switched that one off. Either way it is now awake and in the
-	// cast list (getActiveBotNames), but castViewerLogin only wakes a bot it cannot find in g_game, so
+	// cast list (getActiveBotNames), but botCameraLogin only wakes a bot it cannot find in g_game, so
 	// a camera got "This player is not broadcasting" until something hibernated and woke the bot.
 	// Bring it back to the state startup leaves it in, exactly as activateBot and wakeBot do.
 	const bool castWasOn = enableBotCastBroadcast(guid, player);

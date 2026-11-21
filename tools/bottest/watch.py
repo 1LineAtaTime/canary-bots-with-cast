@@ -26,6 +26,7 @@ import ctypes
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import threading
@@ -45,12 +46,22 @@ JLINE_RE = re.compile(r"^(\d+\.\d+) ")
 # Remote side of the persistent session: one request line -> one framed reply.
 REMOTE_LOOP = (
     'while read cur; do '
-    'systemctl show canary -p ExecMainPID,NRestarts,ActiveState,SubState --no-pager; '
+    'systemctl show {unit} -p ExecMainPID,NRestarts,ActiveState,SubState --no-pager; '
     'echo "@@J"; '
-    'if [ "$cur" = "-" ]; then journalctl -u canary -n 0 --show-cursor --no-pager -o short-unix; '
-    'else journalctl -u canary --after-cursor="$cur" --show-cursor --no-pager -o short-unix; fi; '
+    'if [ "$cur" = "-" ]; then journalctl -u {unit} -n 0 --show-cursor --no-pager -o short-unix; '
+    'else journalctl -u {unit} --after-cursor="$cur" --show-cursor --no-pager -o short-unix; fi; '
     'echo "@@END"; done'
 )
+
+
+def remote_argv(target: str, cmd: str) -> list[str]:
+    """Same rule as hub.remote_argv: "user@host" -> ssh, "wsl:<distro>[:<user>]" -> hidden wsl.exe."""
+    if target.startswith("wsl:"):
+        parts = target.split(":")
+        distro = parts[1] if len(parts) > 1 and parts[1] else "Ubuntu-22.04"
+        user = parts[2] if len(parts) > 2 and parts[2] else "root"
+        return ["wsl.exe", "-d", distro, "-u", user, "--exec", "bash", "-c", cmd]
+    return [SSH, "-T", "-o", "BatchMode=yes", "-o", "ServerAliveInterval=15", target, cmd]
 
 
 # ------------------------------------------------------------------ pure detectors (unit-tested)
@@ -147,8 +158,9 @@ def pid_alive(pid: int) -> bool:
 
 # ------------------------------------------------------------------ server session
 class Remote:
-    def __init__(self, target: str):
+    def __init__(self, target: str, unit: str = "canary"):
         self.target = target
+        self.unit = unit
         self.p = None
         self.cursor = "-"
         self.q: list[str] = []
@@ -156,8 +168,8 @@ class Remote:
         self._start()
 
     def _start(self):
-        self.p = subprocess.Popen([SSH, "-T", "-o", "BatchMode=yes", "-o", "ServerAliveInterval=15", self.target,
-                                   REMOTE_LOOP], stdout=subprocess.PIPE,
+        self.p = subprocess.Popen(remote_argv(self.target, REMOTE_LOOP.format(unit=shlex.quote(self.unit))),
+                                  stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace", bufsize=1,
                                   **popen_kw(subprocess.PIPE))
 
@@ -327,7 +339,7 @@ class Watcher:
         return False
 
     def loop(self):
-        remote = Remote(self.a.ssh_target)
+        remote = Remote(self.a.ssh_target, self.a.unit)
         t0 = time.time()
         self.emit(f"WATCH-START run={self.run.name} poll={self.a.poll}s runner_pid={self.a.runner_pid}")
         try:
@@ -352,7 +364,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("run_dir")
     ap.add_argument("--runner-pid", type=int, default=0)
-    ap.add_argument("--ssh-target", default="root@127.0.0.1")
+    ap.add_argument("--ssh-target", default="root@127.0.0.1", help='"user@host" or "wsl:<distro>[:<user>]"')
+    ap.add_argument("--unit", default="canary", help="systemd unit of the server under test")
     ap.add_argument("--poll", type=float, default=10.0)
     ap.add_argument("--logstall", type=float, default=180.0)
     ap.add_argument("--heartbeat", type=float, default=30.0)

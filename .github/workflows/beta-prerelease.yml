@@ -528,7 +528,6 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 40
     env:
       MYSQL_PWD: ci-root
-      MAP_URL: https://github.com/opentibiabr/canary/releases/download/v3.1.0/otservbr.otbm
     steps:
     - uses: actions/download-artifact@v4
       with:
@@ -548,12 +547,22 @@ jobs:
         (cd ../dl && unzip -q canary-bots-beta-db-fresh.zip)
         ls -la
 
-    # Upstream's map, the one the release notes point users to.
+    # The map the built tree itself names (config.lua.dist mapDownloadUrl), so a branch that
+    # moves to a newer upstream map boots on that map.
+    - name: World map URL (from the build's config.lua.dist)
+      run: |
+        set -euo pipefail
+        U=$(grep -oP '^mapDownloadUrl\s*=\s*"\K[^"]+' srv/config.lua.dist || true)
+        U=${U:-https://github.com/opentibiabr/canary/releases/download/v3.1.0/otservbr.otbm}
+        echo "MAP_URL=$U" >> "$GITHUB_ENV"
+        echo "MAP_KEY=otservbr-otbm-$(printf %s "$U" | sha256sum | cut -c1-16)" >> "$GITHUB_ENV"
+        echo "- world map: $U" >> "$GITHUB_STEP_SUMMARY"
+
     - name: World map (cached)
       uses: actions/cache@v4
       with:
         path: srv-map/otservbr.otbm
-        key: otservbr-otbm-v3.1.0
+        key: ${{ env.MAP_KEY }}
 
     - name: Prepare the server
       run: |

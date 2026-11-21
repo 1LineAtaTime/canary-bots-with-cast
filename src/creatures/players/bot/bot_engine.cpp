@@ -571,7 +571,7 @@ bool BotEngine::enableBotCastBroadcast(uint32_t guid, const std::shared_ptr<Play
 		return false;
 	}
 	const bool wasBroadcasting = player->isCastBroadcasting();
-	// In-memory flag first: castViewerLogin reads only this. The cast_broadcasters INSERT goes
+	// In-memory flag first: botCameraLogin reads only this. The cast_broadcasters INSERT goes
 	// async via DatabaseTasks so a reload or wake burst (hundreds in succession) does not stall
 	// the dispatcher on serial DB writes. ON DUPLICATE KEY makes a re-assert harmless.
 	player->setCastBroadcasting(true);
@@ -1597,7 +1597,7 @@ std::vector<uint32_t> BotEngine::getHibernatedBotGuids() const {
 uint32_t BotEngine::getHibernatedBotGuidByName(const std::string &name) const {
 	for (const auto &bot : bots_) {
 		if (bot.hibernated && bot.name == name) {
-			// CONTRACT: this getter has exactly one caller — castViewerLogin
+			// CONTRACT: this getter has exactly one caller — botCameraLogin
 			// (protocolgame.cpp), which immediately follows up with wakeBot(guid).
 			// Arm the single-shot density-gate bypass here so that explicit
 			// by-name cast wake succeeds even when the bot sits in the

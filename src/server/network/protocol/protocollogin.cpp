@@ -40,75 +40,75 @@ void ProtocolLogin::disconnectClient(const std::string &message) const {
 	disconnect();
 }
 
-void ProtocolLogin::getCharacterList(const std::string &accountDescriptor, const std::string &password) const {
-	// Cast viewer — return list of broadcasting players
-	if (accountDescriptor == "@cast" || accountDescriptor == "@livestream") {
-		auto output = OutputMessagePool::getOutputMessage();
-
-		output->addByte(0x14); // MOTD
-		output->addString(fmt::format("{}\nCast Viewer - Select a player to watch", g_game().getMotdNum()));
-
-		output->addByte(0x28); // Session key
-		output->addString(fmt::format("@cast\n{}", password));
-
-		output->addByte(0x00); // char list header
-		output->addByte(1); // 1 world
-		output->addByte(0); // world id
-		output->addString(g_configManager().getString(SERVER_NAME));
-		output->addString(g_configManager().getString(IP));
-		output->add<uint16_t>(g_configManager().getNumber(GAME_PORT));
-		output->addByte(0);
-
-		// Phase 6: toggle for whether bots appear in the cast viewer character list.
-		// Set to false to revert to pre-hibernation behavior (only currently-broadcasting
-		// in-world players). When true, ALL registered active bots appear in the list
-		// regardless of hibernation state — selecting a hibernated bot wakes it on
-		// connect (see castViewerLogin in protocolgame.cpp).
-		static constexpr bool kShowBotsInCastList = true;
-
+namespace {
+	// FORK(cast) #153: who a bot camera can watch. Every registered active bot, awake or
+	// hibernated (`bot.active` is set at registerBot and cleared only by unregisterBot, so the
+	// list does not flicker with hibernation; selecting a hibernated bot wakes it, see
+	// ProtocolGame::botCameraLogin), plus human players broadcasting through OUR /cast, only
+	// when allowPlayerCast is on (#163; off by default, humans then use upstream's livestream).
+	std::vector<std::string> collectBotCameraCasters() {
 		std::vector<std::string> casters;
-		if (kShowBotsInCastList) {
-			// All registered active bots, regardless of hibernation/broadcasting state.
-			// `bot.active` is set at registerBot and never cleared until unregisterBot,
-			// so this is stable across hibernate/wake transitions — avoids the cast list
-			// flicker observed during user testing.
-			if (isBotEngineReady()) {
-				for (auto &name : g_botEngine().getActiveBotNames()) {
-					casters.push_back(name);
-				}
+		if (isBotEngineReady()) {
+			for (auto &name : g_botEngine().getActiveBotNames()) {
+				casters.push_back(name);
 			}
-			// Plus any non-bot real players who voluntarily enabled broadcasting.
-			for (const auto &[id, p] : g_game().getPlayers()) {
-				if (p && !p->isBotPlayer() && p->isCastBroadcasting() && !p->isRemoved()) {
-					casters.push_back(p->getName());
-				}
-			}
-		} else {
-			// Original behavior: only currently-broadcasting in-world players.
-			for (const auto &[id, p] : g_game().getPlayers()) {
-				if (p && p->isCastBroadcasting() && !p->isRemoved()) {
-					casters.push_back(p->getName());
-				}
+		}
+		if (!g_configManager().getBoolean(ALLOW_PLAYER_CAST)) {
+			std::sort(casters.begin(), casters.end());
+			return casters;
+		}
+		for (const auto &[id, p] : g_game().getPlayers()) {
+			if (p && !p->isBotPlayer() && p->isCastBroadcasting() && !p->isRemoved()) {
+				casters.push_back(p->getName());
 			}
 		}
 		std::sort(casters.begin(), casters.end());
+		return casters;
+	}
+}
+
+void ProtocolLogin::sendViewerCharacterList(const std::string &accountDescriptor, const std::string &password, const std::string &motd, const std::vector<std::string> &names) const {
+	// Upstream's livestream list format (getLivestreamCharacterList), which upstream keeps current
+	// for the 15.x clients. The session key carries the password tail: for "@cast" it is the
+	// cast-operator secret, for "@livestream" a livestream password.
+	auto output = OutputMessagePool::getOutputMessage();
+	output->addByte(0x14);
+	output->addString(motd);
+
+	output->addByte(0x28);
+	output->addString(fmt::format("{}\n{}", accountDescriptor, password));
+
+	output->addByte(0x64);
+	output->addByte(0x01); // worlds
+	output->addByte(0x00);
+	output->addString(g_configManager().getString(SERVER_NAME));
+	output->addString(g_configManager().getString(IP));
+	output->add<uint16_t>(g_configManager().getNumber(GAME_PORT));
+	output->addByte(0x00);
+
+	// uint8 count: past 255 the list is truncated (direct name login still works).
+	const auto count = static_cast<uint8_t>(std::min<size_t>(std::numeric_limits<uint8_t>::max(), names.size()));
+	output->addByte(count);
+	for (size_t index = 0; index < count; ++index) {
+		output->addByte(0x00);
+		output->addString(names[index]);
+	}
+
+	output->addByte(0x00);
+	output->addByte(0x00);
+	output->add<uint32_t>(0x00);
+
+	send(output);
+	disconnect();
+}
+
+void ProtocolLogin::getCharacterList(const std::string &accountDescriptor, const std::string &password) const {
+	// FORK(cast) #153: "@cast" lists the bot camera's casters. "@livestream" never gets here: it
+	// goes to getLivestreamCharacterList (upstream's list plus the active bots).
+	if (accountDescriptor == "@cast") {
+		const auto casters = collectBotCameraCasters();
 		g_logger().info("[Cast] Character list: {} broadcasting players found", casters.size());
-
-		uint8_t size = std::min<size_t>(std::numeric_limits<uint8_t>::max(), casters.size());
-		output->addByte(size);
-		for (uint8_t i = 0; i < size; i++) {
-			output->addByte(0); // world id
-			output->addString(casters[i]);
-		}
-
-		// Footer (matches working livestream implementation)
-		output->addByte(0);
-		output->addByte(0);
-		output->add<uint32_t>(0);
-		output->add<uint16_t>(0);
-
-		send(output);
-		disconnect();
+		sendViewerCharacterList("@cast", password, fmt::format("{}\nCast Viewer - Select a player to watch", g_game().getMotdNum()), casters);
 		return;
 	}
 
@@ -340,8 +340,9 @@ void ProtocolLogin::onRecvFirstMessage(NetworkMessage &msg) {
 	std::string accountDescriptor = msg.getString();
 	g_logger().info("[ProtocolLogin] accountDescriptor='{}' len={}", accountDescriptor, accountDescriptor.length());
 
-	// Cast viewer — skip password validation
-	if (accountDescriptor == "@cast" || accountDescriptor == "@livestream") {
+	// FORK(cast) #153: "@cast" (bot camera list) skips password validation. "@livestream" takes
+	// upstream's path below, which adds the active bots to its list.
+	if (accountDescriptor == "@cast") {
 		std::string password = msg.getString(); // consume password field
 		g_dispatcher().addEvent(
 			[self = std::static_pointer_cast<ProtocolLogin>(shared_from_this()), accountDescriptor, password] {
@@ -389,39 +390,27 @@ void ProtocolLogin::onRecvFirstMessage(NetworkMessage &msg) {
 }
 
 void ProtocolLogin::getLivestreamCharacterList(const std::string &password) const {
-	const auto casters = g_livestream().getBroadcastingCasters(password);
-	if (casters.empty()) {
+	// FORK(cast) #153: upstream's broadcasting humans, plus every active bot (bots never enter
+	// LivestreamManager; selecting one lands in the bot camera, see ProtocolGame::routeViewerLogin).
+	std::vector<std::string> names;
+	for (const auto &caster : g_livestream().getBroadcastingCasters(password)) {
+		if (caster) {
+			names.push_back(caster->getName());
+		}
+	}
+	if (isBotEngineReady()) {
+		auto bots = g_botEngine().getActiveBotNames();
+		std::sort(bots.begin(), bots.end());
+		for (auto &name : bots) {
+			if (std::find(names.begin(), names.end(), name) == names.end()) {
+				names.push_back(std::move(name));
+			}
+		}
+	}
+	if (names.empty()) {
 		disconnectClient("There are no players with the livestream on.");
 		return;
 	}
 
-	auto output = OutputMessagePool::getOutputMessage();
-	output->addByte(0x14);
-	output->addString("Welcome to Livestream System!");
-
-	output->addByte(0x28);
-	output->addString(fmt::format("@livestream\n{}", password));
-
-	output->addByte(0x64);
-	output->addByte(0x01); // worlds
-	output->addByte(0x00);
-	output->addString(g_configManager().getString(SERVER_NAME));
-	output->addString(g_configManager().getString(IP));
-	output->add<uint16_t>(g_configManager().getNumber(GAME_PORT));
-	output->addByte(0x00);
-
-	const auto casterCount = static_cast<uint8_t>(std::min<size_t>(std::numeric_limits<uint8_t>::max(), casters.size()));
-	output->addByte(casterCount);
-	for (size_t index = 0; index < casterCount; ++index) {
-		const auto &caster = casters[index];
-		output->addByte(0x00);
-		output->addString(caster->getName());
-	}
-
-	output->addByte(0x00);
-	output->addByte(0x00);
-	output->add<uint32_t>(0x00);
-
-	send(output);
-	disconnect();
+	sendViewerCharacterList("@livestream", password, "Welcome to Livestream System!", names);
 }

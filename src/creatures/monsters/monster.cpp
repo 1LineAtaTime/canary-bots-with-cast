@@ -59,6 +59,16 @@ namespace {
 		return position == expectedEndpoint;
 	}
 
+	// FORK(bot) #160: a bot player is not a viewer. Upstream counts every Player as "visible for
+	// scheduling", which put every monster near an awake bot on the visible walk/AI lanes. A bot
+	// counts only while someone watches through it (cast viewer, incl. synthetic perf viewers).
+	// Targeting and compute relevance (isPlayerControlledCreature) still count bots, so monsters
+	// that fight bots keep their AI and path priority; only the scheduling lane changes.
+	bool countsAsSchedulingViewer(const std::shared_ptr<Creature> &creature) {
+		const auto* player = creature ? creature->getPlayerRaw() : nullptr;
+		return player && player->countsAsSchedulingViewer();
+	}
+
 	bool isPlayerControlledCreature(const std::shared_ptr<Creature> &creature) {
 		if (!creature) {
 			return false;
@@ -2052,7 +2062,7 @@ bool Monster::isPlayerVisibleForScheduling() {
 }
 
 void Monster::observeVisiblePlayerForScheduling(const std::shared_ptr<Creature> &creature) {
-	if (!creature || !creature->getPlayerRaw()) {
+	if (!countsAsSchedulingViewer(creature)) { // FORK(bot) #160
 		return;
 	}
 
@@ -2065,7 +2075,7 @@ void Monster::observeVisiblePlayerForScheduling(const std::shared_ptr<Creature> 
 }
 
 bool Monster::addVisiblePlayerSpectator(const std::shared_ptr<Creature> &creature) {
-	if (!creature || !creature->getPlayerRaw()) {
+	if (!countsAsSchedulingViewer(creature)) { // FORK(bot) #160
 		return false;
 	}
 

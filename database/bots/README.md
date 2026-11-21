@@ -37,7 +37,7 @@ Run the files in this exact order (foreign-key / dependency order):
 
 | # | File | Contents |
 |---|------|----------|
-| 00 | `00_bot_schema.sql` | bot table DDL (`CREATE TABLE IF NOT EXISTS`) |
+| 00 | `00_bot_schema.sql` | all bot table DDL (`CREATE TABLE IF NOT EXISTS`), including the runtime/telemetry tables `bot_active_players`, `bot_commands`, `bot_chat_emissions`, `bot_hub_presence_60s` |
 | 01 | `01_accounts.sql` | god account (`@god` / `god12345`) + bot account |
 | 02 | `02_players.sql` | the GOD character + 997 bot players |
 | 03 | `03_player_storage.sql` | bot/GOD storage (mount & outfit unlocks, etc.) |
@@ -58,6 +58,17 @@ bot id range:
 ALTER TABLE `accounts` AUTO_INCREMENT = 65001;
 ALTER TABLE `players`  AUTO_INCREMENT = 66100;
 ```
+
+## Schema and `db_version`
+
+- The bot schema is **not** a numbered migration. `data-otservbr-global/migrations/` holds
+  upstream's files only, so `db_version` tracks upstream and upstream's own migrations always
+  apply. `tools/fork_delta_check.sh` fails if a fork-owned file appears there (#150).
+- `91_upstream_1525_schema.sql` is a **cutover-only** script, not part of the import above. It
+  reconciles a database last used by the 15.00 bot server (which our old `62.lua` left at
+  `db_version=62`) with upstream's migrations 56-59 and sets `db_version=59`. Run it once, with
+  canary stopped and after a mysqldump, before the 15.25 port binary first starts. It is
+  idempotent.
 
 ## Notes
 

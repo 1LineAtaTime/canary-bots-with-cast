@@ -51,7 +51,7 @@ namespace {
 // ---- raw cell access: NEVER materializes (no Map::getTile) ----
 struct ZCell {
 	std::shared_ptr<Tile> tile; // materialized tile (preferred — exact)
-	std::shared_ptr<BasicTile> cached; // basic-tile cache entry
+	const BasicTile* cached = nullptr; // basic-tile cache entry (owned by the map cache, upstream #4023)
 	bool exists() const {
 		return tile != nullptr || cached != nullptr;
 	}
@@ -70,14 +70,15 @@ ZCell zCellAt(int32_t x, int32_t y, int32_t z) {
 	if (!floor) {
 		return c;
 	}
-	c.tile = floor->getTile(static_cast<uint16_t>(x), static_cast<uint16_t>(y));
-	c.cached = floor->getTileCache(static_cast<uint16_t>(x), static_cast<uint16_t>(y));
+	auto tc = floor->getTileAndCache(static_cast<uint16_t>(x), static_cast<uint16_t>(y));
+	c.tile = std::move(tc.tile);
+	c.cached = tc.cachedTile;
 	return c;
 }
 
 // OR of ItemType floorChange flags for a cached (unmaterialized) tile — this is
 // exactly what Tile would carry after internalAddThing set its flags.
-uint32_t cachedFcFlags(const std::shared_ptr<BasicTile>& bt) {
+uint32_t cachedFcFlags(const BasicTile* bt) {
 	uint32_t flags = 0;
 	if (bt->ground) {
 		flags |= Item::items[bt->ground->id].floorChange;
@@ -2156,15 +2157,16 @@ void BotEngine::buildZPortalGraph() {
 				if (!floor) {
 					continue;
 				}
-				const auto& tiles = floor->getTiles();
 				for (int32_t i = 0; i < SECTOR_SIZE; ++i) {
 					for (int32_t j = 0; j < SECTOR_SIZE; ++j) {
-						const auto& pairTC = tiles[i][j];
-						if (!pairTC.first && !pairTC.second) {
+						// Upstream #4023 split the floor's (tile, cache) pair grid into a tile grid and
+						// a raw BasicTile* cache grid; read both under one shared lock per cell.
+						auto pairTC = floor->getTileAndCache(static_cast<uint16_t>(sx + i), static_cast<uint16_t>(sy + j));
+						if (!pairTC.tile && !pairTC.cachedTile) {
 							continue;
 						}
 						cellsSeen++;
-						ZCell c { pairTC.first, pairTC.second };
+						ZCell c { std::move(pairTC.tile), pairTC.cachedTile };
 						cellPortals.clear();
 						zClassifyCell(sx + i, sy + j, z, c, cellPortals);
 						for (const auto& p : cellPortals) {

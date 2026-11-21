@@ -7,6 +7,9 @@ Players (and cast spectators) connect with an OpenTibia client. We use
 
 - OTClient Redemption: https://github.com/opentibiabr/otclient
   (use a release build, or build from source per its README).
+- The server speaks **protocol 15.25** (`CLIENT_VERSION 1525`). That needs OTClient **4.1 or newer**
+  (4.2 recommended): older builds lack the 15.25 tactics payload (`GameTacticsWithoutFightMode`), so the
+  server misreads their fight/chase/secure modes. The 15.25 assets go under `data/things/1525/`.
 
 ## 2. Game assets (`Tibia.dat` / `Tibia.spr`)
 
@@ -47,7 +50,7 @@ Services = {
 Servers_init = {
     ["http://127.0.0.1/login.php"] = {
         ["port"] = 80,
-        ["protocol"] = 1500,
+        ["protocol"] = 1525,
         ["httpLogin"] = true,
     }
 }
@@ -60,6 +63,9 @@ serving it at the address above.
 
 ## 4. Spectate (cast)
 
-To watch a live character, log in with the account name **`@cast`** (no
-password) and pick a character from the list. Bots appear there and wake on
-click. A normal player starts broadcasting their own character with `/cast on`.
+To watch a live character, log in with the account name **`@cast`** or
+**`@livestream`** (no password) and pick a character from the list. Bots appear
+there and wake on click; they are watched through the bot camera. Human
+broadcasters use the server's native livestream (`!livestream on`), and a
+viewer who picks one lands in that livestream. Until the old human `/cast` is
+retired (#163), `/cast on` still works too.

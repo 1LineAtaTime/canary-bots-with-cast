@@ -13,6 +13,7 @@
 #include "creatures/combat/combat.hpp"
 #include "creatures/combat/condition.hpp"
 #include "creatures/players/player.hpp"
+#include "creatures/players/components/pvp/expert_pvp.hpp"
 #include "creatures/players/components/wheel/wheel_definitions.hpp"
 #include "enums/account_group_type.hpp"
 #include "enums/account_type.hpp"
@@ -55,6 +56,23 @@ namespace {
 		}
 
 		variant.pos = Spells::getCasterPosition(player, direction);
+	}
+
+	ReturnValue getExpertPvpRuneTargetReturnValue(const std::shared_ptr<Player> &player, const std::shared_ptr<Creature> &target) {
+		const auto relation = ExpertPvp::classifyRelation(player, target);
+		const auto decision = ExpertPvp::evaluateCombatAction(ExpertPvpActionKind::RuneTarget, relation.facts);
+		if (!decision.handled || decision.allowed) {
+			return RETURNVALUE_NOERROR;
+		}
+		return target->getPlayer() ? RETURNVALUE_YOUMAYNOTATTACKTHISPLAYER : RETURNVALUE_YOUMAYNOTATTACKTHISCREATURE;
+	}
+
+	bool shouldApplyLegacySpellPzLock(const std::shared_ptr<Player> &player, const std::shared_ptr<Creature> &target) {
+		if (!player || !ExpertPvp::isEnabled()) {
+			return true;
+		}
+
+		return !target || !Combat::isPlayerCombat(target);
 	}
 }
 
@@ -123,6 +141,11 @@ TalkActionResult_t Spells::playerSaySpell(const std::shared_ptr<Player> &player,
 				}
 			}
 		}
+	}
+
+	if (instantSpell->getName() == "Find Person" && !player->canExiva(param)) {
+		player->sendTextMessage(MESSAGE_TRADE, "The character you are trying to find with Exiva is currently protected from your spell.");
+		return TALKACTION_FAILED;
 	}
 
 	if (instantSpell->playerCastInstant(player, param)) {
@@ -541,16 +564,27 @@ bool Spell::playerSpellCheck(const std::shared_ptr<Player> &player) const {
 		return false;
 	}
 
-	if (isInstant() && getNeedLearn()) {
-		if (!player->isBotPlayer() && !player->hasLearnedInstantSpell(getName())) {
-			player->sendCancelMessage(RETURNVALUE_YOUNEEDTOLEARNTHISSPELL);
+	// FORK(bot): bots cast without learning spells, under either learning rule (#3971).
+	if (g_configManager().getBoolean(LEARN_SPELLS)) {
+		if (isInstant()) {
+			if (!player->isBotPlayer() && !player->hasLearnedInstantSpell(getName())) {
+				player->sendCancelMessage(RETURNVALUE_YOUNEEDTOLEARNTHISSPELL);
+				g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
+				return false;
+			}
+		}
+	} else {
+		if (isInstant() && getNeedLearn()) {
+			if (!player->isBotPlayer() && !player->hasLearnedInstantSpell(getName())) {
+				player->sendCancelMessage(RETURNVALUE_YOUNEEDTOLEARNTHISSPELL);
+				g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
+				return false;
+			}
+		} else if (!vocSpellMap.empty() && !vocSpellMap.contains(player->getVocationId()) && player->getGroup()->id < GROUP_TYPE_GAMEMASTER) {
+			player->sendCancelMessage(RETURNVALUE_YOURVOCATIONCANNOTUSETHISSPELL);
 			g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
 			return false;
 		}
-	} else if (!vocSpellMap.empty() && !vocSpellMap.contains(player->getVocationId()) && player->getGroup()->id < GROUP_TYPE_GAMEMASTER) {
-		player->sendCancelMessage(RETURNVALUE_YOURVOCATIONCANNOTUSETHISSPELL);
-		g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
-		return false;
 	}
 
 	if (needWeapon) {
@@ -679,12 +713,21 @@ bool Spell::playerRuneSpellCheck(const std::shared_ptr<Player> &player, const Po
 		return false;
 	}
 
-	if (aggressive && needTarget && topVisibleCreature && player->hasSecureMode()) {
-		const auto &targetPlayer = topVisibleCreature->getPlayer();
-		if (targetPlayer && targetPlayer != player && player->getSkullClient(targetPlayer) == SKULL_NONE && !Combat::isInPvpZone(player, targetPlayer)) {
-			player->sendCancelMessage(RETURNVALUE_TURNSECUREMODETOATTACKUNMARKEDPLAYERS);
-			g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
-			return false;
+	if (aggressive && needTarget && topVisibleCreature) {
+		if (ExpertPvp::isEnabled() && Combat::isPlayerCombat(topVisibleCreature)) {
+			const auto expertPvpRet = getExpertPvpRuneTargetReturnValue(player, topVisibleCreature);
+			if (expertPvpRet != RETURNVALUE_NOERROR) {
+				player->sendCancelMessage(expertPvpRet);
+				g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
+				return false;
+			}
+		} else if (player->hasSecureMode()) {
+			const auto &targetPlayer = topVisibleCreature->getPlayer();
+			if (targetPlayer && targetPlayer != player && player->getSkullClient(targetPlayer) == SKULL_NONE && !Combat::isInPvpZone(player, targetPlayer)) {
+				player->sendCancelMessage(RETURNVALUE_TURNSECUREMODETOATTACKUNMARKEDPLAYERS);
+				g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
+				return false;
+			}
 		}
 	}
 	return true;
@@ -753,7 +796,7 @@ void Spell::getCombatDataAugment(const std::shared_ptr<Player> &player, CombatDa
 					continue;
 				}
 				if (
-					augment->type == Augment_t::IncreasedDamage || augment->type == Augment_t::PowerfulImpact || augment->type == Augment_t::StrongImpact || augment->type == Augment_t::Base
+					augment->type == Augment_t::IncreasedDamage || augment->type == Augment_t::PowerfulImpact || augment->type == Augment_t::StrongImpact || augment->type == Augment_t::BaseDamage || augment->type == Augment_t::BaseHealing
 				) {
 					const float augmentPercent = augment->value / 100.0;
 					damage.primary.value += static_cast<int32_t>(damage.primary.value * augmentPercent);
@@ -797,8 +840,21 @@ void Spell::applyCooldownConditions(const std::shared_ptr<Player> &player) const
 			spellCooldown -= getWheelOfDestinyBoost(WheelSpellBoost_t::COOLDOWN, spellGrade);
 		}
 		int32_t augmentCooldownReduction = calculateAugmentSpellCooldownReduction(player);
-		g_logger().debug("[{}] spell name: {}, grade: {}, originalCooldown: {}, spellCooldown: {}, bonus: {}, augment {}", __FUNCTION__, name, spellGrade, cooldown, spellCooldown, player->wheel().getSpellBonus(name, WheelSpellBoost_t::COOLDOWN), augmentCooldownReduction);
-		spellCooldown -= player->wheel().getSpellBonus(name, WheelSpellBoost_t::COOLDOWN);
+		const auto wheelCooldownReduction = player->wheel().getSpellBonus(name, WheelSpellBoost_t::COOLDOWN);
+		const auto proficiencyCooldownReduction = player->weaponProficiency().getSpellBonus(m_spellId, WeaponProficiencySpellBoost_t::COOLDOWN);
+		g_logger().debug(
+			"[{}] spell name: {}, grade: {}, originalCooldown: {}, spellCooldown: {}, wheel bonus: {}, proficiency bonus: {}, augment {}",
+			__FUNCTION__,
+			name,
+			spellGrade,
+			cooldown,
+			spellCooldown,
+			wheelCooldownReduction,
+			proficiencyCooldownReduction,
+			augmentCooldownReduction
+		);
+		spellCooldown -= wheelCooldownReduction;
+		spellCooldown -= proficiencyCooldownReduction;
 		spellCooldown -= augmentCooldownReduction;
 		const int32_t halfBaseCooldown = cooldown / 2;
 		spellCooldown = halfBaseCooldown > spellCooldown ? halfBaseCooldown : spellCooldown; // The cooldown should never be reduced less than half (50%) of its base cooldown
@@ -1132,6 +1188,7 @@ bool InstantSpell::playerCastInstant(const std::shared_ptr<Player> &player, std:
 	LuaVariant var;
 	var.instantName = getName();
 	std::shared_ptr<Player> playerTarget = nullptr;
+	std::shared_ptr<Creature> pzLockTarget = nullptr;
 
 	if (selfTarget) {
 		var.type = VARIANT_NUMBER;
@@ -1185,6 +1242,7 @@ bool InstantSpell::playerCastInstant(const std::shared_ptr<Player> &player, std:
 
 			var.type = VARIANT_NUMBER;
 			var.number = target->getID();
+			pzLockTarget = target;
 		} else {
 			var.type = VARIANT_POSITION;
 			var.pos = Spells::getCasterPosition(player, player->getDirection());
@@ -1233,7 +1291,7 @@ bool InstantSpell::playerCastInstant(const std::shared_ptr<Player> &player, std:
 	}
 
 	auto worldType = g_game().getWorldType();
-	if (pzLocked && (worldType == WORLD_TYPE_PVP || worldType == WORLD_TYPE_PVP_ENFORCED)) {
+	if (pzLocked && (worldType == WORLD_TYPE_PVP || worldType == WORLD_TYPE_PVP_ENFORCED) && shouldApplyLegacySpellPzLock(player, pzLockTarget)) {
 		player->addInFightTicks(true);
 		player->updateLastAggressiveAction();
 	}
@@ -1375,6 +1433,10 @@ bool InstantSpell::canCast(const std::shared_ptr<Player> &player) const {
 		return true;
 	}
 
+	if (g_configManager().getBoolean(LEARN_SPELLS)) {
+		return player->hasLearnedInstantSpell(getName());
+	}
+
 	if (getNeedLearn()) {
 		if (player->hasLearnedInstantSpell(getName())) {
 			return true;
@@ -1460,6 +1522,7 @@ bool RuneSpell::executeUse(const std::shared_ptr<Player> &player, const std::sha
 
 	LuaVariant var;
 	var.runeName = getName();
+	std::shared_ptr<Creature> pzLockTarget = nullptr;
 
 	if (needTarget) {
 		var.type = VARIANT_NUMBER;
@@ -1470,10 +1533,13 @@ bool RuneSpell::executeUse(const std::shared_ptr<Player> &player, const std::sha
 				const auto &visibleCreature = toTile->getBottomVisibleCreature(player);
 				if (visibleCreature) {
 					var.number = visibleCreature->getID();
+					pzLockTarget = visibleCreature;
 				}
 			}
 		} else {
-			var.number = target->getCreature()->getID();
+			const auto &targetCreature = target->getCreature();
+			var.number = targetCreature->getID();
+			pzLockTarget = targetCreature;
 		}
 	} else {
 		var.type = VARIANT_POSITION;
@@ -1492,7 +1558,7 @@ bool RuneSpell::executeUse(const std::shared_ptr<Player> &player, const std::sha
 	}
 
 	auto worldType = g_game().getWorldType();
-	if (pzLocked && (worldType == WORLD_TYPE_PVP || worldType == WORLD_TYPE_PVP_ENFORCED)) {
+	if (pzLocked && (worldType == WORLD_TYPE_PVP || worldType == WORLD_TYPE_PVP_ENFORCED) && shouldApplyLegacySpellPzLock(player, pzLockTarget)) {
 		player->addInFightTicks(true);
 		player->updateLastAggressiveAction();
 	}

@@ -4,6 +4,38 @@
 -- Uses creature:startAutoWalk() + creature:isWalking() (server-side walk scheduler)
 -- ============================================================================
 
+-- #154 startup self-check: every config key the bot Lua reads must exist in `configKeys`.
+-- A missing key reads as nil, and configManager.get*(nil) then quietly returns a fallback: that
+-- is how the BOT_MARKET_* keys would have vanished when upstream's new core keys pushed their
+-- ordinals past MAGIC_ENUM_RANGE_MAX (config_functions.cpp now registers bot keys by name).
+-- Keep this list in sync with every `configKeys.BOT_*` read in data/ (and ALLOW_PLAYER_CAST).
+do
+	local required = {
+		"BOT_PLAYERS_ONLINE",
+		"BOT_PLAYERS_SHOW_AS_ONLINE",
+		"BOT_PERSONALITY_REROLL_ON_RESTART",
+		"BOT_MARKET_ACCEPT_INTERVAL_MIN_SEC",
+		"BOT_MARKET_ACCEPT_INTERVAL_MAX_SEC",
+		"BOT_MARKET_ACCEPT_CHANCE_PCT",
+		"BOT_MARKET_SELL_CEILING_PCT",
+		"BOT_MARKET_BUY_FLOOR_PCT",
+		"BOT_MARKET_ACCEPT_DRAIN_MS",
+		"BOT_MARKET_NOREF_MAX_UNIT_PRICE",
+		"BOT_MARKET_NOREF_MIN_UNIT_PRICE",
+		"BOT_MARKET_NOREF_FIRE_GOLD_BUDGET",
+		"ALLOW_PLAYER_CAST", -- read by talkactions/player/cast.lua (#163)
+	}
+	local missing = {}
+	for _, key in ipairs(required) do
+		if not configKeys or configKeys[key] == nil then
+			missing[#missing + 1] = key
+		end
+	end
+	if #missing > 0 then
+		logger.error("[BotConfig] configKeys is missing {} bot key(s): {} -- the bot Lua would silently use fallbacks. Check config_functions.cpp (#154).", #missing, table.concat(missing, ", "))
+	end
+end
+
 -- Configuration
 BOT_CONFIG = {
 	-- TEMP TEST 1 (2026-05-21): master disable for GAP_SLOW infrastructure-cause test.

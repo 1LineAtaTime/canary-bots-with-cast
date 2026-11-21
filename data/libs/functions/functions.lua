@@ -75,28 +75,37 @@ function getLootRandom(modifier)
 	return randomValue * 100 / multi
 end
 
--- PERF_INVESTIGATION_2026-05-24 (Tier 1-A): upstream Lua per-instruction debug
--- hook is the single largest CPU sink at scale. perf samples showed
--- lj_dispatch_ins 57.74%, lj_vm_inshook 48.30%, lj_vm_exit_interp 59.20%,
--- hookf 22-33% — all driven by this hook firing on every Lua line and
--- forcing LuaJIT to abort traces. Nothing in the codebase reads hook state
--- (no lua_gethook callers). Upstream PR opentibiabr/canary#3968 already
--- made this configurable; we just gate it off by default. Set env var
--- CANARY_ENABLE_LUA_LINE_HOOK=1 to re-enable for dev infinite-loop debugging.
-if os.getenv("CANARY_ENABLE_LUA_LINE_HOOK") == "1" then
-	local start = os.time()
-	local linecount = 0
-	debug.sethook(function(event, line)
-		linecount = linecount + 1
-		if systemTime() - start >= 1 then
-			if linecount >= 30000 then
-				logger.warn("[debug.sethook] - Possible infinite loop in file [{}] near line [{}]", debug.getinfo(2).source, line)
-				debug.sethook()
-			end
-			linecount = 0
-			start = os.time()
+if configManager.getBoolean(configKeys.LUA_SCRIPT_DEBUG_HOOK) then
+	local instructionInterval = math.max(1000, configManager.getNumber(configKeys.LUA_SCRIPT_DEBUG_HOOK_INTERVAL))
+	local callStarts = {}
+
+	debug.sethook(function(event)
+		if event == "call" then
+			callStarts[#callStarts + 1] = systemTime()
+			return
 		end
-	end, "l")
+
+		if event == "return" or event == "tail return" then
+			callStarts[#callStarts] = nil
+			return
+		end
+
+		if event ~= "count" then
+			return
+		end
+
+		local start = callStarts[#callStarts]
+		if not start then
+			return
+		end
+
+		local now = systemTime()
+		if now - start >= instructionInterval then
+			local info = debug.getinfo(2, "Sl") or {}
+			logger.warn("[debug.sethook] - Possible long-running Lua script in file [{}] near line [{}]", info.source or "unknown", info.currentline or 0)
+			callStarts[#callStarts] = now
+		end
+	end, "cr", instructionInterval)
 end
 
 -- OTServBr-Global functions
@@ -105,7 +114,7 @@ function getJackLastMissionState(player)
 		return true
 	end
 
-	if player:getStorageValue(Storage.TibiaTales.JackFutureQuest.LastMissionState) == 1 then
+	if player:getStorageValue(Storage.Quest.U8_7.JackFutureQuest.LastMissionState) == 1 then
 		return "You told Jack the truth about his personality. You also explained that you and Spectulus \z
 		made a mistake by assuming him as the real Jack."
 	else
@@ -797,14 +806,13 @@ function table.copy(t, out)
 end
 
 function unserializeTable(str, out)
-	local tmp = load("return " .. str)
-	if tmp then
-		tmp = tmp()
-	else
+	local value = table.unserialize(str)
+	if type(value) ~= "table" then
 		logger.warn("[unserializeTable] - Unserialization error: {}", str)
 		return false
 	end
-	return table.copy(tmp, out)
+
+	return table.copy(value, out)
 end
 
 function unpack2(tab, i)
@@ -908,8 +916,11 @@ function SetInfluenced(monsterType, monster, player, influencedLevel)
 			Game.removeInfluencedMonster(influencedMonster:getId())
 		end
 	end
-	Game.addInfluencedMonster(monster)
-	monster:setForgeStack(influencedLevel)
+	if not Game.addInfluencedMonster(monster, influencedLevel) then
+		player:sendCancelMessage("Could not add influenced monster.")
+		return false
+	end
+	return true
 end
 
 function ReloadDataEvent(cid)

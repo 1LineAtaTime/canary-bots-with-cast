@@ -240,7 +240,9 @@ elseif(WIN32)
     # (bot_engine_interface.hpp:491+) -- allocate in one CRT, free in the other,
     # and that is heap corruption rather than a link error. Making a DLL viable
     # would mean forcing /MD across the whole project and diverging from
-    # upstream's x64-windows-static triplet.
+    # upstream's static-CRT triplet: x64-windows-static-release since the 15.25
+    # port (overlay cmake/triplets, VCPKG_CRT_LINKAGE static, release only), with
+    # host triplet x64-windows; it was x64-windows-static before.
     #
     # Consequence, by design: no /cavebot reload on Windows. See the note on
     # BotEngineLoader::supportsHotReload(). Restarting a local dev server costs

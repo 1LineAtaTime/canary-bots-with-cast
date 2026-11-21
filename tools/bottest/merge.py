@@ -18,8 +18,10 @@ kept apart from journal lines by src ("srv:audit" vs "srv"); `bot` is mirrored i
 Clock model: every server time is mapped onto the PC clock with
     pc = srv - offset_ms(t)   (offset_ms = server_clock - pc_clock, re-sampled every <=10 min
                                over one persistent ssh session; interpolated between samples)
-The embedded spdlog timestamp ([%Y-%d-%m %H:%M:%S.%e], server local tz) is the time the
-line was *logged*; the journald receipt time is kept as `jts` for comparison.
+The embedded spdlog timestamp (server local tz) is the time the line was *logged*; the journald
+receipt time is kept as `jts` for comparison. Its date order changed with the 15.25 port:
+[%Y-%d-%m ...] up to 15.00, [%Y-%m-%d ...] from upstream #4161 on. Both are accepted; when day and
+month are both <= 12 the reading closer to `jts` wins (they differ by at least a day).
 
 Join windows (measured in Phase 0: server->client p95 ~20 ms, clock uncertainty ~2 ms):
     JOURNAL_WINDOW_MS = 100   client event <-> journal line about the same creature
@@ -88,12 +90,17 @@ def parse_line(line: str, tz_min: int, samples: list[dict]) -> dict | None:
     if not m:
         return None
     jts = float(m.group(1)) * 1000.0
-    y, d, mo, hh, mi, ss, ms = (int(m.group(i)) for i in (2, 3, 4, 5, 6, 7, 8))
-    try:
-        local = dt.datetime(y, mo, d, hh, mi, ss, ms * 1000, tzinfo=dt.timezone(dt.timedelta(minutes=tz_min)))
-    except ValueError:
+    y, a, b, hh, mi, ss, ms = (int(m.group(i)) for i in (2, 3, 4, 5, 6, 7, 8))
+    tz = dt.timezone(dt.timedelta(minutes=tz_min))
+    cands = []
+    for mo, d in ((a, b), (b, a)):  # %Y-%m-%d (15.25) first, then %Y-%d-%m (15.00)
+        try:
+            cands.append(dt.datetime(y, mo, d, hh, mi, ss, ms * 1000, tzinfo=tz).timestamp() * 1000.0)
+        except ValueError:
+            pass
+    if not cands:
         return None
-    lts = local.timestamp() * 1000.0
+    lts = min(cands, key=lambda t: abs(t - jts))
     msg = m.group(10)
     off = offset_at(samples, lts - (samples[0]["offset_ms"] if samples else 0.0))
     rec = {"src": "srv", "srv_ts": lts, "jts": jts, "ts": lts - off, "lvl": m.group(9), "msg": msg}

@@ -22,9 +22,32 @@ std::string ProtocolStatus::SERVER_VERSION = "3.0";
 std::string ProtocolStatus::SERVER_DEVELOPERS = "OpenTibiaBR Organization";
 
 std::map<uint32_t, int64_t> ProtocolStatus::ipConnectMap;
+uint32_t ProtocolStatus::pruneCursor = 0;
 const uint64_t ProtocolStatus::start = OTSYS_TIME(true);
 
+void ProtocolStatus::pruneStaleEntries(int64_t currentTime) {
+	// Incremental: examine at most PRUNE_BUDGET entries, resuming where the
+	// previous query stopped and wrapping at the end, so the work done inside the
+	// network callback is bounded no matter how large the map has grown.
+	// Mirrors the throttle check below: once the timeout has elapsed the entry can
+	// never reject a query again. A query recorded before a backward clock step
+	// is still in the future here, so it stays until it expires.
+	const auto timeout = g_configManager().getNumber(STATUSQUERY_TIMEOUT);
+	auto it = ipConnectMap.lower_bound(pruneCursor);
+	// At most one lap: a small map is not re-examined within the same call.
+	const size_t steps = std::min(PRUNE_BUDGET, ipConnectMap.size());
+	for (size_t examined = 0; examined < steps; ++examined) {
+		if (it == ipConnectMap.end()) {
+			it = ipConnectMap.begin();
+		}
+		it = currentTime >= it->second + timeout ? ipConnectMap.erase(it) : std::next(it);
+	}
+	pruneCursor = it == ipConnectMap.end() ? 0 : it->first;
+}
+
 void ProtocolStatus::onRecvFirstMessage(NetworkMessage &msg) {
+	pruneStaleEntries(OTSYS_TIME());
+
 	const uint32_t ip = getIP();
 	if (ip != 0x0100007F) {
 		const std::string ipStr = convertIPToString(ip);
@@ -43,7 +66,7 @@ void ProtocolStatus::onRecvFirstMessage(NetworkMessage &msg) {
 		// XML info protocol
 		case 0xFF: {
 			if (msg.getString(4) == "info") {
-				g_dispatcher().addEvent(
+				dispatchProtocolTask(
 					[self = std::static_pointer_cast<ProtocolStatus>(shared_from_this())] {
 						self->sendStatusString();
 					},
@@ -61,7 +84,7 @@ void ProtocolStatus::onRecvFirstMessage(NetworkMessage &msg) {
 			if (requestedInfo & REQUEST_PLAYER_STATUS_INFO) {
 				characterName = msg.getString();
 			}
-			g_dispatcher().addEvent(
+			dispatchProtocolTask(
 				[self = std::static_pointer_cast<ProtocolStatus>(shared_from_this()), requestedInfo, characterName] {
 					self->sendInfo(requestedInfo, characterName);
 				},
@@ -116,6 +139,8 @@ void ProtocolStatus::sendStatusString() {
 		playerCount += g_botEngine().getHibernatedBotCount();
 	}
 	players.append_attribute("online") = std::to_string(playerCount).c_str();
+	// Upstream #3969: unique IPs. Bots have IP 0, so they all fold into one group here.
+	players.append_attribute("unique") = std::to_string(g_game().getPlayerStats().totalUniqueIPs).c_str();
 	players.append_attribute("max") = std::to_string(g_configManager().getNumber(MAX_PLAYERS)).c_str();
 	players.append_attribute("peak") = std::to_string(g_game().getPlayersRecord()).c_str();
 

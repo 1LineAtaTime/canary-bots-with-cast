@@ -1,0 +1,15 @@
+# SCENARIO: p5_human_cast_off   SEED: 0   CAMERAS: auto   BOTCFG: auto
+# Run: runner.py p5_human_cast_off.steps   (server with allowPlayerCast = false, the default)
+# #163: with the toggle off our human /cast is refused with a pointer to !livestream and changes
+# no state: no cast_broadcasters row for the player (nor for any other human).
+@p1 login
+@p1 goto 32369,32220,7 range=1 stuck=10 timeout=120
+@p1 say /cast on
+@p1 hold 3
+@srv expect src=cli:p1 k=see_msg text~="Player cast is disabled on this server. Use !livestream on" min=1 within=30
+@srv db "SELECT COUNT(*) FROM cast_broadcasters c JOIN players p ON p.id = c.player_id WHERE p.name = 'Harness One'" expect="^0" wait=5
+@p1 say /cast
+@p1 hold 2
+@srv expect src=cli:p1 k=see_msg text~="Player cast is disabled" min=2 within=30
+@srv db "SELECT COUNT(*) FROM cast_broadcasters c JOIN players p ON p.id = c.player_id WHERE p.account_id <> 65000" expect="^0" wait=5
+@p1 logout

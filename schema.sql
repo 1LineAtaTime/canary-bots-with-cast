@@ -7,13 +7,13 @@ CREATE TABLE IF NOT EXISTS `server_config` (
     CONSTRAINT `server_config_pk` PRIMARY KEY (`config`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-INSERT INTO `server_config` (`config`, `value`) VALUES ('db_version', '56'), ('motd_hash', ''), ('motd_num', '0'), ('players_record', '0');
+INSERT INTO `server_config` (`config`, `value`) VALUES ('db_version', '59'), ('motd_hash', ''), ('motd_num', '0'), ('players_record', '0');
 
 -- Table structure `accounts`
 CREATE TABLE IF NOT EXISTS `accounts` (
     `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
     `name` varchar(32) NOT NULL,
-    `password` TEXT NOT NULL,
+    `password` VARCHAR(255) NOT NULL,
     `email` varchar(255) NOT NULL DEFAULT '',
     `premdays` int(11) NOT NULL DEFAULT '0',
     `premdays_purchased` int(11) NOT NULL DEFAULT '0',
@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS `accounts` (
     `recruiter` INT(6) DEFAULT 0,
     `house_bid_id` int(11) NOT NULL DEFAULT '0',
     CONSTRAINT `accounts_pk` PRIMARY KEY (`id`),
-    CONSTRAINT `accounts_unique` UNIQUE (`name`)
+    CONSTRAINT `accounts_unique` UNIQUE (`name`),
+    INDEX `accounts_email` (`email`),
+    INDEX `accounts_password` (`password`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- Table structure `coins_transactions`
@@ -80,6 +82,7 @@ CREATE TABLE IF NOT EXISTS `players` (
     `save` tinyint(1) NOT NULL DEFAULT '1',
     `skull` tinyint(1) NOT NULL DEFAULT '0',
     `skulltime` bigint(20) NOT NULL DEFAULT '0',
+    `expert_pvp_mode` tinyint(1) UNSIGNED NOT NULL DEFAULT '0',
     `lastlogout` bigint(20) UNSIGNED NOT NULL DEFAULT '0',
     `blessings` tinyint(2) NOT NULL DEFAULT '0',
     `blessings1` tinyint(4) NOT NULL DEFAULT '0',
@@ -149,6 +152,7 @@ CREATE TABLE IF NOT EXISTS `players` (
     `forge_dust_level` bigint(21) NOT NULL DEFAULT '100',
     `randomize_mount` tinyint(1) NOT NULL DEFAULT '0',
     `boss_points` int NOT NULL DEFAULT '0',
+    `comment` varchar(255) NOT NULL DEFAULT '',
     `animus_mastery` mediumblob DEFAULT NULL,
     INDEX `account_id` (`account_id`),
     INDEX `vocation` (`vocation`),
@@ -556,6 +560,17 @@ CREATE TABLE IF NOT EXISTS `players_online` (
         FOREIGN KEY (`player_id`) REFERENCES `players` (`id`)
         ON DELETE CASCADE
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8;
+
+-- Table structure `active_livestream_casters`
+CREATE TABLE IF NOT EXISTS `active_livestream_casters` (
+    `caster_id` int(11) NOT NULL,
+    `livestream_status` tinyint(1) UNSIGNED NOT NULL DEFAULT '0',
+    `livestream_viewers` int(11) UNSIGNED NOT NULL DEFAULT '0',
+    CONSTRAINT `active_livestream_casters_pk` PRIMARY KEY (`caster_id`),
+    CONSTRAINT `active_livestream_casters_players_fk`
+        FOREIGN KEY (`caster_id`) REFERENCES `players` (`id`)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- Table structure `player_charm`
 CREATE TABLE IF NOT EXISTS `player_charms` (

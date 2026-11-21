@@ -39,7 +39,7 @@ bool ConfigManager::load() {
 
 	// Parse config
 	// Info that must be loaded one time (unless we reset the modules involved)
-	if (!loaded) {
+	if (!loaded.load(std::memory_order_relaxed)) {
 		loadBoolConfig(L, BIND_ONLY_GLOBAL_ADDRESS, "bindOnlyGlobalAddress", false);
 		loadBoolConfig(L, BOT_DENSITY_CAP_ENABLED, "botDensityCapEnabled", true);
 		loadBoolConfig(L, DISABLE_LEGACY_RAIDS, "disableLegacyRaids", false);
@@ -187,6 +187,8 @@ bool ConfigManager::load() {
 		loadIntConfig(L, DEPOT_BOXES, "depotBoxes", 20);
 		loadIntConfig(L, FREE_DEPOT_LIMIT, "freeDepotLimit", 2000);
 		loadIntConfig(L, GAME_PORT, "gameProtocolPort", 7172);
+		loadIntConfig(L, LEGACY_1100_GAME_PORT, "legacy1100GameProtocolPort", 0);
+		loadIntConfig(L, LEGACY_860_GAME_PORT, "legacy860GameProtocolPort", 0);
 		loadIntConfig(L, LOGIN_PORT, "loginProtocolPort", 7171);
 		loadIntConfig(L, MARKET_OFFER_DURATION, "marketOfferDuration", 30 * 24 * 60 * 60);
 		loadIntConfig(L, MARKET_REFRESH_PRICES, "marketRefreshPricesInterval", 30);
@@ -244,6 +246,7 @@ bool ConfigManager::load() {
 	BOT_SHRINE_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
 	BOT_AUDIT_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
 	BOT_PVP_SANITY_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
+	BOT_CAMERA_CONFIG_KEYS(BOT_CFG_LOAD_INT, BOT_CFG_LOAD_BOOL, BOT_CFG_LOAD_STR)
 #undef BOT_CFG_LOAD_INT
 #undef BOT_CFG_LOAD_BOOL
 #undef BOT_CFG_LOAD_STR
@@ -253,13 +256,20 @@ bool ConfigManager::load() {
 	loadBoolConfig(L, CLEAN_PROTECTION_ZONES, "cleanProtectionZones", false);
 	loadBoolConfig(L, CONVERT_UNSAFE_SCRIPTS, "convertUnsafeScripts", true);
 	loadBoolConfig(L, DISABLE_MONSTER_ARMOR, "disableMonsterArmor", false);
+	loadBoolConfig(L, MONSTER_PERF_TEST_FORCE_ACTIVE, "monsterPerfTestForceActive", false);
+	loadBoolConfig(L, MONSTER_PERF_TEST_FRIENDLY_FIRE, "monsterPerfTestFriendlyFire", false);
+	if (getBoolean(MONSTER_PERF_TEST_FORCE_ACTIVE) || getBoolean(MONSTER_PERF_TEST_FRIENDLY_FIRE)) {
+		g_logger().warn("[ConfigManager::load] - Monster perf-test flags are enabled; this benchmark-only stress mode should not be used in production.");
+	}
 	loadBoolConfig(L, DISCORD_SEND_FOOTER, "discordSendFooter", true);
 	loadBoolConfig(L, EMOTE_SPELLS, "emoteSpells", false);
+	loadBoolConfig(L, LEARN_SPELLS, "toggleLearnSpells", true);
 	loadBoolConfig(L, ENABLE_PLAYER_PUT_ITEM_IN_AMMO_SLOT, "enablePlayerPutItemInAmmoSlot", false);
 	loadBoolConfig(L, ENABLE_SUPPORT_OUTFIT, "enableSupportOutfit", true);
 	loadBoolConfig(L, EXPERIENCE_FROM_PLAYERS, "experienceByKillingPlayers", false);
 	loadBoolConfig(L, FORCE_LOGOUT_ON_CONNECTION_LOSS, "forceLogoutOnConnectionLoss", false);
 	loadBoolConfig(L, FREE_PREMIUM, "freePremium", false);
+	loadBoolConfig(L, GENERATE_LUA_API_DOCS, "generateLuaApiDocs", true);
 	loadBoolConfig(L, GLOBAL_SERVER_SAVE_CLEAN_MAP, "globalServerSaveCleanMap", false);
 	loadBoolConfig(L, GLOBAL_SERVER_SAVE_CLOSE, "globalServerSaveClose", false);
 	loadBoolConfig(L, GLOBAL_SERVER_SAVE_NOTIFY_MESSAGE, "globalServerSaveNotifyMessage", true);
@@ -268,6 +278,9 @@ bool ConfigManager::load() {
 	loadBoolConfig(L, HOUSE_PURSHASED_SHOW_PRICE, "housePurchasedShowPrice", false);
 	loadBoolConfig(L, INVENTORY_GLOW, "inventoryGlowOnFiveBless", false);
 	loadBoolConfig(L, LOYALTY_ENABLED, "loyaltyEnabled", true);
+	loadBoolConfig(L, LUA_SCRIPT_BYTECODE_CACHE, "luaScriptBytecodeCache", true);
+	loadBoolConfig(L, LUA_SCRIPT_DEBUG_HOOK, "luaScriptDebugHook", false);
+	loadBoolConfig(L, LUA_STARTUP_LOAD_TELEMETRY, "luaStartupLoadTelemetry", false);
 	loadBoolConfig(L, MARKET_PREMIUM, "premiumToCreateMarketOffer", true);
 	loadBoolConfig(L, METRICS_ENABLE_OSTREAM, "metricsEnableOstream", false);
 	loadBoolConfig(L, METRICS_ENABLE_PROMETHEUS, "metricsEnablePrometheus", false);
@@ -315,7 +328,6 @@ bool ConfigManager::load() {
 	loadBoolConfig(L, TOGGLE_SAVE_ASYNC, "toggleSaveAsync", false);
 	loadBoolConfig(L, TOGGLE_SAVE_INTERVAL_CLEAN_MAP, "toggleSaveIntervalCleanMap", false);
 	loadBoolConfig(L, TOGGLE_SAVE_INTERVAL, "toggleSaveInterval", false);
-	loadBoolConfig(L, TOGGLE_SERVER_IS_RETRO, "toggleServerIsRetroPVP", false);
 	loadBoolConfig(L, TOGGLE_TRAVELS_FREE, "toggleTravelsFree", false);
 	loadBoolConfig(L, TOGGLE_WHEELSYSTEM, "wheelSystemEnabled", true);
 	loadBoolConfig(L, USE_ANY_DATAPACK_FOLDER, "useAnyDatapackFolder", false);
@@ -365,12 +377,16 @@ bool ConfigManager::load() {
 	loadFloatConfig(L, RUSE_CHANCE_FORMULA_A, "ruseChanceFormulaA", 0.0307576);
 	loadFloatConfig(L, RUSE_CHANCE_FORMULA_B, "ruseChanceFormulaB", 0.440697);
 	loadFloatConfig(L, RUSE_CHANCE_FORMULA_C, "ruseChanceFormulaC", 0.026);
-	loadFloatConfig(L, TRANSCENDENCE_CHANCE_FORMULA_A, "transcendanceChanceFormulaA", 0.0127);
-	loadFloatConfig(L, TRANSCENDENCE_CHANCE_FORMULA_B, "transcendanceChanceFormulaB", 0.1070);
-	loadFloatConfig(L, TRANSCENDENCE_CHANCE_FORMULA_C, "transcendanceChanceFormulaC", 0.0073);
+	loadFloatConfig(L, TRANSCENDENCE_CHANCE_FORMULA_A, "transcendenceChanceFormulaA", 0.0127);
+	loadFloatConfig(L, TRANSCENDENCE_CHANCE_FORMULA_B, "transcendenceChanceFormulaB", 0.1070);
+	loadFloatConfig(L, TRANSCENDENCE_CHANCE_FORMULA_C, "transcendenceChanceFormulaC", 0.0073);
 	loadFloatConfig(L, AMPLIFICATION_CHANCE_FORMULA_A, "amplificationChanceFormulaA", 0.4);
 	loadFloatConfig(L, AMPLIFICATION_CHANCE_FORMULA_B, "amplificationChanceFormulaB", 1.7);
 	loadFloatConfig(L, AMPLIFICATION_CHANCE_FORMULA_C, "amplificationChanceFormulaC", 0.4);
+
+	loadFloatConfig(L, PLAYER_BASE_CRITICAL_CHANCE, "playerBaseCriticalChance", 0.05);
+	loadFloatConfig(L, PLAYER_BASE_CRITICAL_DAMAGE, "playerBaseCriticalDamage", 0.1);
+	loadFloatConfig(L, WEAPON_PROFICIENCY_GAIN_MULTIPLIER, "weaponProficiencyGainMultiplier", 0.33);
 
 	loadFloatConfig(L, ANIMUS_MASTERY_MAX_MONSTER_XP_MULTIPLIER, "animusMasteryMaxMonsterXpMultiplier", 4.0);
 	loadFloatConfig(L, ANIMUS_MASTERY_MONSTER_XP_MULTIPLIER, "animusMasteryMonsterXpMultiplier", 2.0);
@@ -393,6 +409,8 @@ bool ConfigManager::load() {
 	loadIntConfig(L, COMBAT_CHAIN_DELAY, "combatChainDelay", 50);
 	loadIntConfig(L, COMBAT_CHAIN_TARGETS, "combatChainTargets", 5);
 	loadIntConfig(L, COMPRESSION_LEVEL, "packetCompressionLevel", 6);
+	loadIntConfig(L, CREATURE_ASYNC_TASKS_PER_BUCKET, "creatureAsyncTasksPerBucket", 16);
+	loadIntConfig(L, CREATURE_WALK_TASKS_PER_PASS, "creatureWalkTasksPerPass", 128);
 	loadIntConfig(L, CRITICALCHANCE, "criticalChance", 10);
 	loadIntConfig(L, DAY_KILLS_TO_RED, "dayKillsToRedSkull", 3);
 	loadIntConfig(L, DEATH_LOSE_PERCENT, "deathLosePercent", -1);
@@ -400,6 +418,10 @@ bool ConfigManager::load() {
 	loadIntConfig(L, DEFAULT_DESPAWNRADIUS, "deSpawnRadius", 50);
 	loadIntConfig(L, DEFAULT_DESPAWNRANGE, "deSpawnRange", 2);
 	loadIntConfig(L, DEPOTCHEST, "depotChest", 4);
+	loadIntConfig(L, DEFERRED_GAMEPLAY_TASKS_PER_PASS, "deferredGameplayTasksPerPass", 16);
+	loadIntConfig(L, DISPATCHER_EMERGENCY_MS, "dispatcherEmergencyMs", 100);
+	loadIntConfig(L, DISPATCHER_SLICE_DURATION_MS, "dispatcherSliceDurationMs", 2);
+	loadIntConfig(L, DISPATCHER_SLO_MS, "dispatcherSloMs", 50);
 	loadIntConfig(L, DISCORD_WEBHOOK_DELAY_MS, "discordWebhookDelayMs", Webhook::DEFAULT_DELAY_MS);
 	loadIntConfig(L, EX_ACTIONS_DELAY_INTERVAL, "timeBetweenExActions", 1000);
 	loadIntConfig(L, EXP_FROM_PLAYERS_LEVEL_RANGE, "expFromPlayersLevelRange", 75);
@@ -440,7 +462,14 @@ bool ConfigManager::load() {
 	loadIntConfig(L, HOUSE_LOSE_AFTER_INACTIVITY, "houseLoseAfterInactivity", 0);
 	loadIntConfig(L, HOUSE_PRICE_PER_SQM, "housePriceEachSQM", 1000);
 	loadIntConfig(L, KICK_AFTER_MINUTES, "kickIdlePlayerAfterMinutes", 15);
+	loadIntConfig(L, LIVESTREAM_CASTER_MIN_LEVEL, "livestreamCasterMinLevel", 200);
+	loadFloatConfig(L, LIVESTREAM_EXPERIENCE_MULTIPLIER, "livestreamExperienceMultiplier", 1.15f);
+	loadIntConfig(L, LIVESTREAM_MAXIMUM_VIEWERS, "livestreamMaximumViewers", 10);
+	loadIntConfig(L, LIVESTREAM_MAXIMUM_VIEWERS_PER_IP, "livestreamMaximumViewersPerIP", 2);
+	loadIntConfig(L, LIVESTREAM_PREMIUM_MAXIMUM_VIEWERS, "livestreamPremiumMaximumViewers", 20);
 	loadIntConfig(L, LOOTPOUCH_MAXLIMIT, "lootPouchMaxLimit", 2000);
+	loadIntConfig(L, LUA_SCRIPT_DEBUG_HOOK_INTERVAL, "luaScriptDebugHookInterval", 30000);
+	loadIntConfig(L, QUICK_LOOT_MAX_CORPSES, "quickLootMaxCorpses", 30);
 	loadIntConfig(L, LOW_LEVEL_BONUS_EXP, "lowLevelBonusExp", 50);
 	loadIntConfig(L, LOYALTY_POINTS_PER_CREATION_DAY, "loyaltyPointsPerCreationDay", 1);
 	loadIntConfig(L, LOYALTY_POINTS_PER_PREMIUM_DAY_PURCHASED, "loyaltyPointsPerPremiumDayPurchased", 0);
@@ -449,6 +478,7 @@ bool ConfigManager::load() {
 	loadIntConfig(L, MAX_CONTAINER_ITEM, "maxItem", 5000);
 	loadIntConfig(L, MAX_CONTAINER, "maxContainer", 500);
 	loadIntConfig(L, MAX_CONTAINER_DEPTH, "maxContainerDepth", 200);
+	loadIntConfig(L, MAX_EXIVA_WHITELIST, "maxExivaWhitelist", 100);
 	loadIntConfig(L, MAX_INBOX_ITEMS, "maxInboxItems", 0);
 	loadIntConfig(L, MAX_DAMAGE_REFLECTION, "maxDamageReflection", 200);
 	loadIntConfig(L, MAX_ELEMENTAL_RESISTANCE, "maxElementalResistance", 200);
@@ -462,6 +492,8 @@ bool ConfigManager::load() {
 	loadIntConfig(L, MIN_DELAY_BETWEEN_CONDITIONS, "minDelayBetweenConditions", 0);
 	loadIntConfig(L, MIN_ELEMENTAL_RESISTANCE, "minElementalResistance", -200);
 	loadIntConfig(L, MIN_TOWN_ID_TO_BANK_TRANSFER_FROM_MAIN, "minTownIdToBankTransferFromMain", 4);
+	loadIntConfig(L, MONSTER_COMPUTE_QUEUE_CAPACITY, "monsterComputeQueueCapacity", 2048);
+	loadIntConfig(L, MONSTER_COMPUTE_THREADS, "monsterComputeThreads", 0);
 	loadIntConfig(L, MONTH_KILLS_TO_RED, "monthKillsToRedSkull", 10);
 	loadIntConfig(L, ORANGE_SKULL_DURATION, "orangeSkullDuration", 7);
 	loadIntConfig(L, LOGIN_PROTECTION_TIME, "loginProtectionTime", 10000);
@@ -510,7 +542,11 @@ bool ConfigManager::load() {
 	loadIntConfig(L, VIP_BONUS_LOOT, "vipBonusLoot", 0);
 	loadIntConfig(L, VIP_BONUS_SKILL, "vipBonusSkill", 0);
 	loadIntConfig(L, VIP_FAMILIAR_TIME_COOLDOWN_REDUCTION, "vipFamiliarTimeCooldownReduction", 0);
+	loadIntConfig(L, WALK_PARALLEL_TASKS_PER_PASS, "walkParallelTasksPerPass", 8);
 	loadIntConfig(L, WEEK_KILLS_TO_RED, "weekKillsToRedSkull", 5);
+	loadIntConfig(L, WORKER_COMPLETIONS_PER_PASS, "workerCompletionsPerPass", 64);
+	loadIntConfig(L, MONK_QUEST_TOTAL_SHRINES, "monkQuestTotalShrines", 11);
+	loadIntConfig(L, WHEEL_MONK_QUEST_BONUS, "wheelMonkQuestBonus", 10);
 	loadIntConfig(L, WHEEL_ATELIER_REVEAL_GREATER_COST, "wheelAtelierRevealGreaterCost", 6000000);
 	loadIntConfig(L, WHEEL_ATELIER_REVEAL_LESSER_COST, "wheelAtelierRevealLesserCost", 125000);
 	loadIntConfig(L, WHEEL_ATELIER_REVEAL_REGULAR_COST, "wheelAtelierRevealRegularCost", 1000000);
@@ -523,6 +559,8 @@ bool ConfigManager::load() {
 	loadIntConfig(L, AUGMENT_POWERFUL_IMPACT_PERCENT, "augmentPowerfulImpactPercent", 10);
 	loadIntConfig(L, AUGMENT_STRONG_IMPACT_PERCENT, "augmentStrongImpactPercent", 7);
 	loadIntConfig(L, ANIMUS_MASTERY_MONSTERS_TO_INCREASE_XP_MULTIPLIER, "animusMasteryMonstersToIncreaseXpMultiplier", 10);
+	loadIntConfig(L, WEAPON_PROFICIENCY_MAX_LEVELS, "weaponProficiencyMaxLevels", 10);
+	loadIntConfig(L, WEAPON_PROFICIENCY_MAX_PERKS_PER_LEVEL, "weaponProficiencyMaxPerksPerLevel", 6);
 
 	loadStringConfig(L, CORE_DIRECTORY, "coreDirectory", "data");
 	loadStringConfig(L, DATA_DIRECTORY, "dataPackDirectory", "data-otservbr-global");
@@ -534,6 +572,7 @@ bool ConfigManager::load() {
 	loadStringConfig(L, LOCATION, "location", "");
 	loadStringConfig(L, M_CONST, "memoryConst", "1<<16");
 	loadStringConfig(L, METRICS_PROMETHEUS_ADDRESS, "metricsPrometheusAddress", "localhost:9464");
+	loadStringConfig(L, LUA_SCRIPT_BYTECODE_CACHE_PATH, "luaScriptBytecodeCachePath", "cache/lua-bytecode");
 	loadStringConfig(L, OWNER_EMAIL, "ownerEmail", "");
 	loadStringConfig(L, OWNER_NAME, "ownerName", "");
 	loadStringConfig(L, SAVE_INTERVAL_TYPE, "saveIntervalType", "");
@@ -542,8 +581,9 @@ bool ConfigManager::load() {
 	loadStringConfig(L, STORE_IMAGES_URL, "coinImagesURL", "");
 	loadStringConfig(L, TIBIADROME_CONCOCTION_TICK_TYPE, "tibiadromeConcoctionTickType", "online");
 	loadStringConfig(L, URL, "url", "");
-	loadStringConfig(L, WORLD_TYPE, "worldType", "pvp");
+	loadStringConfig(L, WORLD_TYPE, "worldType", "retro-pvp");
 	loadStringConfig(L, LOGLEVEL, "logLevel", "info");
+	loadStringConfig(L, LUA_API_DOCS_OUTPUT_DIRECTORY, "luaApiDocsOutputDirectory", "docs/lua-api");
 
 	loadLuaOTCFeatures(L);
 
@@ -560,7 +600,15 @@ bool ConfigManager::load() {
 		}
 	}
 
-	loaded = true;
+	std::vector<std::function<void()>> callbacks;
+	{
+		std::scoped_lock lock(deferredCallbacksMutex);
+		loaded.store(true, std::memory_order_release);
+		callbacks = std::move(deferredCallbacks);
+	}
+	for (auto &callback : callbacks) {
+		callback();
+	}
 	lua_close(L);
 	return true;
 }
@@ -575,6 +623,22 @@ bool ConfigManager::reload() {
 		g_game().incrementMotdNum();
 	}
 	return result;
+}
+
+void ConfigManager::deferUntilLoaded(std::function<void()> callback) {
+	if (!callback) {
+		return;
+	}
+
+	{
+		std::scoped_lock lock(deferredCallbacksMutex);
+		if (!loaded.load(std::memory_order_acquire)) {
+			deferredCallbacks.emplace_back(std::move(callback));
+			return;
+		}
+	}
+
+	callback();
 }
 
 void ConfigManager::missingConfigWarning(const char* identifier) {

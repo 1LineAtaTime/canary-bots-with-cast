@@ -4,15 +4,116 @@
   "ssh_target": "root@127.0.0.1",
   "game_port": 7172,
   "world": "Canary",
-  "client_dir": "~/Documents/otc-harness",
+  "client_version": 1525,
+  "client_dir": "E:/TibiaCanary/otc-harness",
   "client_exe": "otclient_gl_x64.exe",
   "hub_port": 8765,
   "fps": 10,
-  "players": {"p1": "Harness One"},
+  "players": {
+    "p1": "Harness One"
+  },
   "secrets_file": "tools/bottest/harness.local.json",
   "db_secrets_file": ".claude/secrets.local",
   "clock_resample_s": 300,
   "audit_path": "/home/tibia/canary/logs/bot_audit.ndjson",
   "_audit_note": "server botAuditPath (config.lua) resolved against canary's working dir; \"\" disables the audit tail/pull",
-  "watch": {"poll": 10, "logstall": 180, "heartbeat": 30, "slow_ms": 500, "slow_per_min": 3, "max_age_min": 120}
+  "watch": {
+    "poll": 10,
+    "logstall": 180,
+    "heartbeat": 30,
+    "slow_ms": 500,
+    "slow_per_min": 3,
+    "max_age_min": 120
+  },
+  "_profiles_note": "Target profiles (--profile NAME or env HARNESS_PROFILE) override the keys above. ssh_target 'wsl:<distro>' runs remote commands through a hidden wsl.exe; journal_unit is the systemd unit journalctl reads; db_name repoints DB access to a disposable copy. db_host/db_port repoint the DB server (the WSL arms use a local MySQL 8.0 in WSL on 3316, restored from the canary_1525_* copies: the remote DB's 3-11 ms RTT from WSL made each bot load ~2 s).",
+  "profiles": {
+    "lxc-1500": {
+      "_note": "Production as it is before the cutover (15.00 server, protocol 1500).",
+      "client_version": 1500
+    },
+    "wsl-port": {
+      "_note": "P5 port arm: port/upstream-1525 built in /home/tibia/canary-1525, run as the systemd unit canary-1525 inside WSL against canary_1525_port.",
+      "server_host": "127.0.0.1",
+      "ssh_target": "wsl:Ubuntu-22.04",
+      "game_port": 7172,
+      "journal_unit": "canary-1525",
+      "db_name": "canary_1525_port",
+      "audit_path": "/home/tibia/canary-1525/logs/bot_audit.ndjson",
+      "client_version": 1525,
+      "client_dir": "E:/TibiaCanary/otc-harness-1525",
+      "db_host": "127.0.0.1",
+      "db_port": 3316
+    },
+    "wsl-ctl": {
+      "_note": "P5 control arm: M0 (pre-1525-baseline) build, systemd unit canary-ctl inside WSL against canary_1525_ctl. Same OTClient 4.2 copy, at 1500.",
+      "server_host": "127.0.0.1",
+      "ssh_target": "wsl:Ubuntu-22.04",
+      "game_port": 7172,
+      "journal_unit": "canary-ctl",
+      "db_name": "canary_1525_ctl",
+      "audit_path": "/home/tibia/canary-ctl/logs/bot_audit.ndjson",
+      "client_version": 1500,
+      "client_dir": "E:/TibiaCanary/otc-harness-1525",
+      "db_host": "127.0.0.1",
+      "db_port": 3316
+    },
+    "lxc-port": {
+      "_note": "P5 V10/V11c/V14: the port as a second instance on the LXC (/home/tibia/canary-1525, unit canary-1525, test ports) against canary_1525_port.",
+      "game_port": 7182,
+      "journal_unit": "canary-1525",
+      "db_name": "canary_1525_port",
+      "audit_path": "/home/tibia/canary-1525/logs/bot_audit.ndjson",
+      "client_version": 1525,
+      "client_dir": "E:/TibiaCanary/otc-harness-1525"
+    },
+    "wsl-up": {
+      "_note": "P5 livestream A/B only: STOCK upstream at the pin 666a60f6f (no bot engine), unit canary-up in WSL, against canary_1525_up (a copy of the port DB).",
+      "server_host": "127.0.0.1",
+      "ssh_target": "wsl:Ubuntu-22.04",
+      "game_port": 7172,
+      "journal_unit": "canary-up",
+      "db_name": "canary_1525_up",
+      "db_host": "127.0.0.1",
+      "db_port": 3316,
+      "audit_path": "",
+      "client_version": 1525,
+      "client_dir": "E:/TibiaCanary/otc-harness-1525"
+    },
+    "win-port": {
+      "_note": "P5 V13: the Windows canary.exe from .work/port1525/p5/win/run (ports 7271/7272, canary_1525_win in the WSL MySQL). No systemd unit: server-log expectations are not available.",
+      "server_host": "127.0.0.1",
+      "ssh_target": "wsl:Ubuntu-22.04",
+      "game_port": 7272,
+      "journal_unit": "",
+      "db_name": "canary_1525_win",
+      "audit_path": "/home/tibia/canary-1525/logs/bot_audit.ndjson",
+      "client_version": 1525,
+      "client_dir": "E:/TibiaCanary/otc-harness-1525",
+      "db_host": "127.0.0.1",
+      "db_port": 3316
+    },
+    "wsl-cast": {
+      "_note": "#163 allowPlayerCast toggle: feat/player-cast-toggle built in /home/tibia/canary-1525-cast, unit canary-1525-cast in WSL (ports 7371/7372, 100 bots) against the disposable canary_1525_cast.",
+      "server_host": "127.0.0.1",
+      "ssh_target": "wsl:Ubuntu-22.04",
+      "game_port": 7372,
+      "journal_unit": "canary-1525-cast",
+      "hub_port": 8775,
+      "db_name": "canary_1525_cast",
+      "audit_path": "/home/tibia/canary-1525-cast/logs/bot_audit.ndjson",
+      "client_version": 1525,
+      "client_dir": "E:/TibiaCanary/otc-harness-1525",
+      "db_host": "127.0.0.1",
+      "db_port": 3316
+    },
+    "lxc-port-dropin": {
+      "_note": "P5 V10: the port in /home/tibia/canary-1525 run as the `canary` unit via the port1525.conf drop-in (PORT_PLAN 9) on 7172 against the disposable canary_1525_port. Outage windows only.",
+      "game_port": 7172,
+      "journal_unit": "canary",
+      "db_name": "canary_1525_port",
+      "audit_path": "/home/tibia/canary-1525/logs/bot_audit.ndjson",
+      "client_version": 1525,
+      "client_dir": "E:/TibiaCanary/otc-harness-1525"
+    }
+  }
 }

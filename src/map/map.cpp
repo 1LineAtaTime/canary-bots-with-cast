@@ -9,6 +9,8 @@
 
 #include "map/map.hpp"
 
+#include "creatures/combat/combat.hpp"
+#include "creatures/combat/condition.hpp"
 #include "creatures/monsters/monster.hpp"
 #include "creatures/players/player.hpp"
 #include "game/game.hpp"
@@ -17,11 +19,145 @@
 #include "io/iomap.hpp"
 #include "io/iomapserialize.hpp"
 #include "lua/callbacks/events_callbacks.hpp"
+#include "map/map_download.hpp"
 #include "map/spectators.hpp"
 #include "utils/astarnodes.hpp"
 #include "config/configmanager.hpp"
 
+#ifndef USE_PRECOMPILED_HEADERS
+	#include <algorithm>
+	#include <functional>
+	#include <limits>
+#endif
+
+namespace {
+	[[nodiscard]] uint64_t navigationSectorKey(uint32_t sectorIndex, uint8_t z) {
+		return (static_cast<uint64_t>(z) << 32) | sectorIndex;
+	}
+
+	void setNavFlag(NavCell &cell, NavCellFlag flag, bool enabled) {
+		if (enabled) {
+			cell.flags = cell.flags | flag;
+		}
+	}
+
+	[[nodiscard]] bool hasTileFlag(uint32_t flags, TileFlags_t flag) {
+		return (flags & static_cast<uint32_t>(flag)) != 0;
+	}
+
+	void addCachedItemNavigationTopology(NavCell &cell, const std::shared_ptr<BasicItem> &item) {
+		if (!item || !Item::items.hasItemType(item->id)) {
+			return;
+		}
+
+		const auto &itemType = Item::items[item->id];
+		const auto floorChange = static_cast<uint32_t>(itemType.floorChange);
+		const bool movable = itemType.movable && item->uniqueId == 0 && item->actionId != IMMOVABLE_ACTION_ID;
+		const bool noFieldBlockPath = !itemType.isMagicField() && itemType.blockPathFind;
+		setNavFlag(cell, NavCellFlag::FloorChange, floorChange != 0);
+		setNavFlag(cell, NavCellFlag::FloorChangeWest, hasTileFlag(floorChange, TILESTATE_FLOORCHANGE_WEST));
+		setNavFlag(cell, NavCellFlag::Teleport, itemType.isTeleport());
+		setNavFlag(cell, NavCellFlag::ImmovableBlockSolid, itemType.blockSolid && !movable);
+		setNavFlag(cell, NavCellFlag::ImmovableNoFieldBlockPath, noFieldBlockPath && !movable);
+		setNavFlag(cell, NavCellFlag::BlockSolid, itemType.blockSolid);
+		setNavFlag(cell, NavCellFlag::NoFieldBlockPath, noFieldBlockPath);
+		setNavFlag(cell, NavCellFlag::BlockProjectile, itemType.blockProjectile);
+
+		if (!cell.hasFlag(NavCellFlag::HarmfulField) && itemType.isMagicField() && !itemType.blockSolid && itemType.conditionDamage && itemType.conditionDamage->getTotalDamage() > 0) {
+			setNavFlag(cell, NavCellFlag::HarmfulField, true);
+			cell.harmfulFieldCombatType = static_cast<uint8_t>(itemType.combatType);
+		}
+	}
+
+	void populateCachedTileNavigationTopology(NavCell &cell, const BasicTile &tile) {
+		cell.houseId = tile.houseId;
+		if (tile.ground) {
+			cell.groundId = tile.ground->id;
+			setNavFlag(cell, NavCellFlag::HasGround, true);
+			setNavFlag(cell, NavCellFlag::WalkableSea, cell.groundId >= ITEM_WALKABLE_SEA_START && cell.groundId <= ITEM_WALKABLE_SEA_END);
+			addCachedItemNavigationTopology(cell, tile.ground);
+		}
+
+		setNavFlag(cell, NavCellFlag::ProtectionZone, tile.houseId != 0 || hasTileFlag(tile.flags, TILESTATE_PROTECTIONZONE));
+		setNavFlag(cell, NavCellFlag::FloorChange, hasTileFlag(tile.flags, TILESTATE_FLOORCHANGE));
+		setNavFlag(cell, NavCellFlag::FloorChangeWest, hasTileFlag(tile.flags, TILESTATE_FLOORCHANGE_WEST));
+		setNavFlag(cell, NavCellFlag::Teleport, hasTileFlag(tile.flags, TILESTATE_TELEPORT));
+		setNavFlag(cell, NavCellFlag::ImmovableBlockSolid, hasTileFlag(tile.flags, TILESTATE_IMMOVABLEBLOCKSOLID));
+		setNavFlag(cell, NavCellFlag::ImmovableNoFieldBlockPath, hasTileFlag(tile.flags, TILESTATE_IMMOVABLENOFIELDBLOCKPATH));
+		setNavFlag(cell, NavCellFlag::BlockSolid, hasTileFlag(tile.flags, TILESTATE_BLOCKSOLID));
+		setNavFlag(cell, NavCellFlag::NoFieldBlockPath, hasTileFlag(tile.flags, TILESTATE_NOFIELDBLOCKPATH));
+		setNavFlag(cell, NavCellFlag::BlockProjectile, hasTileFlag(tile.flags, TILESTATE_BLOCKPROJECTILE));
+
+		for (const auto &item : tile.items) {
+			addCachedItemNavigationTopology(cell, item);
+		}
+	}
+
+	void populateCreatureOccupancy(NavCell &cell, const std::shared_ptr<Tile> &tile) {
+		if (!tile) {
+			return;
+		}
+
+		const auto* creatures = tile->getCreatures();
+		if (!creatures) {
+			return;
+		}
+
+		for (const auto &creature : *creatures) {
+			if (!creature || creature->isInGhostMode()) {
+				continue;
+			}
+			if (cell.blockingCreatures < std::numeric_limits<uint8_t>::max()) {
+				++cell.blockingCreatures;
+			}
+			if (!creature->isInvisible()) {
+				cell.hasNonInvisibleCreature = true;
+			}
+
+			const auto &monster = creature->getMonster();
+			const auto &master = monster && monster->isSummon() ? monster->getMaster() : nullptr;
+			const bool pushableMonster = monster && monster->isPushable() && (!master || !master->getPlayerRaw());
+			if (pushableMonster && cell.pushableMonsters < std::numeric_limits<uint8_t>::max()) {
+				++cell.pushableMonsters;
+			} else if (!pushableMonster) {
+				cell.hasUnpushableCreature = true;
+			}
+		}
+	}
+
+	// Path searches call this for every candidate node; pass the creature's
+	// current tile captured once per search to avoid repeated weak_ptr locks.
+	std::shared_ptr<Tile> getPathfindingTile(
+		Map &map,
+		const std::shared_ptr<Creature> &creature,
+		const std::shared_ptr<Tile> &creatureTile,
+		const Position &pos,
+		MapCacheFloorCursor &floorCursor
+	) {
+		const auto &tile = map.getTileWithFloorCursor(pos.x, pos.y, pos.z, floorCursor);
+		if (creatureTile != tile) {
+			uint32_t flags = FLAG_PATHFINDING | FLAG_IGNOREFIELDDAMAGE;
+			// FORK(bot): bot players push items like strong monsters, so A* paths through blocked
+			// tiles, and through creatures inside a PZ (push behaviour, like real Tibia). This was in
+			// Map::canWalkTo at M0; upstream moved the per-node check here (used by canWalkTo and
+			// getPathMatching). Raw accessor: this runs for every A* node.
+			if (const auto* player = creature->getPlayerRaw(); player && player->isBotPlayer()) {
+				flags |= FLAG_IGNOREBLOCKITEM;
+				if (tile && tile->hasFlag(TILESTATE_PROTECTIONZONE)) {
+					flags |= FLAG_IGNOREBLOCKCREATURE;
+				}
+			}
+			if (!tile || tile->queryAdd(0, creature, 1, flags) != RETURNVALUE_NOERROR) {
+				return nullptr;
+			}
+		}
+
+		return tile;
+	}
+}
+
 void Map::load(const std::string &identifier, const Position &pos) {
+	invalidateNavigationEpoch();
 	try {
 		path = identifier;
 		IOMap::loadMap(this, pos);
@@ -36,6 +172,10 @@ void Map::loadMap(const std::string &identifier, bool mainMap /*= false*/, bool 
 		const auto mapDownloadUrl = g_configManager().getString(MAP_DOWNLOAD_URL);
 		if (mapDownloadUrl.empty()) {
 			g_logger().warn("Map download URL in config.lua is empty, download disabled");
+		}
+
+		if (!mapDownloadUrl.empty()) {
+			MapDownload::warnIfOutdatedMapDownloadUrl(mapDownloadUrl);
 		}
 
 		if (CURL* curl = curl_easy_init(); curl && !mapDownloadUrl.empty()) {
@@ -201,6 +341,43 @@ std::shared_ptr<Tile> Map::getTile(uint16_t x, uint16_t y, uint8_t z) {
 	return getOrCreateTileFromCache(floor, x, y);
 }
 
+std::shared_ptr<Tile> Map::getTileWithFloorCursor(uint16_t x, uint16_t y, uint8_t z, MapCacheFloorCursor &floorCursor) {
+	// Check if the coordinates are valid
+	if (x == 0 && y == 0 && z == 0) {
+		return nullptr;
+	}
+
+	if (z >= MAP_MAX_LAYERS) {
+		return nullptr;
+	}
+
+	const auto sectorIndex = static_cast<uint32_t>(x / SECTOR_SIZE) | (static_cast<uint32_t>(y / SECTOR_SIZE) << 16);
+	std::shared_ptr<Floor> floor;
+
+	if (floorCursor.valid && floorCursor.sectorIndex == sectorIndex && floorCursor.z == z) {
+		floor = floorCursor.floor;
+	}
+
+	if (!floor) {
+		const auto &sector = getMapSector(x, y);
+		if (!sector) {
+			return nullptr;
+		}
+
+		floor = sector->getFloor(z);
+		if (!floor) {
+			return nullptr;
+		}
+
+		floorCursor.valid = true;
+		floorCursor.sectorIndex = sectorIndex;
+		floorCursor.z = z;
+		floorCursor.floor = floor;
+	}
+
+	return getOrCreateTileFromCache(floor, x, y);
+}
+
 void Map::refreshZones(uint16_t x, uint16_t y, uint8_t z) {
 	const auto &tile = getLoadedTile(x, y, z);
 	if (!tile) {
@@ -225,10 +402,180 @@ void Map::setTile(uint16_t x, uint16_t y, uint8_t z, const std::shared_ptr<Tile>
 	} else {
 		getBestMapSector(x, y)->createFloor(z)->setTile(x, y, newTile);
 	}
+	markNavigationTopologyChanged(Position(x, y, z));
 }
 
-bool Map::placeCreature(const Position &centerPos, const std::shared_ptr<Creature> &creature, bool extendedPos /* = false*/, bool forceLogin /* = false*/) {
-	const auto &monster = creature ? creature->getMonster() : nullptr;
+std::shared_ptr<const NavRegionSnapshot> Map::getNavigationSnapshot(const Position &center, uint8_t radius) {
+	NavRegionSnapshot::SectorList sectors;
+	if (center.z >= MAP_MAX_LAYERS) {
+		return std::make_shared<const NavRegionSnapshot>(navigationEpoch, center, radius, std::move(sectors));
+	}
+
+	const auto minX = static_cast<uint32_t>(std::max<int32_t>(0, static_cast<int32_t>(center.x) - radius));
+	const auto minY = static_cast<uint32_t>(std::max<int32_t>(0, static_cast<int32_t>(center.y) - radius));
+	const auto maxX = static_cast<uint32_t>(std::min<int32_t>(std::numeric_limits<uint16_t>::max(), static_cast<int32_t>(center.x) + radius));
+	const auto maxY = static_cast<uint32_t>(std::min<int32_t>(std::numeric_limits<uint16_t>::max(), static_cast<int32_t>(center.y) + radius));
+	const auto firstSectorX = minX / SECTOR_SIZE;
+	const auto firstSectorY = minY / SECTOR_SIZE;
+	const auto lastSectorX = maxX / SECTOR_SIZE;
+	const auto lastSectorY = maxY / SECTOR_SIZE;
+	sectors.reserve((lastSectorX - firstSectorX + 1) * (lastSectorY - firstSectorY + 1));
+
+	for (uint32_t sectorY = firstSectorY; sectorY <= lastSectorY; ++sectorY) {
+		for (uint32_t sectorX = firstSectorX; sectorX <= lastSectorX; ++sectorX) {
+			const auto sectorIndex = sectorX | (sectorY << 16);
+			sectors.emplace_back(getOrBuildNavigationSector(sectorIndex, center.z));
+		}
+	}
+
+	return std::make_shared<const NavRegionSnapshot>(navigationEpoch, center, radius, std::move(sectors));
+}
+
+std::shared_ptr<const NavSectorSnapshot> Map::getOrBuildNavigationSector(uint32_t sectorIndex, uint8_t z) {
+	const auto baseX = static_cast<uint16_t>((sectorIndex & 0xFFFF) * SECTOR_SIZE);
+	const auto baseY = static_cast<uint16_t>((sectorIndex >> 16) * SECTOR_SIZE);
+	auto* sector = getMapSector(baseX, baseY);
+	const uint64_t topologyRevision = sector ? sector->getTopologyRevision(z) : 0;
+	const uint64_t occupancyRevision = sector ? sector->getOccupancyRevision(z) : 0;
+	const auto key = navigationSectorKey(sectorIndex, z);
+
+	std::shared_ptr<const NavSectorSnapshot> cached;
+	if (const auto it = navigationSnapshots.find(key); it != navigationSnapshots.end()) {
+		cached = it->second;
+		if (cached->getTopologyRevision() == topologyRevision && cached->getOccupancyRevision() == occupancyRevision) {
+			return cached;
+		}
+	}
+
+	NavSectorSnapshot::Cells cells;
+	const bool reuseTopology = cached && cached->getTopologyRevision() == topologyRevision;
+	if (reuseTopology) {
+		cells = cached->getCells();
+		for (auto &cell : cells) {
+			cell.blockingCreatures = 0;
+			cell.pushableMonsters = 0;
+			cell.hasNonInvisibleCreature = false;
+			cell.hasUnpushableCreature = false;
+		}
+	}
+
+	const auto floor = sector ? sector->getFloor(z) : nullptr;
+	if (floor) {
+		for (uint32_t localX = 0; localX < SECTOR_SIZE; ++localX) {
+			for (uint32_t localY = 0; localY < SECTOR_SIZE; ++localY) {
+				const auto x = static_cast<uint16_t>(baseX + localX);
+				const auto y = static_cast<uint16_t>(baseY + localY);
+				const auto [tile, cachedTile] = floor->getTileAndCache(x, y);
+				if (!tile && !cachedTile) {
+					continue;
+				}
+
+				auto &cell = cells[localX * SECTOR_SIZE + localY];
+				if (!reuseTopology) {
+					if (tile) {
+						if (const auto &house = tile->getHouse()) {
+							cell.houseId = house->getId();
+						}
+						const auto &ground = tile->getGround();
+						if (ground) {
+							cell.groundId = ground->getID();
+							setNavFlag(cell, NavCellFlag::HasGround, true);
+							setNavFlag(cell, NavCellFlag::WalkableSea, cell.groundId >= ITEM_WALKABLE_SEA_START && cell.groundId <= ITEM_WALKABLE_SEA_END);
+						}
+
+						setNavFlag(cell, NavCellFlag::ProtectionZone, tile->hasFlag(TILESTATE_PROTECTIONZONE));
+						setNavFlag(cell, NavCellFlag::FloorChange, tile->hasFlag(TILESTATE_FLOORCHANGE));
+						setNavFlag(cell, NavCellFlag::FloorChangeWest, tile->hasFlag(TILESTATE_FLOORCHANGE_WEST));
+						setNavFlag(cell, NavCellFlag::Teleport, tile->hasFlag(TILESTATE_TELEPORT));
+						setNavFlag(cell, NavCellFlag::ImmovableBlockSolid, tile->hasFlag(TILESTATE_IMMOVABLEBLOCKSOLID));
+						setNavFlag(cell, NavCellFlag::ImmovableNoFieldBlockPath, tile->hasFlag(TILESTATE_IMMOVABLENOFIELDBLOCKPATH));
+						setNavFlag(cell, NavCellFlag::BlockSolid, tile->hasFlag(TILESTATE_BLOCKSOLID));
+						setNavFlag(cell, NavCellFlag::NoFieldBlockPath, tile->hasFlag(TILESTATE_NOFIELDBLOCKPATH));
+						setNavFlag(cell, NavCellFlag::BlockProjectile, tile->hasFlag(TILESTATE_BLOCKPROJECTILE));
+
+						if (const auto &field = tile->getFieldItem(); field && !field->isBlocking() && field->getDamage() > 0) {
+							setNavFlag(cell, NavCellFlag::HarmfulField, true);
+							cell.harmfulFieldCombatType = static_cast<uint8_t>(field->getCombatType());
+						}
+					} else {
+						populateCachedTileNavigationTopology(cell, *cachedTile);
+					}
+				}
+
+				populateCreatureOccupancy(cell, tile);
+			}
+		}
+	}
+
+	sector = getMapSector(baseX, baseY);
+	const auto builtTopologyRevision = sector ? sector->getTopologyRevision(z) : 0;
+	const auto builtOccupancyRevision = sector ? sector->getOccupancyRevision(z) : 0;
+	if (reuseTopology && builtTopologyRevision != topologyRevision) {
+		navigationSnapshots.erase(key);
+		return getOrBuildNavigationSector(sectorIndex, z);
+	}
+	auto snapshot = std::make_shared<const NavSectorSnapshot>(sectorIndex, z, builtTopologyRevision, builtOccupancyRevision, std::move(cells));
+	navigationSnapshots.insert_or_assign(key, snapshot);
+	return snapshot;
+}
+
+bool Map::isNavigationTopologyCurrent(const NavRegionSnapshot &snapshot) const {
+	if (snapshot.getEpoch() != navigationEpoch) {
+		return false;
+	}
+
+	return std::ranges::all_of(snapshot.getSectors(), [this](const auto &snapshotSector) {
+		const auto sectorIndex = snapshotSector->getSectorIndex();
+		const auto x = static_cast<uint16_t>((sectorIndex & 0xFFFF) * SECTOR_SIZE);
+		const auto y = static_cast<uint16_t>((sectorIndex >> 16) * SECTOR_SIZE);
+		const auto* sector = getMapSector(x, y);
+		const auto revision = sector ? sector->getTopologyRevision(snapshotSector->getZ()) : 0;
+		return revision == snapshotSector->getTopologyRevision();
+	});
+}
+
+bool Map::isNavigationOccupancyCurrent(const NavRegionSnapshot &snapshot) const {
+	if (snapshot.getEpoch() != navigationEpoch) {
+		return false;
+	}
+
+	return std::ranges::all_of(snapshot.getSectors(), [this](const auto &snapshotSector) {
+		const auto sectorIndex = snapshotSector->getSectorIndex();
+		const auto x = static_cast<uint16_t>((sectorIndex & 0xFFFF) * SECTOR_SIZE);
+		const auto y = static_cast<uint16_t>((sectorIndex >> 16) * SECTOR_SIZE);
+		const auto* sector = getMapSector(x, y);
+		const auto revision = sector ? sector->getOccupancyRevision(snapshotSector->getZ()) : 0;
+		return revision == snapshotSector->getOccupancyRevision();
+	});
+}
+
+void Map::markNavigationTopologyChanged(const Position &position) {
+	if (auto* sector = getMapSector(position.x, position.y)) {
+		sector->markTopologyChanged(position.z);
+	}
+}
+
+void Map::markNavigationOccupancyChanged(const Position &position) {
+	if (auto* sector = getMapSector(position.x, position.y)) {
+		sector->markOccupancyChanged(position.z);
+	}
+}
+
+void Map::invalidateNavigationEpoch() {
+	if (++navigationEpoch == 0) {
+		navigationEpoch = 1;
+	}
+	navigationSnapshots.clear();
+}
+
+bool Map::placeCreature(
+	const Position &centerPos,
+	const std::shared_ptr<Creature> &creature,
+	bool extendedPos /* = false*/,
+	bool forceLogin /* = false*/,
+	const std::shared_ptr<Tile> &centerTile /* = nullptr */
+) {
+	auto* monster = creature ? creature->getMonsterRaw() : nullptr;
 	if (monster) {
 		monster->ignoreFieldDamage = true;
 	}
@@ -236,7 +583,7 @@ bool Map::placeCreature(const Position &centerPos, const std::shared_ptr<Creatur
 	bool foundTile;
 	bool placeInPZ;
 
-	auto tile = getTile(centerPos.x, centerPos.y, centerPos.z);
+	auto tile = centerTile ? centerTile : getTile(centerPos.x, centerPos.y, centerPos.z);
 	if (tile) {
 		placeInPZ = tile->hasFlag(TILESTATE_PROTECTIONZONE);
 		ReturnValue ret = tile->queryAdd(0, creature, 1, FLAG_IGNOREBLOCKITEM | FLAG_IGNOREFIELDDAMAGE);
@@ -393,13 +740,19 @@ void Map::moveCreature(const std::shared_ptr<Creature> &creature, const std::sha
 		spectators.find<Creature>(newPos, true, 0, 0, 0, 0, false);
 	}
 
-	const auto playersSpectators = spectators.filter<Player>();
+	std::vector<Player*> playerSpectators;
+	playerSpectators.reserve(spectators.size());
+	for (const auto &spectator : spectators) {
+		if (auto* player = spectator->getPlayerRaw()) {
+			playerSpectators.emplace_back(player);
+		}
+	}
 
 	std::vector<int32_t> oldStackPosVector;
-	oldStackPosVector.reserve(playersSpectators.size());
-	for (const auto &spec : playersSpectators) {
-		if (spec->canSeeCreature(creature)) {
-			oldStackPosVector.push_back(oldTile->getClientIndexOfCreature(spec->getPlayer(), creature));
+	oldStackPosVector.reserve(playerSpectators.size());
+	for (const auto* player : playerSpectators) {
+		if (player->canSeeCreature(creature)) {
+			oldStackPosVector.push_back(oldTile->getClientIndexOfCreature(player, creature));
 		} else {
 			oldStackPosVector.push_back(-1);
 		}
@@ -436,12 +789,11 @@ void Map::moveCreature(const std::shared_ptr<Creature> &creature, const std::sha
 
 	// send to client
 	size_t i = 0;
-	for (const auto &spectator : playersSpectators) {
+	for (const auto* player : playerSpectators) {
 		// Use the correct stackpos
 		const int32_t stackpos = oldStackPosVector[i++];
 		if (stackpos != -1) {
-			const auto &player = spectator->getPlayer();
-			player->sendCreatureMove(creature, newPos, newTile->getStackposOfCreature(player, creature), oldPos, stackpos, teleport);
+			player->sendCreatureMove(creature, newPos, newTile->getClientIndexOfCreature(player, creature), oldPos, stackpos, teleport);
 		}
 	}
 
@@ -450,21 +802,23 @@ void Map::moveCreature(const std::shared_ptr<Creature> &creature, const std::sha
 		spectator->onCreatureMove(creature, newTile, newPos, oldTile, oldPos, teleport);
 	}
 
-	auto events = [=] {
+	std::function<void()> events = [creature, oldTile, newTile] {
 		oldTile->postRemoveNotification(creature, newTile, 0);
 		newTile->postAddNotification(creature, oldTile, 0);
-		g_game().afterCreatureZoneChange(creature, fromZones, toZones);
+		g_game().afterCreatureZoneChange(creature, oldTile->getZones(), newTile->getZones());
 	};
 
-	if (g_dispatcher().context().getGroup() == TaskGroup::Walk) {
-		// onCreatureMove for monster is asynchronous, so we need to defer the actions.
-		g_dispatcher().addEvent(std::move(events), "Map::moveCreature");
+	if (g_dispatcher().context().isMovementCommit()) {
+		// Monster movement observers enqueue barrier-parallel work, so post-move actions stay deferred.
+		if (!g_dispatcher().addEvent(std::move(events), "Map::moveCreature")) {
+			events();
+		}
 	} else {
 		events();
 	}
 
 	if (forceTeleport) {
-		if (const auto &player = creature->getPlayer()) {
+		if (auto* player = creature->getPlayerRaw()) {
 			player->sendMagicEffect(oldPos, CONST_ME_TELEPORT);
 			player->sendMagicEffect(newPos, CONST_ME_TELEPORT);
 		}
@@ -660,24 +1014,8 @@ std::shared_ptr<Tile> Map::canWalkTo(const std::shared_ptr<Creature> &creature, 
 		return nullptr;
 	}
 
-	const auto &tile = getTile(pos.x, pos.y, pos.z);
-	if (creature->getTile() != tile) {
-		uint32_t flags = FLAG_PATHFINDING | FLAG_IGNOREFIELDDAMAGE;
-		// Bot players can push items like strong monsters — let A* path through blocked tiles
-		const auto &player = creature->getPlayer();
-		if (player && player->isBotPlayer()) {
-			flags |= FLAG_IGNOREBLOCKITEM;
-			// Allow bots to path through creatures in PZ (push behavior, like real Tibia)
-			if (tile && tile->hasFlag(TILESTATE_PROTECTIONZONE)) {
-				flags |= FLAG_IGNOREBLOCKCREATURE;
-			}
-		}
-		if (!tile || tile->queryAdd(0, creature, 1, flags) != RETURNVALUE_NOERROR) {
-			return nullptr;
-		}
-	}
-
-	return tile;
+	MapCacheFloorCursor floorCursor;
+	return getPathfindingTile(*this, creature, creature->getTile(), pos, floorCursor);
 }
 
 bool Map::getPathMatching(const std::shared_ptr<Creature> &creature, const Position &_targetPos, std::vector<Direction> &dirList, const FrozenPathingConditionCall &pathCondition, const FindPathParams &fpp) {
@@ -697,11 +1035,17 @@ bool Map::getPathMatching(const std::shared_ptr<Creature> &creature, const Posit
 	};
 
 	const bool withoutCreature = creature == nullptr;
+	if (!withoutCreature && creature->isRemoved()) {
+		return false;
+	}
 
 	Position pos = withoutCreature ? _targetPos : creature->getPosition();
 	Position endPos;
+	MapCacheFloorCursor floorCursor;
 
-	AStarNodes nodes(pos.x, pos.y, AStarNodes::getTileWalkCost(creature, getTile(pos.x, pos.y, pos.z)));
+	const auto creatureTile = withoutCreature ? std::shared_ptr<Tile>() : creature->getTile();
+	const auto startTile = withoutCreature || !creatureTile ? getTileWithFloorCursor(pos.x, pos.y, pos.z, floorCursor) : creatureTile;
+	AStarNodes nodes(pos.x, pos.y, AStarNodes::getTileWalkCost(creature, startTile));
 
 	int32_t bestMatch = 0;
 
@@ -781,7 +1125,7 @@ bool Map::getPathMatching(const std::shared_ptr<Creature> &creature, const Posit
 			if (neighborNode) {
 				extraCost = neighborNode->c;
 			} else {
-				const auto &tile = withoutCreature ? getTile(pos.x, pos.y, pos.z) : canWalkTo(creature, pos);
+				const auto &tile = withoutCreature ? getTileWithFloorCursor(pos.x, pos.y, pos.z, floorCursor) : getPathfindingTile(*this, creature, creatureTile, pos, floorCursor);
 				if (!tile) {
 					continue;
 				}
@@ -864,10 +1208,17 @@ bool Map::getPathMatching(const std::shared_ptr<Creature> &creature, std::vector
 }
 
 bool Map::getPathMatchingCond(const std::shared_ptr<Creature> &creature, const Position &targetPos, std::vector<Direction> &dirList, const FrozenPathingConditionCall &pathCondition, const FindPathParams &fpp) {
+	if (!creature || creature->isRemoved()) {
+		return false;
+	}
+
 	Position pos = creature->getPosition();
 	Position endPos;
+	MapCacheFloorCursor floorCursor;
 
-	AStarNodes nodes(pos.x, pos.y, AStarNodes::getTileWalkCost(creature, getTile(pos.x, pos.y, pos.z)));
+	const auto creatureTile = creature->getTile();
+	const auto startTile = creatureTile ? creatureTile : getTileWithFloorCursor(pos.x, pos.y, pos.z, floorCursor);
+	AStarNodes nodes(pos.x, pos.y, AStarNodes::getTileWalkCost(creature, startTile));
 
 	int32_t bestMatch = 0;
 
@@ -968,7 +1319,7 @@ bool Map::getPathMatchingCond(const std::shared_ptr<Creature> &creature, const P
 			if (neighborNode) {
 				extraCost = neighborNode->c;
 			} else {
-				const auto &tile = Map::canWalkTo(creature, pos);
+				const auto &tile = getPathfindingTile(*this, creature, creatureTile, pos, floorCursor);
 				if (!tile) {
 					continue;
 				}

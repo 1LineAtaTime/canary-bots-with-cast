@@ -5,7 +5,7 @@
                                        [--dest ~/Documents/otc-harness] [--force] [--mod-only]
 
 The install is only READ. The copy gets: the exe + top-level runtime files, data/ (only
-things/<--things>, default 1500), modules/, mods/ without game_bot, then the anchored edits in
+things/<--things>, default 1525,1500), modules/, mods/ without game_bot, then the anchored edits in
 otc_overlay/edits.json, then mods/harness_ctl from otc_mod/. No binary or CipSoft asset ever
 lives in tools/bottest/: the exe and data/things are copied locally by this script.
 
@@ -72,7 +72,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", default=DEFAULT_SRC)
     ap.add_argument("--dest", default=os.path.expanduser("~/Documents/otc-harness"))
-    ap.add_argument("--things", default="1500", help="comma list of data/things versions to copy")
+    ap.add_argument("--things", default="1525,1500",
+                    help="comma list of data/things versions to copy (1525 = port, 1500 = the M0 control arm)")
     ap.add_argument("--force", action="store_true", help="replace an existing copy")
     ap.add_argument("--mod-only", action="store_true")
     a = ap.parse_args()

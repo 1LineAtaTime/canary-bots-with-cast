@@ -36,6 +36,9 @@ private:
 
 	void getCharacterList(const std::string &accountDescriptor, const std::string &password) const;
 	void getLivestreamCharacterList(const std::string &password) const;
+	// FORK(cast) #153: the viewer character list for "@cast" (bot camera) and "@livestream"
+	// (upstream livestream + bots). One wire format for both: upstream's livestream list.
+	void sendViewerCharacterList(const std::string &accountDescriptor, const std::string &password, const std::string &motd, const std::vector<std::string> &names) const;
 
 	bool oldProtocol = false;
 	const ProtocolProfile* protocolProfile = &ProtocolProfileRegistry::getCurrentProfile();

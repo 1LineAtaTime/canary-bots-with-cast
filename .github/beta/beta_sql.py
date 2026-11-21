@@ -29,6 +29,8 @@ import sys
 
 BOTS = os.path.join("database", "bots")
 MIGRATIONS = os.path.join("data-otservbr-global", "migrations")
+SCHEMA_DDL = "00_bot_schema.sql"
+UPGRADE_ONLY = re.compile(r"^9\d_[A-Za-z0-9_]+\.sql$")
 
 
 def import_list(path):
@@ -82,7 +84,16 @@ def cmd_package(a):
                and os.path.exists(os.path.join(a.baseline, BOTS, f))
                and norm(os.path.join(a.repo, BOTS, f)) != norm(os.path.join(a.baseline, BOTS, f))]
     on_disk = sorted(f for f in os.listdir(os.path.join(a.repo, BOTS)) if f.endswith(".sql"))
-    unlisted = [f for f in on_disk if f not in cur_list and not re.search(r"(\.before|_rollback)\.sql$", f)]
+    # 00_bot_schema.sql is CREATE TABLE IF NOT EXISTS only: when it changed, re-run it FIRST so
+    # the tables it gained since the baseline reach an existing database.
+    rerun = [f for f in changed if f == SCHEMA_DDL]
+    # Upgrade-only reconciliation scripts (9N_*.sql): never in import.sh (a fresh install does not
+    # need them), new since the baseline, run LAST. Idempotent by the same contract.
+    upgrade_only = sorted(f for f in on_disk if UPGRADE_ONLY.match(f) and f not in cur_list
+                          and not os.path.exists(os.path.join(a.baseline, BOTS, f)))
+    new = rerun + new + upgrade_only
+    unlisted = [f for f in on_disk if f not in cur_list and not UPGRADE_ONLY.match(f)
+                and not re.search(r"(\.before|_rollback)\.sql$", f)]
     for f in unlisted:
         print(f"::warning::{BOTS}/{f} is not in import.sh: a fresh install never runs it")
     for f in gone:
@@ -112,7 +123,10 @@ def cmd_package(a):
         fh.write(f"Upgrade from {a.baseline_tag}: {len(new)} SQL file(s), in this order:\n\n")
         for f in new:
             fh.write(f"- `{f}`\n")
-        if mig_new:
+        if mig_new and upgrade_only:
+            fh.write(f"\nNew Lua migrations {', '.join(mig_new)}: already applied by {', '.join(upgrade_only)} "
+                     "(it sets db_version), so the server does not run them again.\n")
+        elif mig_new:
             fh.write(f"\nNew Lua migrations (run by the server at its next start): {', '.join(mig_new)}\n")
         fh.write("\n")
     md = [f"# Upgrading a Canary Bots database from `{a.baseline_tag}`", "",
@@ -127,16 +141,20 @@ def cmd_package(a):
            "   Keep your `config.lua`; compare it with the new `config.lua.dist` for new keys (every bot key has a",
            "   default, so a missing key only means the default).",
            "4. Start the server. It applies any new `data-otservbr-global/migrations/*.lua` by itself"
-           + (f" (new since {a.baseline_tag}: {', '.join(mig_new)})." if mig_new else f" (none are new since {a.baseline_tag})."),
+           + ((f" ({', '.join(mig_new)} are new since {a.baseline_tag}; {', '.join(upgrade_only)} above"
+               " already applied them).") if mig_new and upgrade_only else
+              (f" (new since {a.baseline_tag}: {', '.join(mig_new)})." if mig_new
+               else f" (none are new since {a.baseline_tag}).")),
            "",
            "Every upgrade file is safe to run twice. The CI run that built this zip applied it to the",
            f"`{a.baseline_tag}` release database and proved the result identical (tables, columns, indexes,",
            "constraints and contents) to a fresh install of this build.", "",
            "**Never** import `fresh/` or the fresh-install database zip over an existing install: the seed",
            "files use plain `INSERT`s and the dump replaces your accounts and characters.", ""]
-    if changed:
+    seeds = [f for f in changed if f not in rerun]
+    if seeds:
         md += [f"Seed files that changed since {a.baseline_tag} (they affect fresh installs only and are **not**",
-               "re-applied to an existing database): " + ", ".join(f"`{f}`" for f in changed), ""]
+               "re-applied to an existing database): " + ", ".join(f"`{f}`" for f in seeds), ""]
     if mig_changed:
         md += [f"Lua migrations edited since {a.baseline_tag} (they never re-run on a database already past them;",
                "the upgrade files above carry the same change): " + ", ".join(f"`{f}`" for f in mig_changed), ""]
@@ -190,10 +208,37 @@ def snapshot(a, db):
     return snap
 
 
+CREATE_RE = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?([A-Za-z0-9_]+)`?", re.I)
+
+
+def expected_tables(repo):
+    """Every table the fresh install's SQL creates: schema.sql + the import.sh files."""
+    names = set()
+    paths = [os.path.join(repo, "schema.sql")]
+    imp = os.path.join(repo, BOTS, "import.sh")
+    if os.path.exists(imp):
+        paths += [os.path.join(repo, BOTS, f) for f in import_list(imp)]
+    for path in paths:
+        if os.path.exists(path):
+            names.update(n.lower() for n in CREATE_RE.findall(norm(path).decode("utf-8", "replace")))
+    return names
+
+
 def cmd_compare(a):
     A, B = snapshot(a, a.a), snapshot(a, a.b)
     bad = 0
     lines = [f"### `{a.a}` vs `{a.b}`", ""]
+    # Identical is not enough: a table missing from BOTH sides compares equal. Every table the
+    # fresh-install SQL of this tree creates must exist on each side.
+    want = expected_tables(a.repo)
+    for db, snap in ((a.a, A), (a.b, B)):
+        have = {t[0].lower() for t in snap["tables"]}
+        missing = sorted(want - have)
+        if missing:
+            bad = 1
+            print(f"::error::{db} lacks {len(missing)} table(s) the fresh-install SQL creates: {', '.join(missing)}")
+            lines.append(f"- **`{db}` lacks: {', '.join(missing)}**")
+    lines.append(f"- expected tables (schema.sql + import.sh files): {len(want)}")
     for k in A:
         if A[k] == B[k]:
             lines.append(f"- {k}: identical ({len(A[k])} rows)")
@@ -304,6 +349,7 @@ def main():
     p.add_argument("--a", required=True)
     p.add_argument("--b", required=True)
     p.add_argument("--summary")
+    p.add_argument("--repo", default=".", help="tree whose fresh-install SQL names the expected tables")
     p = sub.add_parser("fresh-readme")
     p.add_argument("--baseline-tag", required=True)
     p = sub.add_parser("notes")

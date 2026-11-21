@@ -6,7 +6,8 @@ useAnyDatapackFolder = false
 dataPackDirectory = "data-otservbr-global"
 -- Don't change this unless you know what you're doing
 coreDirectory = "data"
-generateLuaApiDocs = true
+-- Writes the Lua API docs into luaApiDocsOutputDirectory at startup (a developer aid).
+generateLuaApiDocs = false
 luaApiDocsOutputDirectory = "docs/lua-api"
 
 -- Set log level
@@ -759,6 +760,22 @@ castMaxViewersPerIp = 3
 -- Depends on authType = "password" above -- under session auth the login password field
 -- is never parsed and this can never match (the server warns about that at startup).
 castOperatorPassword = ""
+
+-- Bot camera vs upstream livestream (#153, cast C1). Bots are watched through OUR cast path
+-- (the "bot camera"); human casters use upstream's native livestream (!livestream on).
+-- Viewers may log in with "@cast" or "@livestream": a bot name always lands in the bot camera,
+-- a human name with "@livestream" in upstream's livestream.
+-- botCameraUpstreamBootstrap: A/B switch for the 15.25 camera login sequence. false = our
+-- hand-rolled sendCastViewerInit; true = upstream's client-swap bootstrap (sendAddCreature
+-- with the bot's client briefly pointed at the camera).
+botCameraUpstreamBootstrap = false
+
+-- allowPlayerCast: lets HUMAN players broadcast with this fork's "/cast on" (#163).
+-- false (default): /cast is refused; players stream with upstream's built-in livestream
+-- ("!livestream on") and viewers log in with "@livestream". true: the old human /cast is
+-- back and listed under "@cast" next to the bots. Bots keep their camera either way.
+-- Turning it off (config reload) stops any human cast still running within a second.
+allowPlayerCast = false
 
 -- ============================================================================
 -- C. HOUSE BACKFILL (admin talkaction: /housebackfill)

@@ -35,6 +35,24 @@ driven by `*.steps` scenarios; the server journal is tailed and joined to what t
    `Harness One` (guid 70001, group 1 = non-GM). Cast operator password = server `castOperatorPassword`
    (5 wrong tries lock the IP for 15 min: copy it, never guess).
 
+### Protocol 15.25 and target profiles (15.25 port, #158)
+- The server at the port's pin speaks **15.25**. The client version comes from `harness.json`
+  `client_version` (1525), never from a constant.
+- 15.25 needs OTClient **>= 4.1** (4.2 recommended); the Jun-12 install lacks
+  `GameTacticsWithoutFightMode`. Build that copy from the 4.2 folder:
+  `python tools/bottest/setup_client.py --src C:\Users\<user>\Documents\otclient-4.2\client --dest ~/Documents/otc-harness-1525`
+  (default `--things 1525,1500`; the 4 overlay edits apply to 4.2 unchanged).
+- `--profile NAME` (runner.py, hub.py) or env `HARNESS_PROFILE` overlays one of the `harness.json` profiles:
+
+  | Profile | Target |
+  |---|---|
+  | `lxc-1500` | production before the cutover |
+  | `wsl-port` / `wsl-ctl` | the P5 arms in WSL: server on 127.0.0.1, remote commands through a hidden `wsl.exe --exec bash -c`, `journal_unit` canary-1525 / canary-ctl, `db_name` canary_1525_port / canary_1525_ctl |
+  | `lxc-port` | the port as a second LXC instance on 7182 |
+
+- `db_name` repoints every harness DB read and write, `bot_commands` included, to that copy.
+- botperf: set `BOTPERF_UNIT=canary-1525 BOTPERF_PROC=/home/tibia/canary-1525/canary` for the second instance.
+
 ## Run a scenario
 ```
 python tools/bottest/runner.py tools/bottest/scenarios/smoke_login_see.steps [--run-id ID] [--label L] [--visible]

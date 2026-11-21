@@ -144,6 +144,25 @@ AccountErrors_t Account::removeCoins(CoinType type, const uint32_t &amount, cons
 	return Ok;
 }
 
+AccountErrors_t Account::removeCoins(CoinType primaryType, CoinType secondaryType, const uint32_t &amount, const std::string &detail) {
+	using enum AccountErrors_t;
+	if (!m_accLoaded) {
+		return NotInitialized;
+	}
+
+	if (amount == 0) {
+		return Ok;
+	}
+
+	if (primaryType == secondaryType) {
+		return removeCoins(primaryType, amount, detail);
+	}
+
+	uint32_t primaryCoinsRemoved = 0;
+	uint32_t secondaryCoinsRemoved = 0;
+	return g_accountRepository().removeCoins(m_account->id, primaryType, secondaryType, amount, detail, primaryCoinsRemoved, secondaryCoinsRemoved);
+}
+
 void Account::registerCoinTransaction(CoinTransactionType transactionType, CoinType type, const uint32_t &amount, const std::string &detail) {
 	if (!m_accLoaded) {
 		return;
@@ -289,8 +308,7 @@ bool Account::authenticatePassword(const std::string &password) {
 		return true;
 	}
 
-	// Security: Never log passwords or stored password hashes to avoid credential exposure in log sinks.
-	g_logger().warn("Authentication failed for account[{}]", m_account->id);
+	g_logger().error("Password doesn't match for account id [{}]", m_account->id);
 	return false;
 }
 

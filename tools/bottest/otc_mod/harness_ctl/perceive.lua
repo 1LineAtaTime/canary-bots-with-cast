@@ -157,7 +157,8 @@ local function onSound(pos, sound, source, which)
     emitP('see_sound', f, false)
 end
 
--- mirrors ProtocolGame::parseMagicEffect (protocolgameparse.cpp:1903) byte for byte
+-- mirrors ProtocolGame::parseMagicEffect byte for byte (protocolgameparse.cpp:1903 in the Jun-12 build,
+-- :1911 in OTClient 4.2; re-checked for the 15.25 port: same loop, same MAGIC_EFFECTS_* ids 0-7)
 local function tapEffect(msg)
     local pos = readPos(msg)
     if g_game.getProtocolVersion() < 1203 then

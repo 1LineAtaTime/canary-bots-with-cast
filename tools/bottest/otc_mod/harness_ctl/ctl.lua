@@ -230,6 +230,21 @@ local function onCreaturePositionChange(c, newPos, oldPos)
     end
 end
 
+-- #170: the Cast channel tab is the operator surface; report every open-channel packet and,
+-- one frame later, whether game_console actually holds a tab for it.
+local function consoleHasChannel(channelId)
+    local con = modules.game_console
+    if not con or not con.getChannelTab then return nil end
+    local ok, tab = pcall(con.getChannelTab, channelId)
+    return ok and tab ~= nil
+end
+local function onOpenChannel(channelId, channelName)
+    emit('channel_open', { channel = channelId, name = channelName })
+    scheduleEvent(function()
+        emit('channel_tab', { channel = channelId, name = channelName, tab = tostring(consoleHasChannel(channelId)) })
+    end, 50)
+end
+
 local function onTalk(name, level, mode, text, channelId, pos)
     emit('see_talk', { name = name, level = level, mode = mode, text = text, channel = channelId, pos = posT(pos) })
     if HarnessPerceive then pcall(HarnessPerceive.onTalk, name, level, mode, text, channelId, pos) end
@@ -409,7 +424,12 @@ verbs.login = function(id, a)
         scheduleEvent(again, 300)
         return
     end
-    local version = a.version or 1500
+    -- The runner always sends harness.json client_version (1525 for the port, 1500 for an M0 control
+    -- arm). No silent default: a wrong version is a disconnect with no useful message.
+    local version = tonumber(a.version)
+    if not version then
+        return reply(id, false, 'STUCK verb=login reason=no-client-version')
+    end
     g_game.setClientVersion(version)
     g_game.setProtocolVersion(g_game.getClientProtocolVersion(version))
     g_game.chooseRsa(a.host)
@@ -617,6 +637,11 @@ verbs.follow = function(id, a)
 end
 
 verbs.say = function(id, a)
+    if a.npc then
+        -- after an NPC greeting the real client talks in the NPCs channel (P5 V11c)
+        g_game.talkChannel(MessageModes.NpcTo, 0, a.text)
+        return reply(id, true, 'OK say npc')
+    end
     g_game.talk(a.text)
     reply(id, true, 'OK say')
 end
@@ -676,6 +701,7 @@ end
 local function onOwnTrade(name, items) emit('trade_own', { name = tostring(name), n = items and #items or 0 }) end
 local function onCounterTrade(name, items) emit('trade_counter', { name = tostring(name), n = items and #items or 0 }) end
 local function onCloseTrade() emit('trade_close', {}) end
+local function onOpenNpcTrade(items) emit('npc_trade', { n = items and #items or 0 }) end
 
 verbs.channel_say = function(id, a)
     g_game.talkChannel(a.mode or MessageModes.Channel, a.channel, a.text)
@@ -842,6 +868,93 @@ verbs.client_state = function(id, a)
     reply(id, true, text, { audio = au, hidden = hidden })
 end
 
+-- ---- P5 (#160) V11c: the REAL login UI path (EnterGame HTTP login -> CharacterList), not loginWorld.
+local function charListNames()
+    local root = g_ui.getRootWidget()
+    local list = root and root:recursiveGetChildById('characters')
+    local names = {}
+    if list then
+        for _, w in ipairs(list:getChildren()) do
+            if w.characterName then table.insert(names, w.characterName) end
+        end
+    end
+    return names, list
+end
+
+verbs.uilogin = function(id, a)
+    if g_game.isOnline() then return reply(id, false, 'STUCK verb=uilogin reason=already-online') end
+    local version = tonumber(a.version)
+    if not version then return reply(id, false, 'STUCK verb=uilogin reason=no-client-version') end
+    G.account, G.password, G.authenticatorToken = a.account or '', a.password or '', ''
+    G.host, G.port = a.url, tonumber(a.port)
+    pcall(function() CharacterList.destroy() end)
+    -- same as verbs.login: the version selects things/<version>, which only then start loading
+    g_game.setClientVersion(version)
+    g_game.setProtocolVersion(g_game.getClientProtocolVersion(version))
+    waitThingsThen(cms() + 30000, function()
+        EnterGame.tryHttpLogin(version, true)
+        local deadline = cms() + 20000
+        local function poll()
+            local names = charListNames()
+            if #names > 0 or (CharacterList.isVisible and CharacterList.isVisible()) then
+                emit('charlist', { n = #names, names = names })
+                return reply(id, true, 'OK uilogin chars=' .. #names .. ' [' .. table.concat(names, ', ', 1, math.min(#names, 12)) ..
+                    (#names > 12 and ', ...' or '') .. ']', { names = names })
+            end
+            if cms() > deadline then return reply(id, false, 'STUCK verb=uilogin reason=no-character-list') end
+            scheduleEvent(poll, 200)
+        end
+        poll()
+    end, function() reply(id, false, 'STUCK verb=uilogin reason=things-not-loaded') end)
+end
+
+verbs.uichar = function(id, a)
+    local names, list = charListNames()
+    if not list then return reply(id, false, 'STUCK verb=uichar reason=no-character-list') end
+    for _, w in ipairs(list:getChildren()) do
+        if w.characterName == a.name then
+            list:focusChild(w, KeyboardFocusReason or 0)
+            if list:getFocusedChild() ~= w then
+                return reply(id, false, 'STUCK verb=uichar reason=focus-failed name=' .. a.name)
+            end
+            local info = string.format('world=%s:%s session=%s', tostring(w.worldHost), tostring(w.worldPort),
+                (G.sessionKey and #G.sessionKey > 0) and 'yes' or 'no')
+            -- a.raw=1: keep G.account/G.password as the login form left them (diagnostic)
+            if not a.raw then G.account, G.password = '', '' end
+            local ok, err = pcall(CharacterList.doLogin)
+            if not ok then
+                return reply(id, false, 'STUCK verb=uichar reason=doLogin-error ' .. tostring(err) .. ' ' .. info)
+            end
+            return reply(id, true, 'OK uichar ' .. a.name .. ' (from ' .. #names .. ' listed) ' .. info)
+        end
+    end
+    reply(id, false, 'STUCK verb=uichar reason=not-listed name=' .. tostring(a.name))
+end
+
+-- open game UI: which panels exist/are visible (inventory, minimap, spells/actionbar/hotkeys, npc trade, chat tabs)
+verbs.uicheck = function(id, a)
+    local root = g_ui.getRootWidget()
+    local function vis(wid) local w = root and root:recursiveGetChildById(wid); return w and (w:isVisible() and 'shown' or 'hidden') or 'none' end
+    local mods = {}
+    for _, m in ipairs({ 'game_inventory', 'game_minimap', 'game_spelllist', 'game_actionbar', 'game_hotkeys', 'game_npctrade',
+                         'game_console', 'game_skills', 'game_battle' }) do
+        local mod = g_modules.getModule(m)
+        table.insert(mods, m .. '=' .. (mod and (mod:isLoaded() and 'loaded' or 'off') or 'none'))
+    end
+    local tabs = {}
+    pcall(function()
+        local ct = (modules.game_console and modules.game_console.consoleTabBar) or (root and root:recursiveGetChildById('consoleTabBar'))
+        for _, t in ipairs(ct.getTabs and ct:getTabs() or ct.tabs or {}) do table.insert(tabs, t:getText()) end
+    end)
+    local npc = 'closed'
+    pcall(function() if modules.game_npctrade.npcWindow and modules.game_npctrade.npcWindow:isVisible() then npc = 'open' end end)
+    local gs = string.format(' logging=%s online=%s proto=%s ver=%s/%s', tostring(g_game.isLogging()), tostring(g_game.isOnline()),
+        tostring(g_game.getProtocolGame() ~= nil), tostring(g_game.getClientVersion()), tostring(g_game.getProtocolVersion()))
+    local text = 'OK uicheck' .. gs .. ' ' .. table.concat(mods, ' ') .. ' npctrade=' .. npc .. ' minimapWindow=' .. vis('minimapWindow') ..
+        ' tabs=[' .. table.concat(tabs, ', ') .. ']'
+    reply(id, true, text, { modules = mods, tabs = tabs, npctrade = npc })
+end
+
 verbs.window = function(id, a)
     if a.show then
         hidden = false
@@ -890,10 +1003,12 @@ function HarnessCtl.init()
         onLoginWait = onLoginWait,
         onConnectionError = onConnectionError,
         onTalk = onTalk,
+        onOpenChannel = onOpenChannel,
         onTextMessage = onTextMessage,
         onOwnTrade = onOwnTrade,
         onCounterTrade = onCounterTrade,
-        onCloseTrade = onCloseTrade
+        onCloseTrade = onCloseTrade,
+        onOpenNpcTrade = onOpenNpcTrade
     })
     connect(Creature, {
         onAppear = onCreatureAppear,
@@ -925,10 +1040,12 @@ function HarnessCtl.terminate()
         onLoginWait = onLoginWait,
         onConnectionError = onConnectionError,
         onTalk = onTalk,
+        onOpenChannel = onOpenChannel,
         onTextMessage = onTextMessage,
         onOwnTrade = onOwnTrade,
         onCounterTrade = onCounterTrade,
-        onCloseTrade = onCloseTrade
+        onCloseTrade = onCloseTrade,
+        onOpenNpcTrade = onOpenNpcTrade
     })
     disconnect(Creature, {
         onAppear = onCreatureAppear,

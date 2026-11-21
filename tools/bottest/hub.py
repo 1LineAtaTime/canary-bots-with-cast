@@ -44,6 +44,7 @@ from winproc import popen_kw  # noqa: E402
 REPO = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 SSH = r"C:\Windows\System32\OpenSSH\ssh.exe"
+WSL = "wsl.exe"
 MYSQL = r"C:\Program Files\MySQL\MySQL Workbench 8.0 CE\mysql.exe"
 PLAYER_FIRST_ID = 0x10000000  # src/creatures/players/player.cpp:154
 BOT_GUID_MIN, BOT_GUID_MAX = 65001, 66004
@@ -58,15 +59,23 @@ DEFAULTS = {
     "client_exe": "otclient_gl_x64.exe",
     "hub_port": 8765,
     "player_char": "Harness One",
+    "client_version": 1525,
 }
 
+
+# The config load_config() returned last: load_db_secrets() takes the profile's db_name from it.
+ACTIVE: dict = {}
 
 LOCAL_OVERRIDE_KEYS = ("server_host", "ssh_target", "game_port", "world", "audit_path", "client_dir")
 
 
-def load_config(path: Path | None = None) -> dict:
-    """Harness config: DEFAULTS < tools/bottest/harness.json (non-secret, committed) < the machine-specific keys in
-    harness.local.json (gitignored): the real server address and ssh target stay out of the repo."""
+def load_config(path: Path | None = None, profile: str | None = None) -> dict:
+    """Explicit harness config: DEFAULTS < tools/bottest/harness.json (non-secret, committed) < the
+    machine-specific keys in harness.local.json (gitignored: the real server address and ssh target
+    stay out of the repo) < the selected target profile (harness.json "profiles"; --profile or env
+    HARNESS_PROFILE). A profile can repoint the server (server_host / game_port), the remote shell
+    (ssh_target, which may be "wsl:<distro>[:<user>]"), the systemd unit read by journalctl
+    (journal_unit), the database (db_name), the audit file and the client (client_version / client_dir)."""
     cfg = dict(DEFAULTS)
     p = path or (HERE / "harness.json")
     if p.exists():
@@ -76,8 +85,38 @@ def load_config(path: Path | None = None) -> dict:
     except (OSError, ValueError):
         local = {}
     cfg.update({k: local[k] for k in LOCAL_OVERRIDE_KEYS if k in local})
+    profile = profile or os.environ.get("HARNESS_PROFILE") or None
+    profiles = cfg.pop("profiles", {})
+    if profile:
+        if profile not in profiles:
+            raise SystemExit(f"harness profile {profile!r} not in harness.json (have: {', '.join(sorted(profiles))})")
+        cfg.update({k: v for k, v in profiles[profile].items() if not k.startswith("_")})
+    cfg["profile"] = profile or ""
     cfg["client_dir"] = os.path.expanduser(cfg["client_dir"])
+    ACTIVE.clear()
+    ACTIVE.update(cfg)
     return cfg
+
+
+def remote_argv(target: str, cmd: str, keepalive: bool = False) -> list[str]:
+    """argv that runs `cmd` with bash on the target, windowless via popen_kw() at the call site.
+
+    target "user@host" -> OpenSSH (BatchMode). target "wsl:<distro>[:<user>]" -> hidden wsl.exe; --exec
+    hands bash -c the command verbatim (wsl.exe's own shell would re-parse $ and quotes)."""
+    if target.startswith("wsl:"):
+        parts = target.split(":")
+        distro = parts[1] if len(parts) > 1 and parts[1] else "Ubuntu-22.04"
+        user = parts[2] if len(parts) > 2 and parts[2] else "root"
+        return [WSL, "-d", distro, "-u", user, "--exec", "bash", "-c", cmd]
+    opts = ["-T", "-o", "BatchMode=yes"]
+    if keepalive:
+        opts += ["-o", "ServerAliveInterval=15"]
+    return [SSH, *opts, target, cmd]
+
+
+def journal_unit(cfg: dict) -> str:
+    """systemd unit of the server under test (production: canary; WSL / second-instance arms differ)."""
+    return shlex.quote(str(cfg.get("journal_unit") or "canary"))
 
 
 # ------------------------------------------------------------------ clocks
@@ -137,6 +176,13 @@ def load_db_secrets() -> dict:
         if k.startswith("export "):
             k = k[len("export "):].strip()
         vals[k] = v.strip().strip("\"'")
+    if ACTIVE.get("db_name"):
+        vals["DB_NAME"] = ACTIVE["db_name"]  # profile: a disposable copy, never the live DB by accident
+    # profile: a disposable DB server (P5 WSL arms run a local MySQL in WSL, 127.0.0.1:3316)
+    if ACTIVE.get("db_host"):
+        vals["DB_HOST"] = str(ACTIVE["db_host"])
+    if ACTIVE.get("db_port"):
+        vals["DB_PORT"] = str(ACTIVE["db_port"])
     return vals
 
 
@@ -157,8 +203,7 @@ class ServerClock:
         import threading
         self.lock = threading.Lock()
         self.p = subprocess.Popen(
-            [SSH, "-T", "-o", "BatchMode=yes", target,
-             'while read l; do if [ "$l" = z ]; then date +%z; else date +%s%N; fi; done'],
+            remote_argv(target, 'while read l; do if [ "$l" = z ]; then date +%z; else date +%s%N; fi; done'),
             stdout=subprocess.PIPE, text=True, bufsize=1, **popen_kw(subprocess.PIPE))
 
     def tz(self) -> str:
@@ -518,9 +563,9 @@ def bot_cid_range(cid: int) -> bool:
 
 
 def pull_server_log(cfg: dict, run_dir: Path, since_epoch_s: float, until_epoch_s: float):
-    cmd = (f"journalctl -u canary --since @{int(since_epoch_s)} --until @{int(until_epoch_s) + 1} "
+    cmd = (f"journalctl -u {journal_unit(cfg)} --since @{int(since_epoch_s)} --until @{int(until_epoch_s) + 1} "
            f"-o short-unix --no-pager; echo '#TZ' $(date +%z)")
-    out = subprocess.run([SSH, "-T", "-o", "BatchMode=yes", cfg["ssh_target"], cmd],
+    out = subprocess.run(remote_argv(cfg["ssh_target"], cmd),
                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120, **popen_kw())
     (run_dir / "server.log").write_text(out.stdout, encoding="utf-8")
     return out.stdout.count("\n")
@@ -547,7 +592,7 @@ def pull_audit(cfg: dict, run_dir: Path, since_srv_ms: float, until_srv_ms: floa
            "'NF>1 { split($2, a, \",\"); t = a[1] + 0; if (t >= lo && t <= hi) print }'"
            % (int(since_srv_ms), int(until_srv_ms)))
     cmd = f"for f in {q}.1 {q}; do [ -f \"$f\" ] && cat \"$f\"; done | {awk}"
-    out = subprocess.run([SSH, "-T", "-o", "BatchMode=yes", cfg["ssh_target"], cmd],
+    out = subprocess.run(remote_argv(cfg["ssh_target"], cmd),
                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, **popen_kw())
     (run_dir / "audit.ndjson").write_text(out.stdout, encoding="utf-8")
     return out.stdout.count("\n")
@@ -555,7 +600,7 @@ def pull_audit(cfg: dict, run_dir: Path, since_srv_ms: float, until_srv_ms: floa
 
 # ------------------------------------------------------------------ scenario
 async def phase0(args):
-    cfg = load_config()
+    cfg = load_config(profile=getattr(args, "profile", None))
     sec = load_local_secrets()
     run_id = args.run_id or time.strftime("p0_%Y%m%d_%H%M%S")
     run_dir = REPO / "runs" / run_id
@@ -584,7 +629,7 @@ async def phase0(args):
         rec_p1 = str(run_dir / "records" / "p1.cam")
         login_seq = next(hub.seq)
         r = await hub.cmd("p1", "login", timeout=45, redact=("sessionKey",), host=cfg["server_host"],
-                          port=cfg["game_port"], world=cfg["world"], char=cfg["player_char"], version=1500,
+                          port=cfg["game_port"], world=cfg["world"], char=cfg["player_char"], version=int(cfg["client_version"]),
                           sessionKey=sec["account_email"] + "\n" + sec["account_password"], recordTo=rec_p1)
         ev = await hub.wait_event("p1", lambda e: e["k"] in ("login_ok", "login_error", "conn_error"), 45, login_seq)
         if not ev or ev["k"] != "login_ok":
@@ -659,7 +704,7 @@ async def phase0(args):
         rec_c1 = str(run_dir / "records" / "c1.cam")
         cam_seq = next(hub.seq)
         await hub.cmd("c1", "login", timeout=45, redact=("sessionKey",), host=cfg["server_host"],
-                      port=cfg["game_port"], world=cfg["world"], char=target, version=1500,
+                      port=cfg["game_port"], world=cfg["world"], char=target, version=int(cfg["client_version"]),
                       sessionKey="@cast\n" + sec["cast_operator_password"], recordTo=rec_c1)
         ev = await hub.wait_event("c1", lambda e: e["k"] in ("login_ok", "login_error", "conn_error"), 45, cam_seq)
         if not ev or ev["k"] != "login_ok":
@@ -733,6 +778,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p0 = sub.add_parser("phase0")
     p0.add_argument("--run-id")
+    p0.add_argument("--profile", help="harness.json target profile (default: env HARNESS_PROFILE, else the base config)")
     p0.add_argument("--fps", type=int, default=10)
     p0.add_argument("--fps2", type=int, default=60)
     p0.add_argument("--lagmarks", type=int, default=30)

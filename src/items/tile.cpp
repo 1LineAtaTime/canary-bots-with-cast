@@ -11,8 +11,10 @@
 
 #include "config/configmanager.hpp"
 #include "creatures/combat/combat.hpp"
+#include "creatures/combat/condition.hpp"
 #include "creatures/creature.hpp"
 #include "creatures/monsters/monster.hpp"
+#include "creatures/players/components/pvp/expert_pvp.hpp"
 #include "creatures/players/player.hpp"
 #include "enums/account_type.hpp"
 #include "game/game.hpp"
@@ -27,6 +29,97 @@
 
 auto real_nullptr_tile = std::make_shared<StaticTile>(0xFFFF, 0xFFFF, 0xFF);
 const std::shared_ptr<Tile> &Tile::nullptr_tile = real_nullptr_tile;
+
+namespace {
+	bool queryExpertPvpFieldStep(const std::shared_ptr<Creature> &creature, const std::shared_ptr<Item> &ground, const TileItemVector* items, uint32_t tileFlags, ReturnValue &ret) {
+		const auto &player = creature ? creature->getPlayer() : nullptr;
+		if (!player || !ExpertPvp::isEnabled()) {
+			return false;
+		}
+
+		bool handledExpertField = false;
+		const bool pathfinding = hasBitSet(FLAG_PATHFINDING, tileFlags);
+		if (ground && (ground->hasProperty(CONST_PROP_BLOCKSOLID) || (pathfinding && ground->hasProperty(CONST_PROP_BLOCKPATH)))) {
+			return false;
+		}
+
+		if (!items) {
+			return false;
+		}
+
+		for (const auto &item : *items) {
+			if (!item) {
+				continue;
+			}
+
+			bool handledItem = false;
+			if (const auto &field = item->getMagicField()) {
+				const auto fieldContext = ExpertPvp::getFieldContext(field);
+				const auto relation = ExpertPvp::classifyFieldRelation(fieldContext, creature);
+				const auto decision = ExpertPvp::evaluateFieldStep(fieldContext, relation.facts);
+				if (decision.handled) {
+					handledExpertField = true;
+					handledItem = true;
+					if (!decision.canStep) {
+						if (!hasBitSet(FLAG_PATHFINDING, tileFlags)) {
+							ExpertPvp::applyFieldStepSideEffects(decision, relation.facts);
+						}
+						ret = RETURNVALUE_NOTENOUGHROOM;
+						return true;
+					}
+				}
+			}
+
+			if (!handledItem && (item->hasProperty(CONST_PROP_BLOCKSOLID) || (pathfinding && item->hasProperty(CONST_PROP_BLOCKPATH)))) {
+				return false;
+			}
+		}
+
+		if (handledExpertField) {
+			ret = RETURNVALUE_NOERROR;
+			return true;
+		}
+
+		return false;
+	}
+
+	struct NavigationItemTopology {
+		TileFlags_t floorChange = TILESTATE_NONE;
+		uint16_t groundId = 0;
+		uint8_t harmfulFieldCombatType = 0;
+		bool hasGround = false;
+		bool teleport = false;
+		bool blockSolid = false;
+		bool immovableBlockSolid = false;
+		bool noFieldBlockPath = false;
+		bool immovableNoFieldBlockPath = false;
+		bool blockProjectile = false;
+		bool harmfulField = false;
+
+		bool operator==(const NavigationItemTopology &) const = default;
+	};
+
+	NavigationItemTopology getNavigationItemTopology(const std::shared_ptr<Item> &item, const ItemType &itemType) {
+		const bool movable = itemType.movable
+			&& !item->hasAttribute(ItemAttribute_t::UNIQUEID)
+			&& (!item->hasAttribute(ItemAttribute_t::ACTIONID) || item->getAttribute<uint16_t>(ItemAttribute_t::ACTIONID) != IMMOVABLE_ACTION_ID);
+		const bool noFieldBlockPath = !itemType.isMagicField() && itemType.blockPathFind;
+		const bool harmfulField = itemType.isMagicField() && !itemType.blockSolid && itemType.conditionDamage && itemType.conditionDamage->getTotalDamage() > 0;
+		return {
+			.floorChange = itemType.floorChange,
+			.groundId = itemType.isGroundTile() ? itemType.id : static_cast<uint16_t>(0),
+			.harmfulFieldCombatType = harmfulField ? static_cast<uint8_t>(itemType.combatType) : static_cast<uint8_t>(0),
+			.hasGround = itemType.isGroundTile(),
+			.teleport = itemType.isTeleport(),
+			.blockSolid = itemType.blockSolid,
+			.immovableBlockSolid = itemType.blockSolid && !movable,
+			.noFieldBlockPath = noFieldBlockPath,
+			.immovableNoFieldBlockPath = noFieldBlockPath && !movable,
+			.blockProjectile = itemType.blockProjectile,
+			.harmfulField = harmfulField,
+		};
+	}
+}
 
 bool Tile::hasProperty(ItemProperty prop) const {
 	switch (prop) {
@@ -386,6 +479,7 @@ void Tile::onAddTileItem(const std::shared_ptr<Item> &item) {
 	}
 
 	setTileFlags(item);
+	g_game().map.markNavigationTopologyChanged(getPosition());
 
 	const Position &cylinderMapPos = getPosition();
 
@@ -451,6 +545,9 @@ void Tile::onUpdateTileItem(const std::shared_ptr<Item> &oldItem, const ItemType
 		g_logger().error("Tile::onUpdateTileItem: oldItem or newItem is nullptr");
 		return;
 	}
+	if (getNavigationItemTopology(oldItem, oldType) != getNavigationItemTopology(newItem, newType)) {
+		g_game().map.markNavigationTopologyChanged(getPosition());
+	}
 
 	if ((newItem->hasProperty(CONST_PROP_MOVABLE) || newItem->getContainer()) || (newItem->isWrapable() && newItem->hasProperty(CONST_PROP_MOVABLE) && !oldItem->hasProperty(CONST_PROP_BLOCKPATH))) {
 		const auto it = g_game().browseFields.find(getTile());
@@ -513,6 +610,7 @@ void Tile::onRemoveTileItem(const CreatureVector &spectators, const std::vector<
 	}
 
 	resetTileFlags(item);
+	g_game().map.markNavigationTopologyChanged(getPosition());
 
 	const Position &cylinderMapPos = getPosition();
 	const ItemType &iType = Item::items[item->getID()];
@@ -723,8 +821,14 @@ ReturnValue Tile::queryAdd(int32_t, const std::shared_ptr<Thing> &thing, uint32_
 					if (hasFlag(TILESTATE_NOFIELDBLOCKPATH)) {
 						return RETURNVALUE_NOTPOSSIBLE;
 					}
-				} else {
-					if (hasFlag(TILESTATE_BLOCKPATH)) {
+				} else if (hasFlag(TILESTATE_BLOCKPATH)) {
+					// Upstream #4033: an Expert PvP field may be steppable; otherwise BLOCKPATH blocks.
+					ReturnValue expertPvpFieldStepRet = RETURNVALUE_NOERROR;
+					if (queryExpertPvpFieldStep(creature, ground, getItemList(), tileFlags, expertPvpFieldStepRet)) {
+						if (expertPvpFieldStepRet != RETURNVALUE_NOERROR) {
+							return expertPvpFieldStepRet;
+						}
+					} else {
 						return RETURNVALUE_NOTPOSSIBLE;
 					}
 				}
@@ -784,6 +888,11 @@ ReturnValue Tile::queryAdd(int32_t, const std::shared_ptr<Thing> &thing, uint32_
 		if (!hasBitSet(FLAG_IGNOREBLOCKITEM, tileFlags)) {
 			// If the FLAG_IGNOREBLOCKITEM bit isn't set we dont have to iterate every single item
 			if (hasFlag(TILESTATE_BLOCKSOLID)) {
+				ReturnValue expertPvpFieldStepRet = RETURNVALUE_NOERROR;
+				if (queryExpertPvpFieldStep(creature, ground, getItemList(), tileFlags, expertPvpFieldStepRet)) {
+					return expertPvpFieldStepRet;
+				}
+
 				// NO PVP magic wall or wild growth field check
 				if (creature && creature->getPlayer()) {
 					if (const auto fieldList = getItemList()) {
@@ -1063,6 +1172,7 @@ void Tile::addThing(int32_t, const std::shared_ptr<Thing> &thing) {
 
 		CreatureVector* creatures = makeCreatures();
 		creatures->insert(creatures->begin(), creature);
+		g_game().map.markNavigationOccupancyChanged(getPosition());
 	} else {
 		const auto &item = thing->getItem();
 		if (item == nullptr) {
@@ -1276,6 +1386,7 @@ void Tile::removeThing(const std::shared_ptr<Thing> &thing, uint32_t count) {
 			if (it != creatures->end()) {
 				Spectators::clearCache();
 				creatures->erase(it);
+				g_game().map.markNavigationOccupancyChanged(getPosition());
 			}
 		}
 		return;
@@ -1416,7 +1527,11 @@ int32_t Tile::getThingIndex(const std::shared_ptr<Thing> &thing) const {
 	return -1;
 }
 
-int32_t Tile::getClientIndexOfCreature(const std::shared_ptr<Player> &player, const std::shared_ptr<Creature> &creature) const {
+int32_t Tile::getClientIndexOfCreature(const Player* player, const std::shared_ptr<Creature> &creature) const {
+	if (!player) {
+		return -1;
+	}
+
 	int32_t n;
 	if (ground) {
 		n = 1;
@@ -1439,6 +1554,10 @@ int32_t Tile::getClientIndexOfCreature(const std::shared_ptr<Player> &player, co
 		}
 	}
 	return -1;
+}
+
+int32_t Tile::getClientIndexOfCreature(const std::shared_ptr<Player> &player, const std::shared_ptr<Creature> &creature) const {
+	return getClientIndexOfCreature(player.get(), creature);
 }
 
 int32_t Tile::getStackposOfCreature(const std::shared_ptr<Player> &player, const std::shared_ptr<Creature> &creature) const {
@@ -1684,6 +1803,7 @@ void Tile::internalAddThing(uint32_t, const std::shared_ptr<Thing> &thing) {
 
 		CreatureVector* creatures = makeCreatures();
 		creatures->insert(creatures->begin(), creature);
+		g_game().map.markNavigationOccupancyChanged(getPosition());
 	} else {
 		const auto &item = thing->getItem();
 		if (item == nullptr) {
@@ -1695,6 +1815,7 @@ void Tile::internalAddThing(uint32_t, const std::shared_ptr<Thing> &thing) {
 			if (ground == nullptr) {
 				ground = item;
 				setTileFlags(item);
+				g_game().map.markNavigationTopologyChanged(getPosition());
 			}
 			return;
 		}
@@ -1723,12 +1844,25 @@ void Tile::internalAddThing(uint32_t, const std::shared_ptr<Thing> &thing) {
 		}
 
 		setTileFlags(item);
+		g_game().map.markNavigationTopologyChanged(getPosition());
 	}
 }
 
 void Tile::updateTileFlags(const std::shared_ptr<Item> &item) {
 	resetTileFlags(item);
 	setTileFlags(item);
+	g_game().map.markNavigationTopologyChanged(getPosition());
+}
+
+void Tile::setGround(const std::shared_ptr<Item> &item) {
+	if (ground) {
+		resetTileFlags(ground);
+	}
+
+	if ((ground = item)) {
+		setTileFlags(item);
+	}
+	g_game().map.markNavigationTopologyChanged(getPosition());
 }
 
 void Tile::setTileFlags(const std::shared_ptr<Item> &item) {
@@ -1979,15 +2113,15 @@ void Tile::clearZones() {
 	}
 }
 
-void Tile::safeCall(std::function<void(void)> &&action) const {
-	if (g_dispatcher().context().isAsync()) {
-		g_dispatcher().addEvent([weak_self = std::weak_ptr<const SharedObject>(shared_from_this()), action = std::move(action)] {
+bool Tile::safeCall(std::function<void(void)> &&action) const {
+	if (g_dispatcher().context().isBarrierParallel()) {
+		return g_dispatcher().addEvent([weak_self = std::weak_ptr<const SharedObject>(shared_from_this()), action = std::move(action)] {
 			if (weak_self.lock()) {
 				action();
 			}
 		},
-		                        g_dispatcher().context().getName());
-	} else {
-		action();
+		                               g_dispatcher().context().getName());
 	}
+	action();
+	return true;
 }

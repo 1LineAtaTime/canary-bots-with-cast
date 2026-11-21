@@ -733,3 +733,44 @@
 	   spec's "outleveling" case, so five of them is not a fight. Logged as          \
 	   "[GANG] declined RAID ... reason=outleveled". */                              \
 	INT (BOT_GANG_MAX_LEVEL_RATIO,         "botGangMaxLevelRatio",          4)
+
+// ============================================================================
+// BOT_CAMERA (#153, cast C1): the bot camera next to upstream's native livestream.
+//
+// Expanded at the very END of ConfigKey_t (after BOT_PVP_SANITY_CONFIG_KEYS), so no existing
+// ordinal moves. Read by the main binary only (and ALLOW_PLAYER_CAST by Lua). Needs a FULL rebuild.
+// ============================================================================
+#define BOT_CAMERA_CONFIG_KEYS(INT, BOOL, STR)                                    \
+	/* A/B switch for the 15.25 camera bootstrap. false (default): our hand-rolled   \
+	   sendCastViewerInit. true: upstream's livestream client swap -- the bot's      \
+	   client pointer is briefly set to the camera and sendAddCreature(isLogin) runs \
+	   the full 15.25 login sequence. Keep whichever survives P5 (V7). */            \
+	BOOL(BOT_CAMERA_UPSTREAM_BOOTSTRAP,   "botCameraUpstreamBootstrap",  false)   \
+	/* #163: human players may use OUR /cast (true) or not (false, default: they use \
+	   upstream's !livestream). Bots keep the camera either way. Appended LAST, so no \
+	   existing ordinal moves (#154); Lua (cast.lua) reads it through the by-name     \
+	   registration. Also read by player.cpp, protocollogin.cpp, protocolgame.cpp. */ \
+	BOOL(ALLOW_PLAYER_CAST,               "allowPlayerCast",             false)
+
+// ============================================================================
+// Every BOT_* table above, for code that must visit ALL bot keys regardless of where each table
+// is expanded in ConfigKey_t (the order here is NOT the enum order and must not be used as one).
+//
+// Used by the Lua `configKeys` registration (config_functions.cpp, #154): magic_enum only sees
+// ordinals up to MAGIC_ENUM_RANGE_MAX (500, src/pch.hpp), and upstream inserts new core keys
+// mid-enum on every sync, which pushes BOT_* keys past that line and silently drops them from
+// Lua. A new BOT_* table must be added here too, or Lua cannot read its keys.
+// ============================================================================
+#define BOT_ALL_CONFIG_KEY_TABLES(INT, BOOL, STR)    \
+	BOT_NAV_REALISM_CONFIG_KEYS(INT, BOOL, STR)         \
+	BOT_ACTIVITY_CONFIG_KEYS(INT, BOOL, STR)            \
+	BOT_MARKET_CONFIG_KEYS(INT, BOOL, STR)              \
+	BOT_PARTY_TRAIL_CONFIG_KEYS(INT, BOOL, STR)         \
+	BOT_AMBIENT_ROAM_CONFIG_KEYS(INT, BOOL, STR)        \
+	BOT_CORPSE_LOOT_CONFIG_KEYS(INT, BOOL, STR)         \
+	BOT_ACTIVITY_PCT_CONFIG_KEYS(INT, BOOL, STR)        \
+	BOT_LURE_KITE_CONFIG_KEYS(INT, BOOL, STR)           \
+	BOT_SHRINE_CONFIG_KEYS(INT, BOOL, STR)              \
+	BOT_AUDIT_CONFIG_KEYS(INT, BOOL, STR)               \
+	BOT_PVP_SANITY_CONFIG_KEYS(INT, BOOL, STR)          \
+	BOT_CAMERA_CONFIG_KEYS(INT, BOOL, STR)

@@ -172,7 +172,7 @@ def git_info() -> dict:
 class Runner:
     def __init__(self, steps_path: Path, args):
         self.args = args
-        self.cfg = H.load_config()
+        self.cfg = H.load_config(profile=getattr(args, "profile", None))
         self.sec = H.load_local_secrets()
         self.steps_path = steps_path
         self.text = steps_path.read_text(encoding="utf-8")
@@ -226,7 +226,8 @@ class Runner:
     def start_watch(self):
         w = self.cfg.get("watch", {})
         cmd = [sys.executable, str(HERE / "watch.py"), str(self.run_dir), "--runner-pid", str(os.getpid()),
-               "--ssh-target", self.cfg["ssh_target"], "--poll", str(w.get("poll", 10)),
+               "--ssh-target", self.cfg["ssh_target"], "--unit", str(self.cfg.get("journal_unit") or "canary"),
+               "--poll", str(w.get("poll", 10)),
                "--logstall", str(w.get("logstall", 180)), "--heartbeat", str(w.get("heartbeat", 30)),
                "--slow-ms", str(w.get("slow_ms", 500)), "--slow-per-min", str(w.get("slow_per_min", 3)),
                "--max-age-min", str(self.args.watch_max_min or w.get("max_age_min", 120))]
@@ -248,8 +249,8 @@ class Runner:
         cmd = H.audit_tail_cmd(self.cfg)
         fh = open(self.run_dir / "audit.live.ndjson", "a", encoding="utf-8")
         while not self.stopping and cmd:
-            p = subprocess.Popen([H.SSH, "-T", "-o", "BatchMode=yes", "-o", "ServerAliveInterval=15",
-                                  self.cfg["ssh_target"], cmd], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            p = subprocess.Popen(H.remote_argv(self.cfg["ssh_target"], cmd, keepalive=True),
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                  text=True, encoding="utf-8", errors="replace", bufsize=1, **popen_kw())
             self.aproc = p
             for line in p.stdout:
@@ -265,10 +266,10 @@ class Runner:
 
     def _journal_thread(self):
         fh = open(self.run_dir / "server.live.log", "a", encoding="utf-8")
-        cmd = "journalctl -u canary -f -n 0 -o short-unix --no-pager"
+        cmd = f"journalctl -u {H.journal_unit(self.cfg)} -f -n 0 -o short-unix --no-pager"
         while not self.stopping:
-            p = subprocess.Popen([H.SSH, "-T", "-o", "BatchMode=yes", "-o", "ServerAliveInterval=15",
-                                  self.cfg["ssh_target"], cmd], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            p = subprocess.Popen(H.remote_argv(self.cfg["ssh_target"], cmd, keepalive=True),
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                  text=True, encoding="utf-8", errors="replace", bufsize=1, **popen_kw())
             self.jproc = p
             for line in p.stdout:
@@ -386,16 +387,22 @@ class Runner:
         if actor.startswith("cam:"):
             char = actor[4:]
             key = "@cast\n" + self.sec["cast_operator_password"]
+            # P5 (#160): `desc=@livestream [pw=...]` logs the camera in as an ordinary viewer of
+            # upstream's livestream (or `desc=@cast pw=x` as a plain cast viewer) instead.
+            if kw.get("desc"):
+                key = kw["desc"] + "\n" + kw.get("pw", "")
         else:
             char = kw.get("char") or (pos[0] if pos else self.cfg["players"].get(actor))
             if not char:
                 return {"ok": False, "kind": "infra", "text": f"no character configured for {actor}"}
             key = self.sec["account_email"] + "\n" + self.sec["account_password"]
+            if kw.get("acct"):   # P5 V11c: another account (disposable DBs only), e.g. acct=@god pw=$GODPW
+                key = kw["acct"] + "\n" + kw.get("pw", "")
         self.cmeta[name]["char"] = char
         self.write_clients()
         pre = next(self.hub.seq)
         r = await self.hub.cmd(name, "login", timeout=45, redact=("sessionKey",), host=self.cfg["server_host"],
-                               port=self.cfg["game_port"], world=self.cfg["world"], char=char, version=1500,
+                               port=self.cfg["game_port"], world=self.cfg["world"], char=char, version=int(self.cfg["client_version"]),
                                sessionKey=key, recordTo=str(self.run_dir / "records" / f"{name}.cam"))
         del key
         if not r.get("ok"):
@@ -465,6 +472,8 @@ class Runner:
         text = " ".join(pos) or kw.get("text", "")
         if actor.startswith("cam:"):
             return await self.player_verb(actor, "channel_say", channel=CHANNEL_CAST, text=text)
+        if kw.get("npc") in ("1", "true", "yes"):   # NPC channel (after a greeting), like the real client
+            return await self.player_verb(actor, "say", text=text, npc=True)
         return await self.player_verb(actor, "say", text=text)
 
     async def v_pm(self, actor, pos, kw):
@@ -703,6 +712,43 @@ class Runner:
             return {"ok": False, "kind": "infra", "text": "use needs <itemId>"}
         return await self.player_verb(actor, "use", id=int(pos[0]), **({"with": kw["with"]} if kw.get("with") else {}))
 
+    async def v_uilogin(self, actor, pos, kw):
+        """P5 V11c: `uilogin acct=<email|@cast|@livestream> pw=<pw> [url=http://127.0.0.1:8080/login.php]`
+        - the REAL OTClient login UI path (EnterGame HTTP login -> character list), not loginWorld.
+        `expect=<regex>` is checked against the reply (the listed names)."""
+        name = await self.ensure_client(actor)
+        url = kw.get("url", self.cfg.get("login_url", "http://127.0.0.1:8080/login.php"))
+        r = await self.hub.cmd(name, "uilogin", timeout=45, redact=("password",), account=kw.get("acct", ""),
+                               password=kw.get("pw", ""), url=url, port=int(kw.get("port", 8080)),
+                               version=int(self.cfg["client_version"]))
+        listed = r.get("text", "") + " " + " | ".join(r.get("names") or [])   # match the FULL list, not the 12 in the text
+        if r.get("ok") and kw.get("expect") and not re.search(kw["expect"], listed):
+            return {"ok": False, "kind": "fail", "text": f'FAIL check=uilogin~{kw["expect"]} got="{r["text"][:300]}"'}
+        return r
+
+    async def v_uichar(self, actor, pos, kw):
+        """P5 V11c: `uichar <name>` - pick a character in the open character list and enter the game."""
+        char = kw.get("name") or " ".join(p for p in pos if "=" not in p)
+        name = self.client_of(actor) or await self.ensure_client(actor)
+        pre = next(self.hub.seq)
+        r = await self.hub.cmd(name, "uichar", timeout=20, name=char)
+        if not r.get("ok") or kw.get("nowait") in ("1", "true", "yes"):
+            return r
+        ev = await self.hub.wait_event(name, lambda e: e["k"] in ("login_ok", "login_error", "conn_error"), 45, pre)
+        if not ev or ev["k"] != "login_ok":
+            return {"ok": False, "text": f"STUCK verb=uichar reason={ev['k'] if ev else 'no-answer'} "
+                                         f"{str((ev or {}).get('err') or (ev or {}).get('msg'))[:120]}"}
+        self.cmeta[name]["char"] = char
+        self.write_clients()
+        return {"ok": True, "text": f"OK uichar char={char} cid={ev.get('cid')} pos={ev.get('pos')}"}
+
+    async def v_uicheck(self, actor, pos, kw):
+        """P5 V11c: `uicheck [expect=re]` - game panels loaded/visible, chat tabs, npc trade window."""
+        r = await self.player_verb(actor, "uicheck")
+        if r.get("ok") and kw.get("expect") and not re.search(kw["expect"], r["text"]):
+            return {"ok": False, "kind": "fail", "text": f'FAIL check=uicheck~{kw["expect"]} got="{r["text"][:300]}"'}
+        return r
+
     async def v_client_state(self, actor, pos, kw):
         """`client-state [expect=re]` - audio (g_sounds + channels + persisted options), hidden, fps."""
         r = await self.player_verb(actor, "client_state")
@@ -788,8 +834,9 @@ class Runner:
         [HUNT:STUCK] since; picks the most recent such entry. Sets $VAR and $VAR_guid."""
         since = int(kw.get("since", 900))
         excl = {n.strip() for n in kw.get("not", "").split(",") if n.strip()}
-        cmd = f"journalctl -u canary --since '{since} seconds ago' -o cat --no-pager | grep -F '[HUNT' | tail -n 20000"
-        out = await asyncio.to_thread(subprocess.run, [H.SSH, "-T", "-o", "BatchMode=yes", self.cfg["ssh_target"], cmd],
+        cmd = (f"journalctl -u {H.journal_unit(self.cfg)} --since '{since} seconds ago' -o cat --no-pager "
+               "| grep -F '[HUNT' | tail -n 20000")
+        out = await asyncio.to_thread(subprocess.run, H.remote_argv(self.cfg["ssh_target"], cmd),
                                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
                                       **popen_kw())
         phase_re = re.compile(r"guid=(\d+) name='([^']+)' phase (\d+)->(\d+)")
@@ -851,7 +898,8 @@ class Runner:
         from driver import BotCommandDriver, DbConfig  # queue protocol only
         s = H.load_db_secrets()
         drv = BotCommandDriver(DbConfig(host=s["DB_HOST"], user=s["DB_USER"], password=s["DB_PASS"],
-                                        database=s.get("DB_NAME", "canary"), mysql_bin=H.MYSQL), timeout=timeout)
+                                        database=s.get("DB_NAME", "canary"), port=s.get("DB_PORT", "3306"),
+                                        mysql_bin=H.MYSQL), timeout=timeout)
         out = await asyncio.to_thread(drv.send, bot, sub, timeout)
         return "queue", out
 
@@ -888,6 +936,38 @@ class Runner:
         if pos[0].lower() == "watch" and len(pos) > 1 and pos[1].lower() not in ("clear", "none", "*"):
             self.watch_names.add(" ".join(pos[1:]))
         return await self.v_cmd(actor, ["_global", "audit", *pos], kw)
+
+    async def v_db(self, actor, pos, kw):
+        """`@srv db "<SELECT|SHOW ...>" [expect=re] [none=re] [wait=S] [as=VAR]` (P5 #160): read-only
+        query on the profile's DB (db_name / db_host). Rows are tab-joined, one per line; expect=
+        must match, none= must not, retried for up to wait= seconds."""
+        if not pos:
+            return {"ok": False, "kind": "infra", "text": 'db needs "<SELECT ...>"'}
+        sql = " ".join(pos)
+        if not re.match(r"\s*(select|show)\b", sql, re.I) or ";" in sql.rstrip(" ;"):
+            return {"ok": False, "kind": "infra", "text": "db: one SELECT/SHOW statement only"}
+        rx, nrx = kw.get("expect"), kw.get("none")
+        deadline = time.monotonic() + float(kw.get("wait", 0))
+        while True:
+            try:
+                rows = await asyncio.to_thread(H.db_query, sql)
+            except Exception as e:
+                return {"ok": False, "text": f"STUCK verb=db reason=db-error {str(e)[:160]}"}
+            text = "\n".join("\t".join(r) for r in rows)
+            ok = (not rx or re.search(rx, text) is not None) and (not nrx or re.search(nrx, text) is None)
+            if ok or time.monotonic() >= deadline:
+                break
+            await asyncio.sleep(1.0)
+        self.counter += 1
+        f = self.run_dir / f"db-{self.counter}.txt"
+        f.write_text(f"# {sql}\n{text}\n", encoding="utf-8")
+        if kw.get("as"):
+            self.vars[kw["as"]] = rows[0][0] if rows and rows[0] else ""
+        first = (text.splitlines() or [""])[0][:160]
+        if not ok:
+            return {"ok": False, "kind": "fail",
+                    "text": f'FAIL check=db expect={rx!r} none={nrx!r} rows={len(rows)} got="{first}" file={f.name}'}
+        return {"ok": True, "text": f'OK db rows={len(rows)} first="{first}" file={f.name}'}
 
     async def v_botcfg(self, actor, pos, kw):
         await self.take_botcfg(kw.get("via", "auto"))
@@ -1252,6 +1332,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("steps")
     ap.add_argument("--run-id")
+    ap.add_argument("--profile", help="harness.json target profile (default: env HARNESS_PROFILE, else the base config)")
     ap.add_argument("--label")
     ap.add_argument("--no-botcfg", action="store_true")
     ap.add_argument("--watch-max-min", type=float)

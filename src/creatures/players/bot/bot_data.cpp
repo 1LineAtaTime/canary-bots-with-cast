@@ -822,12 +822,26 @@ void BotEngine::rebuildFidgetItemPool() {
 	// The shop walk is iterative + depth-capped against malformed datapack childShop nesting.
 	// NpcTypes register at g_npcs().load() (before Game::start) and persist across reload.
 	
+	//
+	// #168 (15.25): upstream added the "Test Server" NPC (data-otservbr-global/npc/test_server.lua),
+	// a gold-currency shop built from items.xml that sells EVERY piece of equipment for 1 gp. It is
+	// not placed on the map, but its NpcType is registered, so medusa shields, cobra hoods and
+	// dwarven legs all passed "0 < buyPrice < max" and the pool tripled (1552 vs ~526 on 15.00).
+	// Two guards: skip that NPC by name (upstream's own price checker special-cases the same
+	// name), and refuse any item some NPC BUYS from players for >= the threshold
+	// (ItemType::sellPrice is the highest NPC buy-back price) -- an item worth that much to an NPC
+	// is not litter whatever a shop lists it for.
 	const uint32_t maxValue = static_cast<uint32_t>(g_configManager().getNumber(BOT_FIDGET_MAX_ITEM_VALUE_GP));
 	safeFidgetItemIds_.clear();
-	std::unordered_set<uint16_t> seen;
+	std::unordered_map<uint16_t, uint32_t> poolPrice;  // itemId -> highest accepted gold shop price
+	uint32_t skippedTestServer = 0, skippedResale = 0;
 	for (const auto& [npcName, npcType] : g_npcs().getNpcTypes()) {
 		if (!npcType || npcType->getCurrencyId() != ITEM_GOLD_COIN) {
 			continue;  // skip token / non-gold traders — their prices aren't in gp
+		}
+		if (strcasecmp(npcType->name.c_str(), "Test Server") == 0 || strcasecmp(npcName.c_str(), "test server") == 0) {
+			++skippedTestServer;
+			continue;
 		}
 		// Iterative walk of the shop tree (top-level blocks + nested childShop menus).
 		std::vector<std::pair<const std::vector<ShopBlock>*, int>> stack;
@@ -842,9 +856,17 @@ void BotEngine::rebuildFidgetItemPool() {
 			for (const auto& sb : *blocks) {
 				if (sb.itemBuyPrice > 0 && sb.itemBuyPrice < maxValue) {
 					const ItemType& it = Item::items.getItemType(sb.itemId);
-					if (it.id != 0 && it.pickupable && it.movable
-					    && seen.insert(sb.itemId).second) {
-						safeFidgetItemIds_.push_back(sb.itemId);
+					if (it.id != 0 && it.pickupable && it.movable) {
+						if (it.sellPrice >= maxValue) {
+							++skippedResale;
+						} else {
+							auto [pit, fresh] = poolPrice.try_emplace(sb.itemId, sb.itemBuyPrice);
+							if (fresh) {
+								safeFidgetItemIds_.push_back(sb.itemId);
+							} else if (sb.itemBuyPrice > pit->second) {
+								pit->second = sb.itemBuyPrice;
+							}
+						}
 					}
 				}
 				if (!sb.childShop.empty()) {
@@ -853,8 +875,28 @@ void BotEngine::rebuildFidgetItemPool() {
 			}
 		}
 	}
+
+	// Boot visibility (#168): pool size, the highest price in it and its 5 dearest items, so a
+	// datapack change that lets equipment in shows up in the journal instead of on the floor.
+	std::vector<std::pair<uint32_t, uint16_t>> byPrice;
+	byPrice.reserve(poolPrice.size());
+	uint32_t poolMax = 0;
+	for (const auto& [id, price] : poolPrice) {
+		byPrice.emplace_back(price, id);
+		poolMax = std::max(poolMax, price);
+	}
+	const size_t topN = std::min<size_t>(5, byPrice.size());
+	std::partial_sort(byPrice.begin(), byPrice.begin() + topN, byPrice.end(),
+		[](const auto& l, const auto& r) { return l.first != r.first ? l.first > r.first : l.second < r.second; });
+	std::string top;
+	for (size_t i = 0; i < topN; ++i) {
+		const ItemType& it = Item::items.getItemType(byPrice[i].second);
+		top += fmt::format("{}{} ({}) {}gp", i ? ", " : "", it.name, byPrice[i].second, byPrice[i].first);
+	}
 	g_logger().info("[BotEngine] Loaded {} gold-NPC-buyable fidget item IDs (max buy price {} gp)",
 		safeFidgetItemIds_.size(), maxValue);
+	g_logger().info("[FIDGET_POOL] size={} poolMaxGp={} limitGp={} skippedTestServerNpc={} skippedResale>=limit={} top5=[{}]",
+		safeFidgetItemIds_.size(), poolMax, maxValue, skippedTestServer, skippedResale, top);
 }
 
 void BotEngine::buildTravelDestinationsCache() {

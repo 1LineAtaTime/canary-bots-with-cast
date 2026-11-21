@@ -26,10 +26,13 @@
 #include "creatures/players/components/player_forge_history.hpp"
 #include "creatures/players/components/player_storage.hpp"
 #include "creatures/players/components/player_title.hpp"
+#include "creatures/players/components/pvp/player_pvp.hpp"
 #include "creatures/players/components/wheel/player_wheel.hpp"
 #include "creatures/players/components/player_vip.hpp"
 #include "creatures/players/components/wheel/wheel_gems.hpp"
 #include "creatures/players/components/player_attached_effects.hpp"
+#include "creatures/players/components/weapon_proficiency.hpp"
+#include "utils/hash.hpp"
 
 class House;
 class NetworkMessage;
@@ -81,11 +84,13 @@ enum class HouseAuctionType : uint8_t;
 enum class BidErrorMessage : uint8_t;
 enum class TransferErrorMessage : uint8_t;
 enum class AcceptTransferErrorMessage : uint8_t;
+enum class ImbuementAction : uint8_t;
 enum ObjectCategory_t : uint8_t;
 enum PreySlot_t : uint8_t;
 enum SpeakClasses : uint8_t;
 enum ChannelEvent_t : uint8_t;
 enum SquareColor_t : uint8_t;
+enum CreatureMark_t : uint8_t;
 enum Resource_t : uint8_t;
 
 using GuildWarVector = std::vector<uint32_t>;
@@ -94,6 +99,16 @@ using ItemVector = std::vector<std::shared_ptr<Item>>;
 using UsersMap = std::map<uint32_t, std::shared_ptr<Player>>;
 using InvitedMap = std::map<uint32_t, std::shared_ptr<Player>>;
 using HouseMap = std::map<uint32_t, std::shared_ptr<House>>;
+
+struct SkillsEquipment {
+	double_t equipment = 0;
+	double_t imbuement = 0;
+};
+
+struct BaseCritical {
+	double_t chance = 0.05;
+	double_t damage = 0.1;
+};
 
 struct CharmInfo {
 	uint16_t raceId = 0;
@@ -108,12 +123,14 @@ struct OpenContainer {
 using MuteCountMap = std::map<uint32_t, uint32_t>;
 
 static constexpr uint16_t PLAYER_MAX_SPEED = std::numeric_limits<uint16_t>::max();
-static constexpr uint16_t PLAYER_MAX_STAFF_SPEED = 8000;
+static constexpr uint16_t PLAYER_MAX_STAFF_SPEED = 65535;
 static constexpr uint16_t PLAYER_MIN_SPEED = 10;
 static constexpr uint8_t PLAYER_SOUND_HEALTH_CHANGE = 10;
 
 class Player final : public Creature, public Cylinder, public Bankable {
 public:
+	using Thing::getDepotChest;
+
 	class PlayerLock {
 	public:
 		explicit PlayerLock(const std::shared_ptr<Player> &p) :
@@ -155,6 +172,32 @@ public:
 	std::shared_ptr<const Player> getPlayer() const override {
 		return static_self_cast<Player>();
 	}
+	Player* getPlayerRaw() noexcept override {
+		return this;
+	}
+	const Player* getPlayerRaw() const noexcept override {
+		return this;
+	}
+
+	struct ExivaRestrictions {
+		bool allowAll = false;
+		bool allowOwnGuild = true;
+		bool allowOwnParty = true;
+		bool allowVipList = true;
+		bool allowPlayerWhitelist = true;
+		bool allowGuildWhitelist = true;
+
+		std::vector<uint32_t> playerWhitelist;
+		std::vector<uint32_t> guildWhitelist;
+	};
+
+	ExivaRestrictions &getExivaRestrictions();
+	const ExivaRestrictions &getExivaRestrictions() const;
+
+	void sendWeaponProficiency(uint16_t weaponId = 0);
+
+	std::array<SkillsEquipment, SKILL_LAST + 1> getSkillsEquipment() const;
+	const BaseCritical &getBaseCritical() const;
 
 	/**
 	 * @brief Gets the current virtue of the player.
@@ -165,8 +208,9 @@ public:
 	/**
 	 * @brief Sets the player's virtue.
 	 * @param virtue The virtue to set.
+	 * @param notifyClient Whether to send the updated state to the client.
 	 */
-	void setVirtue(Virtue_t virtue);
+	void setVirtue(Virtue_t virtue, bool notifyClient = true);
 
 	/**
 	 * @brief Sets the player's serene state.
@@ -214,6 +258,14 @@ public:
 
 	static std::shared_ptr<Task> createPlayerTask(uint32_t delay, std::function<void(void)> f, const std::string &context);
 
+	/**
+	 * Assigns the player's runtime creature ID from the database GUID range.
+	 *
+	 * Player runtime IDs are stable for a character identity, not for a single
+	 * online object generation. Delayed or async work must not treat a player
+	 * ID as a generation-safe handle because the same character can reconnect
+	 * and produce a different `Player` object with the same runtime ID.
+	 */
 	void setID() override;
 
 	void setOnline(bool value) override {
@@ -353,6 +405,7 @@ public:
 	bool isOldProtocol() const;
 
 	uint32_t getProtocolVersion() const;
+	std::shared_ptr<ProtocolGame> getClient() const;
 
 	bool hasSecureMode() const;
 
@@ -436,9 +489,21 @@ public:
 		return getIP() == 0;
 	}
 
+#ifdef BUILD_TESTS
+	void setTestIP(uint32_t testIpAddress) {
+		testIP = testIpAddress;
+	}
+
+	void setTestIdleTime(int32_t testIdleTimeInMs) {
+		idleTime = testIdleTimeInMs;
+	}
+#endif
+
 	void addContainer(uint8_t cid, const std::shared_ptr<Container> &container);
 	void closeContainer(uint8_t cid);
 	void setContainerIndex(uint8_t cid, uint16_t index);
+	void closeContainersOutOfRange();
+	bool shouldCloseContainer(const std::shared_ptr<Container> &container) const;
 
 	std::shared_ptr<Container> getContainerByID(uint8_t cid);
 	int8_t getContainerID(const std::shared_ptr<Container> &container) const;
@@ -512,6 +577,9 @@ public:
 	void setBotPlayer(bool v) {
 		botPlayer = v;
 	}
+	// FORK(bot) #160: does this player make nearby monsters "visible for scheduling"? A real
+	// player always does; a bot only while someone watches through it (cast viewer, incl. synthetic).
+	[[nodiscard]] bool countsAsSchedulingViewer() const;
 	bool isBotAllowFcPos(const Position &pos) const {
 		return botAllowFcPos == pos;
 	}
@@ -528,6 +596,8 @@ public:
 		return castBroadcasting;
 	}
 	void setCastBroadcasting(bool v);
+	// Bots always; humans only with allowPlayerCast (#163). Everyone else uses !livestream.
+	bool canCastBroadcast() const;
 	uint32_t getLevel() const {
 		return level;
 	}
@@ -605,7 +675,7 @@ public:
 	void addMessageBuffer();
 	void removeMessageBuffer();
 
-	bool removeItemOfType(uint16_t itemId, uint32_t itemAmount, int32_t subType, bool ignoreEquipped = false) const;
+	bool removeItemOfType(uint16_t itemId, uint32_t itemAmount, int32_t subType, bool ignoreEquipped = false, bool ignoreStoreInbox = false) const;
 	/**
 	 * @param itemAmount is uint32_t because stash item is uint32_t max
 	 */
@@ -654,7 +724,7 @@ public:
 	std::shared_ptr<DepotChest> getDepotChest(uint32_t depotId, bool autoCreate);
 	std::shared_ptr<DepotLocker> getDepotLocker(uint32_t depotId);
 	void onReceiveMail();
-	bool isNearDepotBox();
+	bool isNearDepotBox() const;
 
 	std::shared_ptr<Container> refreshManagedContainer(ObjectCategory_t category, const std::shared_ptr<Container> &container, bool isLootContainer, bool loading = false);
 	std::shared_ptr<Container> getManagedContainer(ObjectCategory_t category, bool isLootContainer) const;
@@ -711,6 +781,8 @@ public:
 	void setChaseMode(bool mode);
 	void setFightMode(FightMode_t mode);
 	void setSecureMode(bool mode);
+	void setPvpMode(PvpMode_t mode);
+	[[nodiscard]] PvpMode_t getPvpMode() const;
 
 	Faction_t getFaction() const override;
 
@@ -721,6 +793,12 @@ public:
 	bool isImmune(ConditionType_t type) const override;
 	bool hasShield() const;
 	bool isAttackable() const override;
+	void beginBatchUpdate();
+	void endBatchUpdate();
+	void sendBatchUpdateContainer(Container* container, bool hasParent);
+	bool isBatching() const {
+		return m_batching > 0;
+	}
 	static bool lastHitIsPlayer(const std::shared_ptr<Creature> &lastHitCreature);
 
 	// stash functions
@@ -741,7 +819,8 @@ public:
 		uint32_t totalCount,
 		uint32_t &actuallyAdded,
 		uint32_t flags = 0,
-		uint8_t tier = 0
+		uint8_t tier = 0,
+		bool testOnly = false
 	);
 	ReturnValue addItemBatch(
 		uint16_t itemId,
@@ -790,6 +869,7 @@ public:
 
 	void updateLastAggressiveAction();
 
+	uint16_t getWeaponId(bool ignoreAmmo = false) const;
 	std::shared_ptr<Item> getWeapon(Slots_t slot, bool ignoreAmmo) const;
 	std::shared_ptr<Item> getWeapon(bool ignoreAmmo = false) const;
 	WeaponType_t getWeaponType() const;
@@ -838,6 +918,7 @@ public:
 	int32_t getPartyMantra() const;
 	void updatePartyMantra() const;
 
+	void addPzLockTicks();
 	void addInFightTicks(bool pzlock = false);
 
 	uint64_t getGainedExperience(const std::shared_ptr<Creature> &attacker) const override;
@@ -872,6 +953,8 @@ public:
 	void setSkullTicks(int64_t ticks);
 
 	bool hasAttacked(const std::shared_ptr<Player> &attacked) const;
+	[[nodiscard]] const phmap::flat_hash_set<uint32_t> &getAttackedPlayerGuids() const;
+	[[nodiscard]] const phmap::flat_hash_set<uint32_t> &getAttackerPlayerGuids() const;
 	void addAttacked(const std::shared_ptr<Player> &attacked);
 	void removeAttacked(const std::shared_ptr<Player> &attacked);
 	void clearAttacked();
@@ -898,6 +981,8 @@ public:
 
 	size_t getMaxDepotItems() const;
 
+	bool canExiva(const std::string &spellParam) const;
+
 	// tile
 	// send methods
 	// tile
@@ -917,10 +1002,15 @@ public:
 	void sendCreatureReload(const std::shared_ptr<Creature> &creature) const;
 	void sendPrivateMessage(const std::shared_ptr<Player> &speaker, SpeakClasses type, const std::string &text) const;
 	void sendCreatureSquare(const std::shared_ptr<Creature> &creature, SquareColor_t color) const;
+	void sendCreatureMark(const std::shared_ptr<Creature> &creature, CreatureMark_t mark) const;
 	void sendCreatureChangeOutfit(const std::shared_ptr<Creature> &creature, const Outfit_t &outfit) const;
 	void sendCreatureChangeVisible(const std::shared_ptr<Creature> &creature, bool visible);
 	void sendCreatureLight(const std::shared_ptr<Creature> &creature) const;
 	void sendCreatureIcon(const std::shared_ptr<Creature> &creature) const;
+	bool setRaceIconOverlay(uint16_t raceId, CreatureIconModifications_t icon, bool enabled = true);
+	bool clearRaceIconOverlays(CreatureIconModifications_t icon);
+	[[nodiscard]] std::vector<CreatureIcon> getRaceIconOverlays(uint16_t raceId) const;
+	void refreshVisibleCreatureIcons() const;
 	void sendUpdateCreature(const std::shared_ptr<Creature> &creature) const;
 	void sendCreatureWalkthrough(const std::shared_ptr<Creature> &creature, bool walkthrough) const;
 	void sendCreatureShield(const std::shared_ptr<Creature> &creature) const;
@@ -938,6 +1028,8 @@ public:
 	void sendUpdateContainerItem(const std::shared_ptr<Container> &container, uint16_t slot, const std::shared_ptr<Item> &newItem);
 	void sendRemoveContainerItem(const std::shared_ptr<Container> &container, uint16_t slot);
 	void sendContainer(uint8_t cid, const std::shared_ptr<Container> &container, bool hasParent, uint16_t firstIndex) const;
+
+	void sendExivaRestrictions();
 
 	// Monk Update
 	void sendMonkData(MonkData_t type, uint8_t value);
@@ -1013,6 +1105,7 @@ public:
 	void sendPartyPlayerVocation(const std::shared_ptr<Player> &player) const;
 	void sendPlayerVocation(const std::shared_ptr<Player> &player) const;
 	void sendDistanceShoot(const Position &from, const Position &to, uint16_t type) const;
+	void sendDistanceShoot(const Position &from, const Position &to, uint16_t type, SourceEffect_t source) const;
 	void sendHouseWindow(const std::shared_ptr<House> &house, uint32_t listId) const;
 	void sendCreatePrivateChannel(uint16_t channelId, const std::string &channelName) const;
 	void sendClosePrivate(uint16_t channelId);
@@ -1023,6 +1116,7 @@ public:
 	void sendClientCheck() const;
 	void sendGameNews() const;
 	void sendMagicEffect(const Position &pos, uint16_t type) const;
+	void sendMagicEffect(const Position &pos, uint16_t type, SourceEffect_t source) const;
 	void removeMagicEffect(const Position &pos, uint16_t type) const;
 	void sendPing();
 	void sendPingBack() const;
@@ -1062,9 +1156,12 @@ public:
 	void sendResourceBalance(Resource_t resourceType, uint64_t value) const;
 	void sendHouseAuctionMessage(uint32_t houseId, HouseAuctionType type, uint8_t index, bool bidSuccess = false) const;
 	// Imbuements
-	void onApplyImbuement(const Imbuement* imbuement, const std::shared_ptr<Item> &item, uint8_t slot, bool protectionCharm);
+	void applyScrollImbuement(const std::shared_ptr<Item> &item, const std::shared_ptr<Item> &scrollItem);
+	void createScrollImbuement(const Imbuement* imbuement);
+	void onApplyImbuement(const Imbuement* imbuement, const std::shared_ptr<Item> &item, uint8_t slot);
 	void onClearImbuement(const std::shared_ptr<Item> &item, uint8_t slot);
-	void openImbuementWindow(const std::shared_ptr<Item> &item);
+	bool clearAllImbuements(const std::shared_ptr<Item> &item);
+	void openImbuementWindow(ImbuementAction action, const std::shared_ptr<Item> &item);
 	void sendImbuementResult(const std::string &message) const;
 	void closeImbuementWindow() const;
 	void sendPodiumWindow(const std::shared_ptr<Item> &podium, const Position &position, uint16_t itemId, uint8_t stackpos) const;
@@ -1102,7 +1199,7 @@ public:
 
 	void sendOpenStash(bool isNpc = false) const;
 
-	void sendTakeScreenshot(Screenshot_t screenshotType) const;
+	void sendTakeScreenshot(Screenshot_t screenshotType, uint8_t skillId = 0, uint16_t skillLevel = 0, const std::string &achievementName = "", uint16_t raceId = 0, uint8_t bestiaryStep = 0) const;
 
 	void onThink(uint32_t interval) override;
 
@@ -1160,6 +1257,7 @@ public:
 	bool walkExhausted() const;
 
 	void setWalkExhaust(int64_t value);
+	void updateParalyzeWalkExhaust();
 
 	const std::map<uint8_t, OpenContainer> &getOpenContainers() const;
 
@@ -1421,6 +1519,8 @@ public:
 	// Gets the equipped items with augment
 	std::vector<std::shared_ptr<Item>> getEquippedAugmentItems() const;
 
+	std::unordered_map<std::pair<uint16_t, uint8_t>, double, PairHash, PairEqual> getEquippedAugments() const;
+
 	/**
 	 * @brief Get the equipped items of the player->
 	 * @details This function returns a vector containing the items currently equipped by the player
@@ -1464,8 +1564,13 @@ public:
 	PlayerAttachedEffects &attachedEffects();
 	const PlayerAttachedEffects &attachedEffects() const;
 
+	// Player storage interface
 	PlayerStorage &storage();
 	const PlayerStorage &storage() const;
+
+	// Player weapon proficiency interface
+	WeaponProficiency &weaponProficiency();
+	const WeaponProficiency &weaponProficiency() const;
 
 	void sendLootMessage(const std::string &message) const;
 
@@ -1499,6 +1604,10 @@ public:
 	void clearCooldowns(bool spenders = false, bool builders = false, int32_t ticks = 0);
 
 	void sendSpellCooldowns();
+
+	void updateFood(uint16_t itemId, uint32_t timeLeft);
+	const std::map<uint16_t, uint32_t> &getActiveFoods() const;
+	bool isFoodActive(uint16_t itemId) const;
 
 private:
 	friend class PlayerLock;
@@ -1552,6 +1661,7 @@ private:
 	size_t getFirstIndex() const override;
 	size_t getLastIndex() const override;
 	uint32_t getItemTypeCount(uint16_t itemId, int32_t subType = -1) const override;
+	uint32_t getItemTypeCount(uint16_t itemId, int32_t subType, bool ignoreEquipped, bool ignoreStoreInbox) const;
 	void stashContainer(const StashContainerList &itemDict);
 	ItemsTierCountList getInventoryItemsId(bool ignoreStoreInbox = false) const;
 
@@ -1560,7 +1670,7 @@ private:
 	// Function from player class with correct type sizes (uint16_t)
 	std::map<uint16_t, uint16_t> &getAllSaleItemIdAndCount(std::map<uint16_t, uint16_t> &countMap) const;
 	void getAllItemTypeCountAndSubtype(std::map<uint32_t, uint32_t> &countMap) const;
-	std::shared_ptr<Item> getForgeItemFromId(uint16_t itemId, uint8_t tier) const;
+	std::shared_ptr<Item> getForgeItemFromId(uint16_t itemId, uint8_t tier, const std::shared_ptr<Item> &exclude = nullptr) const;
 	std::shared_ptr<Thing> getThing(size_t index) const override;
 
 	void internalAddThing(const std::shared_ptr<Thing> &thing) override;
@@ -1583,12 +1693,16 @@ private:
 	void healFromHarmony(uint8_t charges = 1);
 
 	phmap::flat_hash_set<uint32_t> attackedSet {};
+	phmap::flat_hash_set<uint32_t> attackerSet {};
 
 	std::map<uint8_t, OpenContainer> openContainers;
 	std::map<uint32_t, std::shared_ptr<DepotLocker>> depotLockerMap;
 	std::map<uint32_t, std::shared_ptr<DepotChest>> depotChests;
 	std::map<uint8_t, int64_t> moduleDelayMap;
 	std::map<uint16_t, uint64_t> itemPriceMap;
+
+	std::map<uint16_t, uint32_t> m_activeFoods;
+	std::map<uint16_t, std::set<CreatureIconModifications_t>> m_raceIconOverlays;
 
 	std::map<uint64_t, std::shared_ptr<Reward>> rewardMap;
 
@@ -1628,6 +1742,8 @@ private:
 
 	time_t lastLoginSaved = 0;
 	time_t lastLogout = 0;
+
+	BaseCritical baseCritical;
 
 	uint64_t experience = 0;
 	uint64_t manaSpent = 0;
@@ -1731,6 +1847,9 @@ private:
 	std::shared_ptr<Town> town;
 	std::shared_ptr<Vocation> vocation = nullptr;
 	std::shared_ptr<RewardChest> rewardChest = nullptr;
+#ifdef BUILD_TESTS
+	uint32_t testIP = 0;
+#endif
 
 	uint32_t inventoryWeight = 0;
 	uint32_t capacity = 40000;
@@ -1816,6 +1935,8 @@ private:
 	QuickLootFilter_t quickLootFilter {};
 	PlayerPronoun_t pronoun = PLAYERPRONOUN_THEY;
 
+	ExivaRestrictions exivaRestrictions;
+
 	bool chaseMode = false;
 	bool secureMode = true;
 	bool inMarket = false;
@@ -1824,6 +1945,8 @@ private:
 	bool botPlayer = false;
 	Position botAllowFcPos = {}; // Transient: when set, A* can path onto the FC/teleport tile at this exact position only
 	bool pzLocked = false;
+	int64_t pzLockOnlyUntil = 0;
+	uint64_t pzLockEventId = 0;
 	bool isConnecting = false;
 	bool addAttackSkillPoint = false;
 	bool inventoryAbilities[CONST_SLOT_LAST + 1] = {};
@@ -1913,6 +2036,7 @@ private:
 	friend class BotEngine;
 
 	PlayerWheel m_wheelPlayer;
+	PlayerPvp m_pvpPlayer;
 	PlayerAchievement m_playerAchievement;
 	PlayerBadge m_playerBadge;
 	PlayerCyclopedia m_playerCyclopedia;
@@ -1922,8 +2046,10 @@ private:
 	PlayerAttachedEffects m_playerAttachedEffects;
 	PlayerStorage m_storage;
 	PlayerForgeHistory m_forgeHistoryPlayer;
+	WeaponProficiency m_weaponProficiency;
 
 	std::mutex quickLootMutex;
+	uint32_t m_batching = 0;
 
 	std::shared_ptr<Account> account;
 	bool online = true;

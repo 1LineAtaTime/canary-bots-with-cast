@@ -1,3 +1,22 @@
+text eol=lf
+
+.gitattributes text eol=lf
+.dockerignore text eol=lf
+*.md text eol=lf
+*.ps1 text eol=lf
+*.sh text eol=lf
+.github/**/*.sh text eol=lf
+.github/**/*.py text eol=lf
+.github/**/*.yml text eol=lf
+.github/**/*.yaml text eol=lf
+docker/Dockerfile.* text eol=lf
+docker/**/Dockerfile text eol=lf
+docker/**/*.sh text eol=lf
+docker/**/*.php text eol=lf
+docker/**/*.yml text eol=lf
+docker/**/*.yaml text eol=lf
+docker/**/*.md text eol=lf
+docker/**/*.dist text eol=lf
 # NOTE: this file previously contained the single line "text eol=lf", which is NOT a rule —
 # git parses the first token as the PATH PATTERN, so it matched only a file literally named
 # "text". Nothing in the repo had line-ending normalization. Verify with:
