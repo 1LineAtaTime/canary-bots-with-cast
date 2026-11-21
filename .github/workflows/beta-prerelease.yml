@@ -9,7 +9,8 @@ name: beta pre-release
 #             an upgrade (the v2026.09.01 release database + the SQL files added since),
 #             proven identical; the fresh dump, the SQL sources zip, the runtime tarball
 #   smoke     boots the Linux build against the fresh database with the real map:
-#             Lua migrations, the bot engine .so and the bot startup must all come up
+#             Lua migrations, the bot engine .so and the bot startup must all come up, and
+#             no error line outside the branch's .github/beta/smoke_error_allowlist.txt
 #   publish   replaces the ci-beta assets and notes, then moves the tag LAST, so a failed
 #             run never half-publishes. Always a pre-release, never "Latest".
 #
@@ -529,6 +530,13 @@ jobs:
     env:
       MYSQL_PWD: ci-root
     steps:
+    # The error allowlist lives on the built branch (.github/beta), not in this file.
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.check.outputs.sha }}
+        persist-credentials: false
+        sparse-checkout: .github/beta
+        path: beta-meta
     - uses: actions/download-artifact@v4
       with:
         name: beta-linux-x64
@@ -599,6 +607,8 @@ jobs:
         kill -TERM "$PID" 2>/dev/null || true
         for i in $(seq 1 60); do kill -0 "$PID" 2>/dev/null || break; sleep 1; done
         kill -KILL "$PID" 2>/dev/null || true
+        RC=0; wait "$PID" 2>/dev/null || RC=$?
+        echo "$RC" > canary.exit
         echo "----- boot.log (head) -----"; head -n 80 boot.log
         echo "----- boot.log (tail) -----"; tail -n 80 boot.log
         DBV=$(mysql -h 127.0.0.1 -uroot -N canary -e "SELECT value FROM server_config WHERE config='db_version';")
@@ -625,6 +635,66 @@ jobs:
         [ "$RT" = 4 ] || { echo "::error::only $RT of the 4 bot runtime tables exist"; exit 1; }
         ! grep -q 'Failed to load bot' boot.log || { echo "::error::some bots failed to load"; exit 1; }
         [ "$DBV" = "$LATEST" ] || { echo "::error::migrations stopped at db_version $DBV (newest $LATEST)"; exit 1; }
+
+    # Error lines fail the boot unless the built branch's allowlist (one ERE per line, `#`
+    # comments) matches them, so harmless noise from an upstream merge is a beta-only edit.
+    # The fatal patterns fail regardless of the allowlist. A branch without the allowlist
+    # file only gets warnings.
+    - name: Error lines in the boot log
+      if: ${{ !cancelled() }}
+      env:
+        LOG: srv/boot.log
+        EXIT_FILE: srv/canary.exit
+        ALLOWLIST: beta-meta/.github/beta/smoke_error_allowlist.txt
+      run: |
+        set -uo pipefail
+        S=${GITHUB_STEP_SUMMARY:-/dev/stdout}
+        [ -f "$LOG" ] || { echo "::error::no boot log"; exit 1; }
+        ERR_RE='lua (script )?error|\[(error|critical)\]'
+        FATAL=(
+          "missing database table|Table '[^']+' doesn't exist"
+          "Lua script error|Lua Script Error"
+          "bot engine failed to load|\[BotEngineLoader\] (Failed to load|REFUSING|Missing factory symbols|createBotEngine\(\) returned nullptr)"
+          "bot failed to load|Failed to load bot"
+        )
+        shapes() { sed -E 's/^\[[^]]*\] //; s/[0-9]+/N/g' | sort | uniq -c | sort -rn | head -n 25; }
+        fatal=(); unmatched=""; bad=""
+        for f in "${FATAL[@]}"; do
+          n=$(grep -cE -- "${f#*|}" "$LOG" || true)
+          [ "$n" -gt 0 ] && fatal+=("${f%%|*}: $n line(s)")
+        done
+        grep -qE '\[BotEngineLoader\] Loaded .* successfully' "$LOG" || fatal+=("bot engine never loaded")
+        RC=$(cat "$EXIT_FILE" 2>/dev/null || echo '?')
+        case "$RC" in 132|134|135|136|139) fatal+=("canary crashed (exit status $RC, signal $((RC - 128)))") ;; esac
+        grep -iE "$ERR_RE" "$LOG" > errors.txt || true
+        if [ -f "$ALLOWLIST" ]; then
+          tr -d '\r' < "$ALLOWLIST" | grep -vE '^[[:space:]]*(#|$)' > allow.re || true
+          grep -vEf allow.re errors.txt > unmatched.txt; g=$?
+          [ "$g" -le 1 ] || bad="the allowlist has an invalid regex (grep exit $g)"
+        else
+          cp errors.txt unmatched.txt
+        fi
+        NE=$(wc -l < errors.txt); NU=$(wc -l < unmatched.txt)
+        {
+          echo "### Error gate"
+          echo "- canary exit status: $RC"
+          echo "- error lines: $NE, not on the allowlist: $NU"
+          [ -f "$ALLOWLIST" ] || echo "- no allowlist on this branch ($ALLOWLIST): report only"
+          [ -z "$bad" ] || echo "- $bad"
+          for x in "${fatal[@]}"; do echo "- FATAL: $x"; done
+          if [ "$NU" -gt 0 ]; then
+            echo; echo "Unmatched error lines by shape (digits as N, top 25):"; echo '```text'
+            shapes < unmatched.txt; echo '```'
+            echo; echo "First 20 unmatched lines:"; echo '```text'; head -n 20 unmatched.txt; echo '```'
+          fi
+        } | tee -a "$S"
+        if [ ! -f "$ALLOWLIST" ]; then
+          [ "$NU" = 0 ] && [ ${#fatal[@]} = 0 ] || echo "::warning::$NU error line(s), ${#fatal[@]} fatal finding(s); not enforced without $ALLOWLIST"
+          exit 0
+        fi
+        [ -z "$bad" ] || { echo "::error::$bad"; exit 1; }
+        [ ${#fatal[@]} = 0 ] || { echo "::error::fatal: ${fatal[*]}"; exit 1; }
+        [ "$NU" = 0 ] || { echo "::error::$NU error line(s) not on the allowlist (see the job summary)"; exit 1; }
 
     - uses: actions/upload-artifact@v4
       if: always()

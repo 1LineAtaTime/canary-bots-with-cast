@@ -1,0 +1,16 @@
+# Error lines the smoke boot tolerates (.github/workflows/beta-prerelease.yml, smoke job).
+#
+# The smoke job collects every boot.log line matching  lua (script )?error|\[(error|critical)\]
+# (case-insensitive) and fails the run if any of them is not matched by a pattern below.
+#
+# Format: one POSIX extended regex (grep -E) per line, matched anywhere in the line, timestamp
+# included. Lines starting with # and blank lines are ignored. Every entry needs a comment above
+# it saying where the line comes from and why it is harmless. Keep patterns narrow: a broad one
+# hides the next real error. An invalid regex fails the run.
+#
+# These fail the run whatever this file says (they are checked on the whole log):
+#   a missing database table (Table '...' doesn't exist), a Lua script error, the bot engine
+#   failing to load or never loading, a bot failing to load, and canary crashing (SIGSEGV,
+#   SIGABRT, SIGBUS, SIGFPE, SIGILL).
+#
+# No entries: the boot of beta 34d7289a6 logs no error line.
