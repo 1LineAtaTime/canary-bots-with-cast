@@ -13,16 +13,16 @@ monster.outfit = {
 	lookMount = 0,
 }
 
+monster.events = {
+	"dreamCourtsDeath",
+}
+
 monster.health = 320000
 monster.maxHealth = 320000
 monster.race = "blood"
 monster.corpse = 30017
 monster.speed = 125
 monster.manaCost = 0
-
-monster.events = {
-	"dreamCourtsDeath",
-}
 
 monster.changeTarget = {
 	interval = 4000,
@@ -32,6 +32,7 @@ monster.changeTarget = {
 monster.bosstiary = {
 	bossRaceId = 1696,
 	bossRace = RARITY_NEMESIS,
+	storage = Storage.Quest.U12_00.TheDreamCourts.DreamScar.MalofurTimer,
 }
 
 monster.strategiesTarget = {
@@ -90,7 +91,7 @@ monster.loot = {
 	{ name = "energy bar", chance = 88890 },
 	{ id = 282, chance = 8330 }, -- giant shimmering pearl
 	{ name = "gold ingot", chance = 22220 },
-	{ name = "gold token", chance = 60000, maxCount = 3 },
+	{ name = "gold token", chance = 71700, maxCount = 2 },
 	{ name = "green gem", chance = 11110 },
 	{ name = "huge chunk of crude iron", chance = 40000 },
 	{ name = "magic sulphur", chance = 5560 },
@@ -103,7 +104,7 @@ monster.loot = {
 	{ id = 23533, chance = 5560 }, -- ring of red plasma
 	{ name = "ring of the sky", chance = 2780 },
 	{ name = "royal star", chance = 52780 },
-	{ name = "silver token", chance = 91670, maxCount = 3 },
+	{ name = "silver token", chance = 100000, maxCount = 2 },
 	{ name = "skull staff", chance = 8330 },
 	{ name = "soul stone", chance = 8330 },
 	{ name = "supreme health potion", chance = 80000, maxCount = 29 },

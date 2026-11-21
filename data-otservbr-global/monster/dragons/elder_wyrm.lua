@@ -92,13 +92,13 @@ monster.loot = {
 	{ name = "wand of starstorm", chance = 830 },
 	{ name = "lightning pendant", chance = 750 },
 	{ name = "lightning legs", chance = 600 },
-	{ name = "legs of wisdom", chance = 600 },
 	{ name = "lightning robe", chance = 290 },
 	{ name = "dragonbone staff", chance = 240 },
 	{ name = "composite hornbow", chance = 220 },
 	{ name = "shadow sceptre", chance = 170 },
 	{ name = "lightning boots", chance = 150 },
 	{ name = "shockwave amulet", chance = 120 },
+	{ name = "legs of wisdom", chance = 700 },
 }
 
 monster.attacks = {

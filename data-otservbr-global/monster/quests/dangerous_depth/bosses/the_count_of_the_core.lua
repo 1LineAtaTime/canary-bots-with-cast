@@ -80,7 +80,7 @@ monster.loot = {
 	{ name = "stone skin amulet", chance = 100000 },
 	{ name = "amber staff", chance = 100000 },
 	{ name = "ultimate health potion", chance = 80000, maxCount = 15 },
-	{ name = "great mana potion", chance = 60000, maxCount = 23 },
+	{ id = 238, chance = 60000, maxCount = 23 }, -- great mana potion
 	{ name = "small topaz", chance = 60000, maxCount = 10 },
 	{ name = "green crystal shard", chance = 60000 },
 	{ name = "wand of inferno", chance = 60000 },
@@ -89,13 +89,13 @@ monster.loot = {
 	{ name = "huge chunk of crude iron", chance = 40000, maxCount = 3 },
 	{ id = 282, chance = 40000 }, -- giant shimmering pearl
 	{ name = "great spirit potion", chance = 20000 },
-	{ name = "silver token", chance = 20000 },
+	{ name = "silver token", chance = 11820 },
 	{ name = "yellow gem", chance = 20000 },
 	{ name = "fire sword", chance = 20000 },
 	{ id = 3039, chance = 20000 }, -- red gem
 	{ name = "green gem", chance = 20000 },
 	{ name = "slightly rusted helmet", chance = 20000 },
-	{ name = "gold token", chance = 20000 },
+	{ name = "gold token", chance = 18180 },
 	{ name = "magic sulphur", chance = 40680 },
 	{ id = 27626, chance = 23730 }, -- chitinous mouth (count)
 	{ name = "blue gem", chance = 22030 },
@@ -116,6 +116,7 @@ monster.loot = {
 	{ name = "guardian axe", chance = 1690 },
 	{ name = "twiceslicer", chance = 1690 },
 	{ name = "tinged pot", chance = 1690 },
+	{ name = "gnomish footwraps", chance = 1790 },
 }
 
 monster.attacks = {

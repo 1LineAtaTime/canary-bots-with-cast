@@ -1,0 +1,48 @@
+name: Fix Crystal monster raceId collisions
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - crystal-items-monsters-migration
+
+permissions:
+  contents: write
+
+jobs:
+  fix-raceids:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fix duplicate raceId values
+        run: python3 tools/migration/fix_monster_race_ids.py
+
+      - name: Validate no duplicate raceId values remain
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          seen = {}
+          pat = re.compile(r'raceId\s*=\s*(\d+)')
+          for p in Path('data-otservbr-global/monster').glob('*.lua'):
+              m = pat.search(p.read_text(encoding='utf-8'))
+              if m:
+                  race = int(m.group(1))
+                  seen.setdefault(race, []).append(p)
+          dup = {k:v for k,v in seen.items() if len(v) > 1}
+          assert not dup, f'duplicate raceId values remain: {list(dup)[:10]}'
+          print(f'validated {len(seen)} unique raceId values')
+          PY
+
+      - name: Commit raceId fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+users.noreply.github.com'
+          git add -f data-otservbr-global/monster data-otservbr-global/CRYSTAL_CANARY_RACEID_REMAP.md
+          if git diff --cached --quiet; then
+            echo 'No raceId changes needed.'
+          else
+            git commit -m 'data: resolve Crystal monster raceId collisions'
+            git push origin HEAD:crystal-items-monsters-migration
+          fi

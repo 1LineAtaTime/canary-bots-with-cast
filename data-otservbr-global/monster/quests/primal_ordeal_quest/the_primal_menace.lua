@@ -68,9 +68,14 @@ monster.events = {
 	"ThePrimeOrdealBossDeath",
 }
 
+monster.bosstiary = {
+	bossRaceId = 2247,
+	bossRace = RARITY_ARCHFOE,
+}
+
 monster.health = 400000
 monster.maxHealth = 400000
-monster.race = "blood"
+monster.race = "venom"
 monster.corpse = 39530
 monster.speed = 180
 monster.manaCost = 0
@@ -162,10 +167,6 @@ local function initialize(monster)
 end
 
 -- Functions for the fight
-mType.onSpawn = function(monster, spawnPosition)
-	initialize(monster)
-end
-
 local function getHazardPoints(monster)
 	local hazard = Hazard.getByName("hazard.gnomprona-gardens")
 	if not hazard then

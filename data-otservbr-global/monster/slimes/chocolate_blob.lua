@@ -17,25 +17,25 @@ monster.raceId = 2550
 monster.Bestiary = {
 	class = "Slime",
 	race = BESTY_RACE_SLIME,
-	toKill = 25,
-	FirstUnlock = 5,
-	SecondUnlock = 10,
-	CharmsPoints = 1,
+	toKill = 250,
+	FirstUnlock = 10,
+	SecondUnlock = 100,
+	CharmsPoints = 5,
 	Stars = 1,
-	Occurrence = 0,
-	Locations = "Candia",
+	Occurrence = 1,
+	Locations = "Candia.",
 }
 
 monster.health = 70
 monster.maxHealth = 70
-monster.race = "undead"
-monster.corpse = 48108
+monster.race = "chocolate"
+monster.corpse = 48109
 monster.speed = 80
 monster.manaCost = 0
 
 monster.changeTarget = {
 	interval = 4000,
-	chance = 20,
+	chance = 10,
 }
 
 monster.strategiesTarget = {
@@ -45,22 +45,21 @@ monster.strategiesTarget = {
 monster.flags = {
 	summonable = false,
 	attackable = true,
-	hostile = false,
+	hostile = true,
 	convinceable = false,
-	pushable = true,
+	pushable = false,
 	rewardBoss = false,
-	illusionable = true,
+	illusionable = false,
 	canPushItems = false,
 	canPushCreatures = false,
 	staticAttackChance = 90,
 	targetDistance = 1,
-	runHealth = 70,
+	runHealth = 0,
 	healthHidden = false,
 	isBlockable = false,
-	canWalkOnEnergy = true,
-	canWalkOnFire = true,
-	canWalkOnPoison = true,
-	isPreyExclusive = true,
+	canWalkOnEnergy = false,
+	canWalkOnFire = false,
+	canWalkOnPoison = false,
 }
 
 monster.light = {
@@ -68,20 +67,23 @@ monster.light = {
 	color = 0,
 }
 
+monster.summon = {}
+
 monster.voices = {
 	interval = 5000,
 	chance = 10,
 	{ text = "*Splotch*", yell = false },
-	{ text = "Smudge", yell = false },
+	{ text = "*Smudge*", yell = false },
 }
+
 monster.loot = {}
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -1 },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -30 },
 }
 
 monster.defenses = {
-	defense = 5,
+	defense = 15,
 	armor = 11,
 	mitigation = 0.36,
 }

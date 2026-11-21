@@ -2,7 +2,7 @@ local mType = Game.createMonsterType("Burning Book")
 local monster = {}
 
 monster.description = "a burning book"
-monster.experience = 13200
+monster.experience = 11934
 monster.outfit = {
 	lookType = 1061,
 	lookHead = 79,
@@ -15,8 +15,8 @@ monster.outfit = {
 
 monster.raceId = 1663
 monster.Bestiary = {
-	class = "Magical",
-	race = BESTY_RACE_MAGICAL,
+	class = "Inkborn",
+	race = BESTY_RACE_INKBORN,
 	toKill = 2500,
 	FirstUnlock = 100,
 	SecondUnlock = 1000,

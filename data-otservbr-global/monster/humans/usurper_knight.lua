@@ -87,10 +87,11 @@ monster.loot = {
 	{ name = "gold ingot", chance = 5799 },
 	{ name = "lion crest", chance = 5697 },
 	{ name = "knight legs", chance = 5290 },
-	{ name = "great mana potion", chance = 4680 },
+	{ id = 238, chance = 4680 }, -- great mana potion
 	{ name = "blue gem", chance = 4171 },
 	{ name = "green gem", chance = 2238 },
 	{ name = "magma legs", chance = 610 },
+	{ id = 50152, chance = 560 }, -- collar of orange plasma
 }
 
 monster.attacks = {

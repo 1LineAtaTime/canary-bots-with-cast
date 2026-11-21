@@ -1,8 +1,8 @@
 local mType = Game.createMonsterType("Bulltaur Alchemist")
 local monster = {}
 
-monster.description = "a Bulltaur Alchemist"
-monster.experience = 4500
+monster.description = "a bulltaur alchemist"
+monster.experience = 4350
 monster.outfit = {
 	lookType = 1718,
 	lookHead = 0,
@@ -13,13 +13,6 @@ monster.outfit = {
 	lookMount = 0,
 }
 
-monster.health = 5690
-monster.maxHealth = 5690
-monster.race = "blood"
-monster.corpse = 44713
-monster.speed = 160
-monster.manaCost = 0
-
 monster.raceId = 2448
 monster.Bestiary = {
 	class = "Humanoid",
@@ -29,19 +22,27 @@ monster.Bestiary = {
 	SecondUnlock = 1000,
 	CharmsPoints = 50,
 	Stars = 4,
-	Occurrence = 0,
-	Locations = "Bulltaurs Lair",
+	Occurrence = 1,
+	Locations = "Demonwar Crypt.",
 }
 
+monster.health = 5690
+monster.maxHealth = 5690
+monster.race = "blood"
+monster.corpse = 44712
+monster.speed = 165
+monster.manaCost = 0
+
 monster.changeTarget = {
-	interval = 2000,
+	interval = 4000,
 	chance = 10,
 }
 
 monster.strategiesTarget = {
-	nearest = 80,
+	nearest = 70,
 	health = 10,
-	damage = 10,
+	damage = 60,
+	random = 10,
 }
 
 monster.flags = {
@@ -54,7 +55,7 @@ monster.flags = {
 	illusionable = false,
 	canPushItems = true,
 	canPushCreatures = true,
-	staticAttackChance = 90,
+	staticAttackChance = 80,
 	targetDistance = 1,
 	runHealth = 0,
 	healthHidden = false,
@@ -71,41 +72,40 @@ monster.light = {
 
 monster.voices = {
 	interval = 5000,
-	chance = 10,
-	{ text = "Your misfortune is setteled!", yell = false },
-	{ text = "Soon I will harvest you for ingredients!", yell = false },
-	{ text = "I have just the solution for this problem!", yell = false },
+	chance = 30,
+	{ text = "Your misfortune is setteled!", yell = true },
+	{ text = "Soon I will harvest you for ingredients!", yell = true },
+	{ text = "I have just the solution for this problem!", yell = true },
 }
 
 monster.loot = {
-	{ id = 3035, chance = 51528, maxCount = 30 },
-	{ id = 44736, chance = 15234 },
-	{ id = 44739, chance = 9169 },
-	{ id = 44740, chance = 6256 },
-	{ id = 239, chance = 5540 },
-	{ id = 9058, chance = 3534 },
-	{ id = 7643, chance = 2722 },
-	{ id = 238, chance = 2006 },
-	{ id = 3036, chance = 1862 },
-	{ id = 23373, chance = 1385 },
-	{ id = 3041, chance = 1003 },
-	{ id = 3063, chance = 1003 },
-	{ id = 21168, chance = 1003 },
-	{ id = 32769, chance = 669 },
-	{ id = 10438, chance = 621 },
+	{ name = "platinum coin", chance = 5000, maxCount = 6 },
+	{ name = "platinum coin", chance = 3533, maxCount = 7 },
+	{ id = 44736, chance = 4545 }, -- stealth ring
+	{ id = 44737, chance = 4545 }, -- stealth ring
+	{ id = 44738, chance = 4545 }, -- stealth ring
+	{ name = "might ring", chance = 4285 },
+	{ name = "mino shield", chance = 840 },
+	{ name = "dragon hammer", chance = 420 },
+	{ id = 3041, chance = 4545 }, -- stealth ring
+	{ name = "ultimate health potion", chance = 5285 },
+	{ id = 238, chance = 6285 }, -- great mana potion
+	{ name = "alloy legs", chance = 1285 },
+	{ name = "encrypted notes", chance = 985 },
+	{ name = "ultimate mana potion", chance = 1285 },
+	{ name = "gold ingot", chance = 1285 },
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = -120, maxDamage = -270 },
-	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -300, maxDamage = -420, radius = 3, effect = CONST_ME_REDSMOKE, target = true },
-	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -280, maxDamage = -400, range = 4, radius = 4, shootEffect = CONST_ANI_ENERGYBALL, effect = CONST_ME_PURPLESMOKE, target = true },
-	{ name = "bulltaur avalanche", interval = 2000, chance = 20, minDamage = -350, maxDamage = -450 },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 90, maxDamage = -390 },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ICEDAMAGE, minDamage = -150, maxDamage = -450, range = 3, radius = 4, effect = CONST_ME_ICEAREA, target = true },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_ENERGYDAMAGE, minDamage = -150, maxDamage = -450, range = 3, radius = 4, effect = 170, target = true },
 }
 
 monster.defenses = {
-	defense = 67,
-	armor = 67,
-	mitigation = 2.11,
+	defense = 30,
+	armor = 78,
+	mitigation = 1.22,
 }
 
 monster.elements = {
@@ -122,10 +122,9 @@ monster.elements = {
 }
 
 monster.immunities = {
-	{ type = "paralyze", condition = true },
+	{ type = "paralyze", condition = false },
 	{ type = "outfit", condition = false },
 	{ type = "invisible", condition = true },
-	{ type = "drunk", condition = true },
 	{ type = "bleed", condition = false },
 }
 
