@@ -1,5 +1,0 @@
-# SCENARIO: expect_fail_demo   SEED: 0   CAMERAS: none   BOTCFG: off
-# Contract check: an expect that cannot hold must exit 4 with FAIL check=...
-@p1 login
-@srv expect src=cli:p1 k=see_appear name="Nobody Fakename-Harness" min=1 wait=5
-@p1 logout

@@ -502,3 +502,8 @@ data/bot/authored/**/*.tmp
 data/bot/dumps/
 CMakeUserPresets.json
 canary-debug
+
+# Harness scenarios are per-setup (local characters, bots, passwords): only the example + README are tracked.
+tools/bottest/scenarios/*
+!tools/bottest/scenarios/example_*.steps
+!tools/bottest/scenarios/README.md

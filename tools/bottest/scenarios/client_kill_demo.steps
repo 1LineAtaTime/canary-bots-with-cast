@@ -1,6 +1,0 @@
-# SCENARIO: client_kill_demo   SEED: 0   CAMERAS: none   BOTCFG: off
-# Contract check: kill the p1 OTClient (PID in runs/<id>/clients.json) during the hold; the
-# watcher must report CLIENTDOWN and the hold must come back STUCK reason=client-down (exit 3).
-@p1 login
-@p1 hold 150
-@p1 logout

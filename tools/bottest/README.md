@@ -15,7 +15,7 @@ driven by `*.steps` scenarios; the server journal is tailed and joined to what t
 | `winproc.py` | `popen_kw()`: every harness subprocess (ssh.exe, mysql.exe, python, git, OTClient) is created with `CREATE_NO_WINDOW` + explicit stdin, so no console window ever pops up |
 | `otc_overlay/edits.json` | the harness edits to the stock client (init.lua, mods.otmod), applied by setup_client.py; includes audio OFF from the first frame |
 | `otc_mod/harness_ctl/` | OTClient mod: `ctl.lua` streams client events, executes hub verbs, hides the window; `perceive.lua` = perception parity (effects, missiles, texts, creatures, own UI state) |
-| `scenarios/*.steps` | scenarios (`smoke_login_see`, `walk_observe_thais`, `hidden_parity`, `audit_probe_thais`, `audit_wake_walk`, `audit_func_check` (deploy smoke: both control paths + file sanity), `audit_wake_sparkle` (B2 wake -> login-sparkle sample), `perceive_self`, `perceive_combat`, `*_demo` contract checks) |
+| `scenarios/` | your own `*.steps` scenarios (not tracked; see `scenarios/README.md`); `example_smoke.steps` is the starting point |
 | `baseline_metrics.py` / `compare.py` | Phase 3 lean baseline: per-scenario metrics JSON from a run dir (`baselines/<date>/B#.json`), and a per-metric old/new/delta diff of two baseline dirs |
 | `test_watch.py` | unit tests: CRASH/SLOW detectors, watcher end-to-end on a fake server, steps parser, audit parsing/filters/census |
 | `harness.json` | non-secret config (server, ports, client dir, player chars, watch thresholds, `audit_path`) |
@@ -55,7 +55,7 @@ driven by `*.steps` scenarios; the server journal is tailed and joined to what t
 
 ## Run a scenario
 ```
-python tools/bottest/runner.py tools/bottest/scenarios/smoke_login_see.steps [--run-id ID] [--label L] [--visible]
+python tools/bottest/runner.py tools/bottest/scenarios/example_smoke.steps [--run-id ID] [--label L] [--visible]
 ```
 Exit codes: **0** all verbs OK and expects pass, **3** a verb returned `STUCK verb=<v> reason=<r> pos=x,y,z`
 (the run stops there), **4** an expect failed (`FAIL check=... got=... want...`), **2** infrastructure.
@@ -64,7 +64,7 @@ everything out and terminates only the OTClient PIDs it launched.
 
 ### From Claude Code: background run + Monitor on `.watch`
 1. Start the run in the background with a known id:
-   `python tools/bottest/runner.py tools/bottest/scenarios/walk_observe_thais.steps --run-id wo_1`
+   `python tools/bottest/runner.py tools/bottest/scenarios/<your_scenario>.steps --run-id wo_1`
    (Bash tool, `run_in_background: true`).
 2. Follow `runs/wo_1/.watch` with the Monitor tool (e.g. until a line contains `DONE`). It only gets a
    line on an anomaly or an end marker, so it costs nothing while the run is healthy:
