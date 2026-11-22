@@ -843,7 +843,8 @@ ReturnValue Tile::queryAdd(int32_t, const std::shared_ptr<Thing> &thing, uint32_
 			// moving from a pz tile to a non-pz tile
 			if (playerTile && playerTile->hasFlag(TILESTATE_PROTECTIONZONE)) {
 				auto maxOnline = g_configManager().getNumber(MAX_PLAYERS_PER_ACCOUNT);
-				if (maxOnline > 1 && player->getAccountType() < ACCOUNT_TYPE_GAMEMASTER && !hasFlag(TILESTATE_PROTECTIONZONE)) {
+				// Bots all share one account: the per-account outside-PZ cap would strand them on PZ tiles.
+				if (maxOnline > 1 && player->getAccountType() < ACCOUNT_TYPE_GAMEMASTER && !player->isBotPlayer() && !hasFlag(TILESTATE_PROTECTIONZONE)) {
 					const auto maxOutsizePZ = g_configManager().getNumber(MAX_PLAYERS_OUTSIDE_PZ_PER_ACCOUNT);
 					auto accountPlayers = g_game().getPlayersByAccount(player->getAccount());
 					int countOutsizePZ = 0;

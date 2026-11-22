@@ -222,6 +222,14 @@ local function onCreaturePositionChange(c, newPos, oldPos)
     if last and last.key == key and now - last.t < 50 then return end
     lastMoveKey[cid] = { key = key, t = now }
     local info = { cid = cid, name = c:getName(), to = posT(newPos), from = posT(oldPos) }
+    -- walk-cadence probe: speed, the client's own step duration (no diagonal factor) and the
+    -- ground speed of both tiles, so a reader can compare each inter-step interval to the expected.
+    pcall(function()
+        info.spd = c:getSpeed()
+        info.sd = c:getStepDuration(true)
+        local tt = g_map.getTile(newPos); if tt then info.gs = tt:getGroundSpeed() end
+        if oldPos then local ft = g_map.getTile(oldPos); if ft then info.gsf = ft:getGroundSpeed() end end
+    end)
     if c:isLocalPlayer() then
         emit('self_pos', info)
     else

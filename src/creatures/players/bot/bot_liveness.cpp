@@ -222,7 +222,12 @@ namespace {
 // botStartAutoWalk (that wrapper calls this; recursing pegged the dispatcher, cd7c3e94e).
 void BotEngine::issueAutoWalk(BotState& bot, const std::shared_ptr<Player>& player,
                               const std::vector<Direction>& dirs) {
-	player->startAutoWalk(dirs);
+	// ImmediateWhenReady: 15.25's startAutoWalk defaults to RespectDelay, which waits one FULL step
+	// duration before the first step even when the bot has been standing (15.00 stepped at once for
+	// a 1-step path). The engine re-issues a queue at every chunk end / re-plan, so RespectDelay put a
+	// 100-300 ms hitch into every re-issue. The policy still honours a live walk delay, so a bot never
+	// steps faster than its speed allows.
+	player->startAutoWalk(dirs, false, Creature::WalkStartPolicy::ImmediateWhenReady);
 	// Arm from what the server actually queued (startAutoWalk refuses while rooted/feared, and
 	// may already have taken a first step), and from where the bot stands NOW -- not
 	// bot.currentPos, which is the tick-start snapshot.

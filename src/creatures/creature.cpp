@@ -1620,6 +1620,16 @@ uint16_t Creature::getStepDuration(Direction dir) {
 	}
 
 	auto duration = walk.duration;
+	// FORK(bot): pace a cast-watched bot like a human's own client paces a human. OTClient draws its
+	// LOCAL player's step 10 ms longer than the same step on anyone else (measured: 100 -> 110,
+	// 150 -> 160, 350 -> 360), and a human's client only sends the next step when its own walk ends,
+	// so humans step at duration + 10 and their screen never runs behind. A bot has no client: the
+	// server steps it every `duration`, and a @cast camera -- which renders the bot as its local
+	// player -- gets every step 10 ms before it finished drawing the last one. That is a hitch on
+	// every tile, 10 % of the step for a 100 ms (level 800+) walker. Real players are untouched.
+	if (const auto* player = getPlayerRaw(); player && player->isBotPlayer() && player->hasRealCastViewers()) {
+		duration += BOT_CAST_STEP_EXTRA_MS;
+	}
 	if ((dir & DIRECTION_DIAGONAL_MASK) != 0) {
 		duration *= WALK_DIAGONAL_EXTRA_COST;
 	} else if (const auto &monster = getMonster()) {

@@ -571,6 +571,10 @@ public:
 	void switchGhostMode() {
 		ghostMode = !ghostMode;
 	}
+	// Cheap "a human camera may be attached" test for per-step code (stale weak_ptrs count until pruned).
+	[[nodiscard]] bool hasRealCastViewers() const {
+		return !castViewers.empty();
+	}
 	bool isBotPlayer() const {
 		return botPlayer;
 	}

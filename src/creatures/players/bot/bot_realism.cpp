@@ -335,7 +335,7 @@ bool BotEngine::tickPendingRescue(BotState& bot) {
 			target.y = static_cast<uint16_t>(std::clamp<int32_t>(me.y + dy * kAwayTiles, 1, 65000));
 			std::vector<Direction> dirs;
 			if (player->getPathTo(target, dirs, 0, 3, true, true, 14) && !dirs.empty()) {
-				player->startAutoWalk(dirs);
+				player->startAutoWalk(dirs, false, Creature::WalkStartPolicy::ImmediateWhenReady);
 				pr.walks++;
 				break;
 			}
