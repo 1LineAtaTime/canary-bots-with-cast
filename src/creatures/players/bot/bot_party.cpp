@@ -147,11 +147,13 @@ bool BotEngine::activateBotForParty(uint32_t guid, uint32_t leaderCreatureId, co
 		activateBot(guid);
 		// activateBot sets state=IDLE, teleports to temple — we override below
 	} else {
-		// Active bot: restore HP/mana
+		// Active bot: restore HP/mana. #187: not mana -- the bot is awake and may be watched.
 		player->health = player->healthMax;
-		player->mana = player->getMaxMana();
 		g_game().addCreatureHealth(player);
-		g_game().addPlayerMana(player);
+		if (legacyManaRefill()) {
+			player->mana = player->getMaxMana();
+			g_game().addPlayerMana(player);
+		}
 	}
 
 	// Override state to PARTY
@@ -1222,8 +1224,8 @@ void BotEngine::doPartyFollow(BotState& bot) {
 	// 2. Self-heal (uses existing doHealing which handles HP, paralysis, mana)
 	doHealing(bot);
 
-	// 3. Mana restore
-	if (player->getMana() < player->getMaxMana() / 2) {
+	// 3. Mana restore (#187: legacy only -- the heal slot drinks potions instead)
+	if (legacyManaRefill() && player->getMana() < player->getMaxMana() / 2) {
 		player->mana = player->getMaxMana();
 		g_game().addPlayerMana(player);
 	}
@@ -1598,6 +1600,7 @@ void BotEngine::tryCastChallenge(BotState& bot) {
 	if (player->hasCondition(CONDITION_SPELLCOOLDOWN, challengeSpell->getSpellId())) return;
 	if (player->hasCondition(CONDITION_SPELLGROUPCOOLDOWN, challengeSpell->getGroup())) return;
 	if (player->getMana() < 30) {
+		if (!legacyManaRefill()) return; // #187: no instant refill
 		player->mana = player->getMaxMana();
 		g_game().addPlayerMana(player);
 	}
@@ -1638,6 +1641,7 @@ bool BotEngine::tryCastUtamoVita(BotState& bot) {
 
 	// Ensure mana
 	if (player->getMana() < 50) {
+		if (!legacyManaRefill()) return false; // #187: no instant refill
 		player->mana = player->getMaxMana();
 		g_game().addPlayerMana(player);
 	}
@@ -2490,8 +2494,8 @@ void BotEngine::doPartyHunt(BotState& bot) {
 	// 2. Self-heal
 	doHealing(bot);
 
-	// 3. Mana restore (infinite mana for party hunt bots)
-	if (player->getMana() < player->getMaxMana() / 2) {
+	// 3. Mana restore (infinite mana for party hunt bots; #187: legacy only)
+	if (legacyManaRefill() && player->getMana() < player->getMaxMana() / 2) {
 		player->mana = player->getMaxMana();
 		g_game().addPlayerMana(player);
 	}
@@ -2559,7 +2563,7 @@ void BotEngine::doPartyHuntHealer(BotState& bot, BotState* leaderBot) {
 
 				// Cast exura sio on EK
 				if (!player->hasCondition(CONDITION_SPELLCOOLDOWN, sioSpell->getSpellId())) {
-					if (player->getMana() < 120) {
+					if (player->getMana() < 120 && legacyManaRefill()) { // #187: legacy only
 						player->mana = player->getMaxMana();
 						g_game().addPlayerMana(player);
 					}

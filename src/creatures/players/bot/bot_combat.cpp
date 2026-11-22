@@ -1876,7 +1876,14 @@ void BotEngine::castSpell(BotState& bot, const std::shared_ptr<Creature>& target
 			if (instantSpellCheck) {
 				manaCost = instantSpellCheck->getManaCost(player);
 			}
+			// #187: keep a reserve for heals -- an attack never spends the last of the pool.
+			if (!attackManaOk(player, manaCost)) {
+				return;
+			}
 			if (player->getMana() < manaCost) {
+				if (!legacyManaRefill()) {
+					return; // #187: no instant refill -- the potion slot drinks, the cast waits
+				}
 				if (targetIsPlayer) {
 					uint32_t maxMana = player->getMaxMana();
 					uint32_t budget = maxMana * 5 / 2;
@@ -2556,7 +2563,13 @@ bool BotEngine::castAoeSpell(BotState& bot, const ResolvedSpell* spell, Directio
 	const auto& instantSpellAoe = g_spells().getInstantSpell(spell->words);
 	if (instantSpellAoe) {
 		uint32_t manaCost = instantSpellAoe->getManaCost(player);
+		if (!attackManaOk(player, manaCost)) {
+			return false; // #187: heal reserve
+		}
 		if (player->getMana() < manaCost) {
+			if (!legacyManaRefill()) {
+				return false; // #187: no instant refill
+			}
 			// For AoE spells during PvP, check budget
 			if (bot.attackerId > 0 && g_game().getPlayerByID(bot.attackerId) != nullptr) {
 				uint32_t maxMana = player->getMaxMana();
@@ -2719,6 +2732,9 @@ bool BotEngine::executeRune(BotState& bot, const std::shared_ptr<Item>& runeItem
 	// Restore mana if needed (unlimited for PvE hunting)
 	uint32_t manaCost = runeSpell->getMana();
 	if (player->getMana() < manaCost) {
+		if (!legacyManaRefill()) {
+			return false; // #187: no instant refill
+		}
 		player->mana = player->getMaxMana();
 		g_game().addPlayerMana(player);
 	}
@@ -2795,9 +2811,11 @@ bool BotEngine::pvpCastBestHaste(BotState& bot, const std::shared_ptr<Player>& p
 		if (player->hasCondition(CONDITION_SPELLGROUPCOOLDOWN, spell->getGroup())) continue;
 
 		uint32_t manaCost = spell->getManaCost(player);
+		if (!attackManaOk(player, manaCost)) continue; // #187: heal reserve
 		if (player->getMana() < manaCost) {
 			// Haste draws from the same PvP mana budget as damage, but cheaply
 			// (we only charge the spell's cost, not a full refill).
+			if (!legacyManaRefill()) continue; // #187: no instant refill
 			uint32_t budget = player->getMaxMana() * 5 / 2;
 			if (bot.pvpManaSpent >= budget) return false;
 			player->mana = player->getMaxMana();
@@ -4124,6 +4142,9 @@ void BotEngine::doHealing(BotState& bot) {
 		// Check mana cost before casting — restore if needed (PvP budgeted, PvE unlimited)
 		uint32_t manaCost = instantSpell->getManaCost(player);
 		if (player->getMana() < manaCost) {
+			if (!legacyManaRefill()) {
+				continue; // #187: no instant refill -- try a cheaper heal
+			}
 			bool inPvP = bot.attackerId > 0 && g_game().getPlayerByID(bot.attackerId) != nullptr;
 			if (inPvP) {
 				uint32_t maxMana = player->getMaxMana();

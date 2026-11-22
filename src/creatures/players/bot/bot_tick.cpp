@@ -4316,6 +4316,9 @@ void BotEngine::tick() {
 		// cycleEvent(100) — game.cpp restartBotTickLoop — and TICK_FREQ_HEAL is 2).
 		// Heal stays active even when aiPaused — bots in spawns would die otherwise.
 		if ((bot.tickCounter % TICK_FREQ_HEAL) == 0 && !s_testNoDefense.contains(bot.guid)) {
+			// #187: a potion first (its own exhaust, like a second hotkey), so the heal spell
+			// below can pay with the mana it just gave.
+			maybeNeedPotion(bot);
 			doHealing(bot);
 
 			// BOT_SUPPLY_REALISM. Deliberately HERE and not in processBot: processBot
@@ -4327,6 +4330,7 @@ void BotEngine::tick() {
 			// and do their own state tests internally — covering every awake state structurally
 			// beats enumerating them, which is how an earlier per-state design missed TRAVELING.
 			maybeUseSupplies(bot);
+			maybeDropFlasks(bot); // #187
 			// Must precede both consumers: the rune gate reads this clock, and this is the only
 			// slot that runs for every awake bot in EVERY state, which is what a stationary
 			// clock needs (see updateIdleStationaryClock's header).
@@ -4348,8 +4352,9 @@ void BotEngine::tick() {
 			// the supply hooks above live here.
 			tickIceFishSession(bot);
 
-			// Periodic mana restoration — restore to max when below 50% (PvE only)
-			auto manaPlayer = bot.getPlayer();
+			// Periodic mana restoration — restore to max when below 50% (PvE only). #187: legacy
+			// only (botManaPotionEnable=false); this was the 30-50 % -> 100 % jump a camera saw.
+			auto manaPlayer = legacyManaRefill() ? bot.getPlayer() : nullptr;
 			if (manaPlayer) {
 				uint32_t mana = manaPlayer->getMana();
 				uint32_t maxMana = manaPlayer->getMaxMana();

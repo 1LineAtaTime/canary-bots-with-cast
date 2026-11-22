@@ -810,7 +810,29 @@
 	/* #96: record + honour learned hunt-danger zones */                                \
 	BOOL(BOT_DANGER_ZONES_ENABLE,          "botDangerZonesEnable",          true)       \
 	/* #96: HP% at or below which a hunting bot records a near-death */                 \
-	INT (BOT_DANGER_NEAR_DEATH_PCT,        "botDangerNearDeathPct",         20)
+	INT (BOT_DANGER_NEAR_DEATH_PCT,        "botDangerNearDeathPct",         20)      \
+	/* #187: awake bots refill mana only by potions (no instant full refills) */     \
+	BOOL(BOT_MANA_POTION_ENABLE,           "botManaPotionEnable",           true)    \
+	/* #187: sorcerers/druids/paladins drink a mana potion below this mana % */      \
+	INT (BOT_MANA_POTION_PCT,              "botManaPotionPct",              70)      \
+	/* #187: knights drink a mana potion below this mana % */                        \
+	INT (BOT_KNIGHT_MANA_POTION_PCT,       "botKnightManaPotionPct",        40)      \
+	/* #187: knights drink a health potion below this HP % (before mana) */          \
+	INT (BOT_KNIGHT_HEALTH_POTION_PCT,     "botKnightHealthPotionPct",      60)      \
+	/* #187: paladins drink a spirit potion (not mana) when HP is also below this % */ \
+	INT (BOT_SPIRIT_POTION_HP_PCT,         "botSpiritPotionHpPct",          70)      \
+	/* #187: random extra delay (ms) on top of the potion exhaust, per drink */      \
+	INT (BOT_POTION_JITTER_MS,             "botPotionJitterMs",             400)     \
+	/* #187: seconds between empty-flask drops (0 = never drop) */                   \
+	INT (BOT_FLASK_DROP_INTERVAL_SEC,      "botFlaskDropIntervalSec",       60)      \
+	/* #187: empties a bot must carry before a drop is worth it */                   \
+	INT (BOT_FLASK_DROP_MIN_COUNT,         "botFlaskDropMinCount",          3)       \
+	/* #187: on wake a hibernated bot regains mana as if this many sec fill it 0->100 */ \
+	INT (BOT_WAKE_MANA_FULL_SEC,           "botWakeManaFullSec",            180)     \
+	/* #187: log [BOT_POTION] for every bot (default: only cast-watched / verbose) */ \
+	BOOL(BOT_POTION_LOG_ALL,               "botPotionLogAll",               false)   \
+	/* #187: attack spells keep this % of the mana pool for heals */                 \
+	INT (BOT_ATTACK_MANA_RESERVE_PCT,     "botAttackManaReservePct",       20)
 
 // ============================================================================
 // Every BOT_* table above, for code that must visit ALL bot keys regardless of where each table

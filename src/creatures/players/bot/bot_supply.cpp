@@ -293,6 +293,13 @@ bool BotEngine::tryDrinkPotion(BotState& bot, bool force, bool preferMana, std::
 		wantHp = !preferMana || wantHp;
 	}
 
+	// #187: the shared potion exhaust a player's client honours (Game::playerUseItemEx checks
+	// canDoPotionAction; Actions::useItemEx, which we call directly, does not). Without it the
+	// ambient sip could land in the same second as a need-driven drink.
+	if (!force && !player->canDoPotionAction()) {
+		return false;
+	}
+
 	const uint32_t bit = vocBit(getBaseVocation(bot.vocationId));
 	const uint32_t level = player->getLevel();
 	auto pickPotion = [&](bool needHeal, bool needMana) -> const PotionDef* {
@@ -397,6 +404,279 @@ void BotEngine::maybeUseSupplies(BotState& bot) {
 }
 
 // ============================================================================
+// #187: need-driven potions (mana refills like a player's) + empty-flask drops
+// ============================================================================
+//
+// Mana used to be topped up instantly: a 200 ms slot set any awake bot below 50 % straight to
+// max (bot_tick.cpp heal slot), and every spell/rune/heal cost check did the same when the bot
+// could not pay. A camera saw 30-50 % -> 100 % in one frame. Now mana only rises through the
+// stock potion script (potions.lua: the real amount, the blue sparkle, "Aaaah...", the sound,
+// the empty flask), natural regeneration and spells. The supply is still infinite: the seeded
+// potion is never consumed (potions.lua isBotPlayer guard).
+//
+// Choice, strongest tier the bot's level and vocation allow (kPotions mirrors potions.lua):
+//   sorcerer/druid  mana below botManaPotionPct -> mana / strong / great / ultimate mana
+//   paladin         mana below botManaPotionPct -> great/ultimate SPIRIT when HP is also below
+//                   botSpiritPotionHpPct (level 80+), otherwise the mana potion
+//   knight          HP below botKnightHealthPotionPct -> health potion tier, else mana below
+//                   botKnightManaPotionPct -> mana / strong mana
+// Cadence: the server's own potion exhaust (EX_ACTIONS_DELAY_INTERVAL, set by Actions::useItemEx)
+// plus 0..botPotionJitterMs, so a bot below the line drinks about once a second, like a hotkey.
+
+namespace {
+constexpr uint16_t kFlaskIds[] = { 283, 284, 285 }; // the empty flasks potions.lua creates
+
+enum class NeedPotion : uint8_t { None, Mana, Spirit, Health };
+
+const char* needPotionName(NeedPotion k) {
+	switch (k) {
+		case NeedPotion::Mana: return "mana";
+		case NeedPotion::Spirit: return "spirit";
+		case NeedPotion::Health: return "health";
+		default: return "none";
+	}
+}
+
+// Strongest potion of exactly this kind for the vocation bit and level, or nullptr.
+const PotionDef* pickNeedPotion(NeedPotion kind, uint32_t vocBitMask, uint32_t level) {
+	for (int i = static_cast<int>(std::size(kPotions)) - 1; i >= 0; --i) {
+		const PotionDef &p = kPotions[i];
+		if (level < p.level) continue;
+		if (p.vocMask != VOC_ANY && (p.vocMask & vocBitMask) == 0) continue;
+		const bool ok = kind == NeedPotion::Mana ? (p.restoresMana && !p.heals)
+			: kind == NeedPotion::Spirit         ? (p.restoresMana && p.heals)
+		                                         : (p.heals && !p.restoresMana);
+		if (ok) return &p;
+	}
+	return nullptr;
+}
+} // namespace
+
+bool BotEngine::maybeNeedPotion(BotState& bot) {
+	const auto& cfg = livenessCfg_;
+	if (!cfg.manaPotionEnable) {
+		return false;
+	}
+	auto player = bot.getPlayer();
+	if (!player || player->isRemoved() || player->getHealth() <= 0) {
+		return false;
+	}
+	const int64_t now = OTSYS_TIME();
+	if (auto it = s_nextNeedPotionMs.find(bot.guid); it != s_nextNeedPotionMs.end() && now < it->second) {
+		return false;
+	}
+	if (!player->canDoPotionAction()) {
+		return false;
+	}
+	const int32_t maxMana = static_cast<int32_t>(player->getMaxMana());
+	const int32_t maxHp = player->getMaxHealth();
+	if (maxHp <= 0) {
+		return false;
+	}
+	const int32_t manaBefore = static_cast<int32_t>(player->getMana());
+	const int32_t hpBefore = player->getHealth();
+	const int32_t manaPct = maxMana > 0 ? manaBefore * 100 / maxMana : 100;
+	const int32_t hpPct = hpBefore * 100 / maxHp;
+	s_lastManaPct[bot.guid] = manaPct;
+	const uint8_t baseVoc = getBaseVocation(bot.vocationId);
+	// #87: a sparring bot must not heal itself above the spar floor, so it gets mana only.
+	const bool noHeal = sparSuppressesHealing(bot);
+
+	NeedPotion kind = NeedPotion::None;
+	if (baseVoc == 4) {
+		// A knight below its mana line cannot count on exura ico, so it heals with potions from
+		// 85 % HP instead of waiting for botKnightHealthPotionPct: two knights
+		// died at 0 % mana in Roshamuul Prison -2 drinking mana while their HP fell (live 2026-11-22).
+		const bool manaLow = maxMana > 0 && manaPct < cfg.knightManaPotionPct;
+		if (!noHeal && (hpPct < cfg.knightHealthPotionPct || (manaLow && hpPct < 85))) {
+			kind = NeedPotion::Health;
+		} else if (manaLow) {
+			kind = NeedPotion::Mana;
+		}
+	} else if (baseVoc >= 1 && baseVoc <= 3) {
+		if (maxMana > 0 && manaPct < cfg.manaPotionPct) {
+			kind = (baseVoc == 3 && !noHeal && hpPct < cfg.spiritPotionHpPct) ? NeedPotion::Spirit : NeedPotion::Mana;
+		}
+	}
+	if (kind == NeedPotion::None) {
+		return false;
+	}
+
+	const uint32_t bit = vocBit(baseVoc);
+	const uint32_t level = player->getLevel();
+	const PotionDef* pick = pickNeedPotion(kind, bit, level);
+	if (!pick && kind == NeedPotion::Spirit) {
+		kind = NeedPotion::Mana; // paladin below level 80: no spirit potion exists yet
+		pick = pickNeedPotion(kind, bit, level);
+	}
+	if (!pick) {
+		s_nextNeedPotionMs[bot.guid] = now + 5000;
+		return false;
+	}
+
+	auto potion = g_game().findItemOfType(player, pick->id, true, -1);
+	if (!potion) {
+		// The activation seeding picks the tier for the level at login; a level-up past a tier
+		// line (or an older bag) leaves the new one missing. Seed it the same way, once.
+		auto fresh = Item::CreateItem(pick->id, 1);
+		if (!fresh || g_game().internalPlayerAddItem(player, fresh, false) != RETURNVALUE_NOERROR) {
+			s_nextNeedPotionMs[bot.guid] = now + 5000;
+			return false;
+		}
+		potion = g_game().findItemOfType(player, pick->id, true, -1);
+		if (!potion) {
+			s_nextNeedPotionMs[bot.guid] = now + 5000;
+			return false;
+		}
+	}
+	// Same call shape as tryDrinkPotion (see the CONTAINER_POSITION note there): the stock
+	// action runs, so the amount, effect, "Aaaah...", sound, flask and exhaust are a player's.
+	Position fromPos;
+	uint8_t fromStack = 0;
+	g_game().internalGetPosition(potion, fromPos, fromStack);
+	if (!g_actions().useItemEx(player, fromPos, player->getPosition(), 0, potion, false, player)) {
+		s_nextNeedPotionMs[bot.guid] = now + 1000;
+		return false;
+	}
+	s_nextNeedPotionMs[bot.guid] = now + 1000 + (cfg.potionJitterMs > 0 ? uniform_random(0, cfg.potionJitterMs) : 0);
+	// The ambient sip must not follow a real drink within its own interval.
+	auto& sip = s_nextPotionMs[bot.guid];
+	sip = std::max<int64_t>(sip, now + std::max(1000, cfg.potionMinIntervalMs));
+
+	if (cfg.potionLogAll || bot.verboseLog || player->getCastViewerCount() > 0) {
+		g_logger().info("[BOT_POTION] bot='{}' voc={} lvl={} item={} reason={} manaBefore={}/{} manaAfter={} hpBefore={}/{} hpAfter={} state={}",
+			player->getName(), baseVoc, level, pick->id, needPotionName(kind), manaBefore, maxMana,
+			player->getMana(), hpBefore, maxHp, player->getHealth(), static_cast<int>(bot.state));
+	}
+	castLog(bot, fmt::format("SUPPLY: need potion {} ({}) mana {}->{}/{} hp {}->{}/{}", pick->id,
+		needPotionName(kind), manaBefore, player->getMana(), maxMana, hpBefore, player->getHealth(), maxHp));
+	return true;
+}
+
+void BotEngine::maybeDropFlasks(BotState& bot) {
+	const auto& cfg = livenessCfg_;
+	if (!cfg.manaPotionEnable || cfg.flaskDropIntervalSec <= 0) {
+		return;
+	}
+	auto player = bot.getPlayer();
+	if (!player || player->isRemoved()) {
+		return;
+	}
+	const int64_t now = OTSYS_TIME();
+	const int32_t intervalMs = cfg.flaskDropIntervalSec * 1000;
+	auto& next = s_nextFlaskDropMs[bot.guid];
+	if (next == 0) {
+		next = now + intervalMs / 2 + uniform_random(0, intervalMs / 2);
+		return;
+	}
+	if (now < next) {
+		return;
+	}
+	// Re-arm first: a refused drop waits a whole interval rather than retrying every 200 ms.
+	// 0.75..1.25 x the interval, so a group of bots does not drop in lockstep.
+	next = now + intervalMs * 3 / 4 + uniform_random(0, intervalMs / 2);
+
+	uint32_t counts[std::size(kFlaskIds)] {};
+	uint32_t total = 0;
+	for (size_t i = 0; i < std::size(kFlaskIds); ++i) {
+		counts[i] = player->getItemTypeCount(kFlaskIds[i], -1);
+		total += counts[i];
+	}
+	if (total < static_cast<uint32_t>(cfg.flaskDropMinCount)) {
+		return;
+	}
+
+	// Same guards as the idle litter drop (maybeFidgetDrop): never inside a house, never onto a
+	// tile that eats or moves items, one drop per sqm, and the client stack-depth cap. Own sqm
+	// first (a player drops the empties at their feet), then the 8 around it.
+	const Position botPos = player->getPosition();
+	if (auto here = g_game().map.getTile(botPos); !here || here->getHouse() != nullptr) {
+		return;
+	}
+	std::shared_ptr<Tile> dropTile;
+	Position dropPos;
+	static constexpr int8_t kRing[8][2] = { { -1, -1 }, { 0, -1 }, { 1, -1 }, { -1, 0 }, { 1, 0 }, { -1, 1 }, { 0, 1 }, { 1, 1 } };
+	const int32_t rot = uniform_random(0, 7);
+	for (int32_t n = -1; n < 8 && !dropTile; ++n) {
+		Position cand = botPos;
+		std::shared_ptr<Tile> tile;
+		if (n < 0) {
+			tile = g_game().map.getTile(cand);
+		} else {
+			const auto &o = kRing[(n + rot) % 8];
+			cand = Position(static_cast<uint16_t>(botPos.x + o[0]), static_cast<uint16_t>(botPos.y + o[1]), botPos.z);
+			tile = g_game().map.canWalkTo(player, cand);
+		}
+		if (!tile || tile->getHouse() != nullptr) continue;
+		if (tile->hasFlag(TILESTATE_TRASHHOLDER | TILESTATE_MAILBOX | TILESTATE_TELEPORT | TILESTATE_FLOORCHANGE)) continue;
+		// One drop per sqm: never onto a tile that already holds empties (or any other loose litter
+		// pile deeper than a few items), and the client stack-depth cap. Unlike the idle litter
+		// drop, a corpse or loot underfoot is fine -- that is exactly where a hunter drops them, and
+		// refusing it left a paladin in a busy wyrm cave carrying 140 flasks (live 2026-11-22).
+		if (tile->getItemCount() > 9 || tile->getDownItemCount() > 3) continue;
+		bool hasFlask = false;
+		for (const uint16_t fid : kFlaskIds) {
+			if (tile->getItemTypeCount(fid, -1) > 0) { hasFlask = true; break; }
+		}
+		if (hasFlask) continue;
+		if (n >= 0 && !g_game().map.canThrowObjectTo(botPos, cand)) continue;
+		dropTile = tile;
+		dropPos = cand;
+	}
+	if (!dropTile) {
+		if (total >= 20 && (cfg.potionLogAll || bot.verboseLog || player->getCastViewerCount() > 0)) {
+			g_logger().info("[BOT_FLASK_DROP] skip bot='{}' count={} reason=no_tile pos=({},{},{})",
+				player->getName(), total, botPos.x, botPos.y, botPos.z);
+		}
+		return;
+	}
+
+	uint32_t dropped = 0;
+	std::string ids;
+	for (size_t i = 0; i < std::size(kFlaskIds); ++i) {
+		if (counts[i] == 0) continue;
+		if (!player->removeItemOfType(kFlaskIds[i], counts[i], -1, true)) continue;
+		// A stack holds at most 100; any rest goes as further stacks on the same tile.
+		uint32_t left = counts[i];
+		while (left > 0) {
+			const auto n = static_cast<uint16_t>(std::min<uint32_t>(left, 100));
+			left -= n;
+			auto item = Item::CreateItem(kFlaskIds[i], n);
+			if (item && g_game().internalAddItem(dropTile, item, INDEX_WHEREEVER, FLAG_NOLIMIT) == RETURNVALUE_NOERROR) {
+				dropped += n;
+			}
+		}
+		ids += fmt::format("{}{}x{}", ids.empty() ? "" : ",", kFlaskIds[i], counts[i]);
+	}
+	if (dropped > 0 && (cfg.potionLogAll || bot.verboseLog || player->getCastViewerCount() > 0)) {
+		g_logger().info("[BOT_FLASK_DROP] bot='{}' count={} ids={} pos=({},{},{}) own={}",
+			player->getName(), dropped, ids, dropPos.x, dropPos.y, dropPos.z, dropPos == botPos ? 1 : 0);
+	}
+}
+
+void BotEngine::creditWakeMana(BotState& bot, const std::shared_ptr<Player>& player) {
+	auto it = s_hibernatedAtMs.find(bot.guid);
+	if (it == s_hibernatedAtMs.end()) {
+		return;
+	}
+	const int64_t awayMs = OTSYS_TIME() - it->second;
+	s_hibernatedAtMs.erase(it);
+	if (!player || awayMs <= 0 || !livenessCfg_.manaPotionEnable) {
+		return;
+	}
+	// Nobody saw the bot while it was hibernated, so the regeneration (and any potions) it would
+	// have had is credited in one go: a plausible value for the time away, not always 100 %.
+	const uint64_t maxMana = player->getMaxMana();
+	const uint64_t mana = player->getMana();
+	if (maxMana == 0 || mana >= maxMana) {
+		return;
+	}
+	const uint64_t gain = maxMana * static_cast<uint64_t>(awayMs) / (static_cast<uint64_t>(livenessCfg_.wakeManaFullSec) * 1000);
+	player->mana = static_cast<uint32_t>(std::min<uint64_t>(maxMana, mana + gain));
+	g_game().addPlayerMana(player);
+}
+
+// ============================================================================
 // Rune crafting
 // ============================================================================
 
@@ -496,8 +776,9 @@ bool BotEngine::tryCraftRune(BotState& bot, bool force, std::string* outMsg) {
 	// invisible for minutes at a time. Soul is handled by the bot bypass in spells.cpp.
 	const uint32_t manaCost = spell->getManaCost(player);
 	if (player->getMana() < manaCost) {
-		if (!cfg.runeCraftRefillMana && !force) {
-			if (outMsg) *outMsg = "not enough mana and botRuneCraftRefillMana is off";
+		if ((!cfg.runeCraftRefillMana || cfg.manaPotionEnable) && !force) {
+			// #187: no instant refill while awake -- the idle bot regenerates like a player.
+			if (outMsg) *outMsg = "not enough mana (no instant refill: botRuneCraftRefillMana off or botManaPotionEnable on)";
 			return false;
 		}
 		player->mana = player->getMaxMana();

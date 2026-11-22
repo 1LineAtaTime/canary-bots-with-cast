@@ -1074,6 +1074,26 @@ botNpcVisitPct = 100
 -- per-bot interval floor is what actually paces them.
 botPotionChancePct = 8
 botPotionMinIntervalMs = 20000
+-- #187: mana refills like a player's. Awake bots never jump to full mana: they drink the
+-- strongest mana potion their level/vocation allows (stock potions.lua: real amount, effect,
+-- "Aaaah...", empty flask, potion exhaust) when mana falls below the threshold. Paladins drink a
+-- great/ultimate spirit potion instead when HP is also below botSpiritPotionHpPct; knights drink
+-- health potions below botKnightHealthPotionPct and mana potions below botKnightManaPotionPct.
+-- Empty flasks are dropped at the bot's feet every ~botFlaskDropIntervalSec (0 = never) once it
+-- carries botFlaskDropMinCount. A woken hibernated bot gets the mana it would have regenerated
+-- unseen (full after botWakeManaFullSec). botManaPotionEnable=false restores the old instant refills.
+botManaPotionEnable = true
+botManaPotionPct = 70
+botKnightManaPotionPct = 40
+botKnightHealthPotionPct = 60
+botSpiritPotionHpPct = 70
+botPotionJitterMs = 400
+botFlaskDropIntervalSec = 60
+botFlaskDropMinCount = 3
+botWakeManaFullSec = 180
+botPotionLogAll = false
+-- attack spells never spend the pool below this %, so heals stay payable
+botAttackManaReservePct = 20
 botFoodChancePct = 6
 botFoodMinIntervalMs = 60000
 -- Rune crafting: only when the bot is genuinely IDLE IN PLACE for more than 10s (the

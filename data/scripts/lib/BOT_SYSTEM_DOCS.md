@@ -185,6 +185,25 @@ ambushes targets:
   the focus is unseen 20 s, the session passes 5 min, or half the squad is below 35 % HP / 8 %
   mana (`[GANG] disengage reason=unseen|session_time|squad_low`).
 
+**Mana and potions** (#187, `bot_supply.cpp` `maybeNeedPotion`) — an awake bot's mana never
+jumps to full. It rises only through potions, natural regeneration and spells: in the 200 ms heal
+slot, ahead of `doHealing`, a sorcerer/druid/paladin below `botManaPotionPct` (70) drinks the
+strongest mana potion its level allows (mana / strong 50 / great 80 / ultimate 130, ultimate for
+mages only); a paladin whose HP is also below `botSpiritPotionHpPct` (70) drinks great (80) or
+ultimate (130) spirit instead. A knight drinks its health tier below `botKnightHealthPotionPct`
+(60) — or below 85 % when its mana is under `botKnightManaPotionPct` (40), since exura ico is then
+unpayable — else mana / strong mana below that line. `[BOT_MANA_DEATH]` logs the last mana % of every death. The drink goes through the
+stock `potions.lua` action (real amount, blue sparkle, "Aaaah...", sound, empty flask) and the
+server's potion exhaust, plus 0-`botPotionJitterMs`; the seeded potion is never consumed. A spell,
+rune or heal the bot cannot pay for is skipped, not refilled, and an attack spell never spends the
+pool below `botAttackManaReservePct` (20) so heals stay payable. Every ~`botFlaskDropIntervalSec`
+(60, 0.75-1.25x) a bot carrying `botFlaskDropMinCount` (3) empties drops them at its feet (or an
+adjacent sqm; litter guards: no house, no trash/mailbox/teleport/FC tile, one drop per sqm, i.e. never
+onto empties already lying there; a corpse underfoot is allowed; `[BOT_FLASK_DROP] skip` when no tile fits). A woken
+hibernated bot is credited the mana it would have regenerated unseen (full after
+`botWakeManaFullSec`, 180 s). Journal: `[BOT_POTION]`, `[BOT_FLASK_DROP]` (cast-watched or
+verbose bots, all with `botPotionLogAll`). `botManaPotionEnable=false` restores the old refills.
+
 **Exiva chase** (#28/#103, every PK, not only raids) — once the target is off screen the bot
 stops reading its position: it casts the real `exiva "name"`, turns the bearing into a direction
 and walks 4–10 steps (a couple more legs on the same bearing while the 12 s per-bot cooldown

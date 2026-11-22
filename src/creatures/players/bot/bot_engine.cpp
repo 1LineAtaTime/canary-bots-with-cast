@@ -739,6 +739,7 @@ bool BotEngine::hibernateBot(uint32_t guid) {
 	auto &bot = bots_[it->second];
 	if (bot.hibernated) return false;
 	audClearFirstActPending(guid); // #125 review
+	s_hibernatedAtMs[guid] = OTSYS_TIME(); // #187: wake credits the mana regenerated unseen
 	// #104: nobody is watching a bot that hibernates -- finish its deferred rescue jump first.
 	flushPendingRescue(bot, "hibernate");
 	endIceFishSession(bot, "hibernated");
@@ -1423,6 +1424,7 @@ bool BotEngine::wakeBot(uint32_t guid) {
 
 	bot.hibernated = false;
 	bot.active = true;
+	creditWakeMana(bot, player); // #187: plausible mana for the time away, not a refill to 100 %
 
 	// BOT_LIVENESS_PACK: refresh the idle litter-drop budget so each awake session gets
 	// one fresh drop opportunity (the once-per-wake cap resets on un-hibernate).

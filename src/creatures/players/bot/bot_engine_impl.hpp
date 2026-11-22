@@ -5093,6 +5093,22 @@ private:
 	// spell cooldown, hunting). Each fills outMsg with a human-readable result so the /cavebot
 	// commands can say exactly why nothing happened instead of failing silently.
 	bool tryDrinkPotion(BotState& bot, bool force, bool preferMana, std::string* outMsg = nullptr);
+	// #187: the need-driven drinker (mana below the threshold, knight HP, paladin spirit). Runs in
+	// the 200 ms heal slot ahead of doHealing. Returns true when a potion was used.
+	bool maybeNeedPotion(BotState& bot);
+	// #187: drop the empty flasks the potions produced, every botFlaskDropIntervalSec.
+	void maybeDropFlasks(BotState& bot);
+	// #187: true when the legacy instant mana refills still apply (botManaPotionEnable=false).
+	bool legacyManaRefill() const { return !livenessCfg_.manaPotionEnable; }
+	// #187: an attack spell may spend mana only down to botAttackManaReservePct of the pool, so a
+	// heal can still be paid while the potions catch up (a knight that spent its last mana on
+	// exori could not cast exura and died at 0 % mana, live 2026-11-22).
+	bool attackManaOk(const std::shared_ptr<Player>& p, uint32_t cost) const {
+		if (legacyManaRefill()) return true;
+		return static_cast<uint64_t>(p->getMana()) >= cost + static_cast<uint64_t>(p->getMaxMana()) * livenessCfg_.attackManaReservePct / 100;
+	}
+	// #187: credit a woken bot the mana it would have regenerated while hibernated.
+	void creditWakeMana(BotState& bot, const std::shared_ptr<Player>& player);
 	bool tryEatFood(BotState& bot, bool force, std::string* outMsg = nullptr);
 	bool tryCraftRune(BotState& bot, bool force, std::string* outMsg = nullptr);
 	// Sends the bot on a fishing trip right now, exactly as a winning POI reroll would.
@@ -5187,6 +5203,13 @@ private:
 	// Per-bot pacing. Engine-internal maps rather than BotState fields, for the same reason the
 	// fishing run is: BotState is the ABI boundary.
 	std::unordered_map<uint32_t, int64_t> s_nextPotionMs;
+	// #187: combat/need-driven potion pacing, next empty-flask drop, and when a bot hibernated
+	// (wake mana is credited for the time nobody could see it).
+	std::unordered_map<uint32_t, int64_t> s_nextNeedPotionMs;
+	std::unordered_map<uint32_t, int64_t> s_nextFlaskDropMs;
+	std::unordered_map<uint32_t, int64_t> s_hibernatedAtMs;
+	// #187: last mana % seen by the heal slot, so a death can say whether the bot ran dry.
+	std::unordered_map<uint32_t, int32_t> s_lastManaPct;
 	std::unordered_map<uint32_t, int64_t> s_nextFoodMs;
 	std::unordered_map<uint32_t, int64_t> s_nextRuneCraftMs;
 	std::unordered_map<uint32_t, int64_t> s_nextSupportSpellMs;
@@ -6833,6 +6856,12 @@ private:
 		int32_t fishDurationMinSec = 120, fishDurationMaxSec = 420;
 		int32_t fishMaxSpotsPerTown = 64, fishZBand = 1;
 		int32_t potionChancePct = 8, potionMinIntervalMs = 20000;
+		// #187: mana comes from potions, not instant refills (bot_supply.cpp maybeCombatPotion).
+		bool manaPotionEnable = true, potionLogAll = false;
+		int32_t manaPotionPct = 70, knightManaPotionPct = 40, knightHealthPotionPct = 60;
+		int32_t spiritPotionHpPct = 70, potionJitterMs = 400;
+		int32_t flaskDropIntervalSec = 60, flaskDropMinCount = 3, wakeManaFullSec = 180;
+		int32_t attackManaReservePct = 20;
 		int32_t foodChancePct = 6, foodMinIntervalMs = 60000;
 		int32_t runeCraftChancePct = 10;
 		int32_t runeCraftIntervalMinMs = 8000, runeCraftIntervalMaxMs = 25000;
