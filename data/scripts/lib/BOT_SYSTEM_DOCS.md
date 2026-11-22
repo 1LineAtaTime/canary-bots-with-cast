@@ -43,6 +43,18 @@ This is a concise operator/user reference. For day-to-day setup see the repo
   the displayed online list / player count.
 - Loading is **stratified** (evenly sampled), not "first N", so any
   `botPlayersOnline` value yields a representative level/vocation/town mix.
+- **Startup pacing is adaptive** (from dandpb's PR #3). One load event is pending at
+  a time: it loads bots for up to 500 ms, then yields. The yield starts at 100 ms and
+  rises to at most 1 s at 4× the measured pressure (a late timer, or a single load
+  over 100 ms), then halves back. 500 bots load in ~55 s after "server online", with
+  no multi-second dispatcher stall. Progress: `[BOT_BATCH] completed N/total`; the
+  end: `All <loaded> of <planned> bots loaded as INACTIVE (<failed> failed)`.
+- **ARM64 VPS:** the release binaries are AMD64. They run under QEMU user emulation
+  (`qemu-user-static` + an enabled `qemu-x86_64` binfmt handler, `platform:
+  linux/amd64` for the game-server container; MariaDB can stay native). This was
+  tested on a 2-vCPU Ubuntu 24.04 ARM64 VPS. It is not a native ARM64 build. Loads
+  are much slower under emulation, so startup backs off toward the 1 s yield and
+  takes noticeably longer. That is expected; watch the `[BOT_BATCH]` lines.
 
 ---
 

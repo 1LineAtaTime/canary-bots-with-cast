@@ -197,6 +197,11 @@ which doubles as the debugging surface:
 
 It runs comfortably with a few hundred bots online on this modest spec.
 
+**ARM64 VPS:** the AMD64 release also runs under QEMU user emulation (`qemu-user-static`,
+`platform: linux/amd64`; tested on a 2-vCPU Ubuntu 24.04 VPS, not a native ARM64 build).
+Bot startup paces itself to the server's load, so expect a slower startup there; watch the
+`[BOT_BATCH]` progress lines. Details: `data/scripts/lib/BOT_SYSTEM_DOCS.md` §2.
+
 ---
 
 ## Quick start

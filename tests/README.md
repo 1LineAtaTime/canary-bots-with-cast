@@ -1,5 +1,14 @@
 ## Testing
 
+### Lua script tests
+
+Standalone Lua tests live in `tests/lua/` and need no build, server or database. Run them
+from the repository root, e.g. `luajit tests/lua/test_bot_startup.lua` (or `lua5.4 ...`).
+`test_bot_startup.lua` drives the real `BotStartup` handler with a fake dispatcher, clock
+and DB: one pending load at a time, slicing and backoff on slow loads and late timers,
+recovery, retries, quest access before hibernation, online visibility, the final
+loaded/planned/failed count, stratified selection and end-of-load scheduling.
+
 ### Running tests
 
 Tests can be run directly from the repository root using CMake test presets. First, configure and build tests for your platform:
