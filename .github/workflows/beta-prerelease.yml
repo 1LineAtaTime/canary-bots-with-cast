@@ -601,7 +601,7 @@ jobs:
         for i in $(seq 1 180); do      # up to 15 min
           sleep 5
           if ! kill -0 "$PID" 2>/dev/null; then echo "::error::canary exited during startup"; break; fi
-          if grep -q "\[BotManager\] All [0-9]* bots loaded as INACTIVE" boot.log; then ok=1; break; fi
+          if grep -qE "\[BotManager\] All [0-9]+( of [0-9]+)? bots loaded as INACTIVE" boot.log; then ok=1; break; fi
         done
         sleep 15
         kill -TERM "$PID" 2>/dev/null || true
@@ -619,7 +619,7 @@ jobs:
           echo "- server online: $(grep -c 'server online!' boot.log || true)"
           echo "- bot engine: $(grep -m1 -iE 'bot ?engine.*(loaded|ABI)' boot.log || echo 'no loader line')"
           echo "- $(grep -m1 -oE '\[BotManager\] Found [0-9]+ bots in database, loading [0-9]+' boot.log || echo 'no BotManager line')"
-          echo "- $(grep -m1 -oE '\[BotManager\] All [0-9]+ bots loaded as INACTIVE' boot.log || echo 'bots never finished loading')"
+          echo "- $(grep -m1 -oE '\[BotManager\] All [0-9]+( of [0-9]+)? bots loaded as INACTIVE[^.]*' boot.log || echo 'bots never finished loading')"
           echo "- failed bot loads: $(grep -c 'Failed to load bot' boot.log || true)"
           echo "- $(grep -m1 -oE '\[BotManager\] (Restore flag set|No restore flag|bot_startup_config not found)[^.]*' boot.log || echo 'no restore-check line')"
           echo "- db_version after boot: $DBV (newest migration file: $LATEST)"
