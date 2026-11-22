@@ -175,113 +175,162 @@ function botStartup.onStartup()
 	logger.info("[BotManager] Found " .. total .. " bots in database, loading "
 		.. #botNames .. " (stratified across level/vocation) as INACTIVE...")
 
-	-- Load bots with staggered timing to avoid startup spike (100ms per bot).
+	-- Adaptive startup pacing (adapted from dandpb's PR #3). Exactly one load event is pending
+	-- at a time, scheduled only after the previous one finished, so a slow load (or a busy
+	-- dispatcher) can never pile up a backlog of timers that all fire in the same cycle.
+	-- Each event loads bots for up to STARTUP_SLICE_MS, then yields to the dispatcher. The yield
+	-- starts at 100 ms (the addEvent floor) and rises to at most 1 s at 4x the measured
+	-- pressure: how late the timer fired, or how far a single load ran past 100 ms. It then
+	-- halves back toward the floor as the server catches up.
 	-- A failed or erroring load is retried up to twice, 1 s apart, on the same slot; the
-	-- end-of-load work below still runs exactly once, on the last slot's final attempt.
-	local function loadBotAt(i, name, attempt, delay)
+	-- end-of-load work below still runs exactly once, after the last slot's final attempt.
+	local STARTUP_SLICE_MS, STARTUP_MIN_DELAY_MS, STARTUP_MAX_DELAY_MS = 500, 100, 1000
+	local STARTUP_PRESSURE_MULT, STARTUP_BATCH_LOG = 4, 50
+	local planned = #botNames
+	local loadedCount, failedCount = 0, 0
+	local nextDelayMs = STARTUP_MIN_DELAY_MS
+	local loadStartedAt = Game.monotonicMs()
+	local maxLatenessMs, maxLoadMs = 0, 0
+
+	local function finishLoading()
+		-- PERF_INVESTIGATION_2026-05-28: sync bot rows into players_online
+		-- exactly once after loading completes. Previously Game::updatePlayersOnline
+		-- enumerated every active bot guid into a sync INSERT/DELETE pair on the
+		-- dispatcher every 10 minutes; at bots=500 that was ~500ms of dispatcher
+		-- blockage. The C++ sweep no longer touches bot rows (account_id=65000
+		-- filter in DELETE); we replace the whole bot row set here via async
+		-- queries so the dispatcher is never blocked, and re-sync on /cavebot
+		-- reload too (this same loading path runs on reload).
+		if configManager.getBoolean(configKeys.BOT_PLAYERS_SHOW_AS_ONLINE) then
+			local botGuids = {}
+			for guid, _ in pairs(BotPlayers) do
+				table.insert(botGuids, tostring(guid))
+			end
+			if #botGuids > 0 then
+				local guidList = table.concat(botGuids, ",")
+				db.botAsyncQuery(string.format(
+					"DELETE FROM `players_online` WHERE `player_id` IN (SELECT `id` FROM `players` WHERE `account_id` = 65000) AND `player_id` NOT IN (%s)",
+					guidList))
+				local valueRows = {}
+				for _, g in ipairs(botGuids) do
+					table.insert(valueRows, "(" .. g .. ")")
+				end
+				db.botAsyncQuery("INSERT IGNORE INTO `players_online` (`player_id`) VALUES " .. table.concat(valueRows, ","))
+				logger.info("[BotManager] Synced " .. #botGuids .. " bot rows to players_online (async)")
+			end
+		end
+
 		addEvent(function()
-			local ok, player = pcall(Game.loadBotPlayer, name)
-			if not ok then
-				logger.error("[BotManager] Error loading bot '{}': {}", name, tostring(player))
-				player = nil
+			-- Quest/access storages are set per bot right after its load (#57).
+			logger.info("[BOT_STORAGES] applied to bots={} rowsSet={} rowsGated={} (wagons, shrines, quests; level-gated)", questAccessCount, questAccessApplied, questAccessGated)
+			if questAccessFailures > 0 then
+				logger.error("[BotManager] initializeBotQuestAccess FAILED on {} bot(s) (first 3 errors logged above)", questAccessFailures)
 			end
-			if not player and attempt < 3 then
-				loadBotAt(i, name, attempt + 1, 1000)
-				return
-			end
-			if player then
-				local guid = player:getGuid()
-				BotPlayers[guid] = player
+			-- Report what actually loaded, not what was planned.
+			logger.info("[BotManager] All {} of {} bots loaded as INACTIVE ({} failed) in {}s.",
+				loadedCount, planned, failedCount, string.format("%.1f", (Game.monotonicMs() - loadStartedAt) / 1000))
+			logger.info("[BotManager] Use '/cavebot <name> active' to activate a bot at your position.")
 
-				-- Register death handler
-				player:registerEvent("BotDeath")
-				-- Before anything can hibernate it (#57). Protected: this callback also carries the
-				-- last slot's end-of-load work (players_online sync, state restore), and an error
-				-- here (e.g. a renamed Storage constant) would skip it -- and repeat for every bot.
-				local qaOk, qaErr = pcall(initializeBotQuestAccess, player)
-				if not qaOk then
-					questAccessFailures = questAccessFailures + 1
-					if questAccessFailures <= 3 then
-						logger.error("[BotManager] initializeBotQuestAccess failed for '{}': {}", name, tostring(qaErr))
+			-- Check for persisted state restore (500ms after last bot is registered)
+			addEvent(function()
+				local cfgResult = db.storeQuery(
+					"SELECT `config_value` FROM `bot_startup_config` WHERE `config_key` = 'should_restore_states'"
+				)
+				if cfgResult then
+					local val = Result.getString(cfgResult, "config_value")
+					Result.free(cfgResult)
+					if val == "1" then
+						logger.info("[BotManager] Restore flag set — restoring persisted bot states...")
+						Game.botRestoreStates()
+						-- Restored rows are consumed; tasks for unloaded bots remain persisted.
+						-- Clear the flag so a crash before next graceful shutdown doesn't re-restore stale data.
+						db.botAsyncQuery("UPDATE `bot_startup_config` SET `config_value`='0' WHERE `config_key`='should_restore_states'")
+						logger.info("[BotManager] Bot state restore complete. Restore flag cleared.")
+					else
+						logger.info("[BotManager] No restore flag — bots activating fresh.")
 					end
+				else
+					logger.warn("[BotManager] bot_startup_config not found — bots activate fresh.")
 				end
+			end, 500)
+		end, 2000)
+	end
 
-				-- Log every 10th bot
-				if i % 10 == 0 or i == #botNames then
-					logger.info("[BotManager] Loaded bot " .. i .. "/" .. #botNames .. ": " .. name)
+	-- Bookkeeping for one slot's final outcome (success, or failure after the last attempt).
+	local function settleSlot(i, name, player)
+		if player then
+			loadedCount = loadedCount + 1
+			local guid = player:getGuid()
+			BotPlayers[guid] = player
+
+			-- Register death handler
+			player:registerEvent("BotDeath")
+			-- Before anything can hibernate it (#57). Protected: an error here (e.g. a renamed
+			-- Storage constant) must not abort the slice -- and would repeat for every bot.
+			local qaOk, qaErr = pcall(initializeBotQuestAccess, player)
+			if not qaOk then
+				questAccessFailures = questAccessFailures + 1
+				if questAccessFailures <= 3 then
+					logger.error("[BotManager] initializeBotQuestAccess failed for '{}': {}", name, tostring(qaErr))
 				end
-			else
-				logger.warn("[BotManager] Failed to load bot: " .. name)
 			end
 
-			-- After all bots loaded, set required quest/access storages
-			if i == #botNames then
-				-- PERF_INVESTIGATION_2026-05-28: sync bot rows into players_online
-				-- exactly once after loading completes. Previously Game::updatePlayersOnline
-				-- enumerated every active bot guid into a sync INSERT/DELETE pair on the
-				-- dispatcher every 10 minutes; at bots=500 that was ~500ms of dispatcher
-				-- blockage. The C++ sweep no longer touches bot rows (account_id=65000
-				-- filter in DELETE); we replace the whole bot row set here via async
-				-- queries so the dispatcher is never blocked, and re-sync on /cavebot
-				-- reload too (this same loading path runs on reload).
-				if configManager.getBoolean(configKeys.BOT_PLAYERS_SHOW_AS_ONLINE) then
-					local botGuids = {}
-					for guid, _ in pairs(BotPlayers) do
-						table.insert(botGuids, tostring(guid))
-					end
-					if #botGuids > 0 then
-						local guidList = table.concat(botGuids, ",")
-						db.botAsyncQuery(string.format(
-							"DELETE FROM `players_online` WHERE `player_id` IN (SELECT `id` FROM `players` WHERE `account_id` = 65000) AND `player_id` NOT IN (%s)",
-							guidList))
-						local valueRows = {}
-						for _, g in ipairs(botGuids) do
-							table.insert(valueRows, "(" .. g .. ")")
-						end
-						db.botAsyncQuery("INSERT IGNORE INTO `players_online` (`player_id`) VALUES " .. table.concat(valueRows, ","))
-						logger.info("[BotManager] Synced " .. #botGuids .. " bot rows to players_online (async)")
-					end
-				end
-
-				addEvent(function()
-					-- Set quest storages so bots can use wagons, shrines, levers, teleports
-					-- Quest/access storages are now set per bot right after its load (#57).
-					logger.info("[BOT_STORAGES] applied to bots={} rowsSet={} rowsGated={} (wagons, shrines, quests; level-gated)", questAccessCount, questAccessApplied, questAccessGated)
-					if questAccessFailures > 0 then
-						logger.error("[BotManager] initializeBotQuestAccess FAILED on {} bot(s) (first 3 errors logged above)", questAccessFailures)
-					end
-					logger.info("[BotManager] All " .. #botNames .. " bots loaded as INACTIVE.")
-					logger.info("[BotManager] Use '/cavebot <name> active' to activate a bot at your position.")
-
-					-- Check for persisted state restore (500ms after last bot is registered)
-					addEvent(function()
-						local cfgResult = db.storeQuery(
-							"SELECT `config_value` FROM `bot_startup_config` WHERE `config_key` = 'should_restore_states'"
-						)
-						if cfgResult then
-							local val = Result.getString(cfgResult, "config_value")
-							Result.free(cfgResult)
-							if val == "1" then
-								logger.info("[BotManager] Restore flag set — restoring persisted bot states...")
-								Game.botRestoreStates()
-								-- Restored rows are consumed; tasks for unloaded bots remain persisted.
-								-- Clear the flag so a crash before next graceful shutdown doesn't re-restore stale data.
-								db.botAsyncQuery("UPDATE `bot_startup_config` SET `config_value`='0' WHERE `config_key`='should_restore_states'")
-								logger.info("[BotManager] Bot state restore complete. Restore flag cleared.")
-							else
-								logger.info("[BotManager] No restore flag — bots activating fresh.")
-							end
-						else
-							logger.warn("[BotManager] bot_startup_config not found — bots activate fresh.")
-						end
-					end, 500)
-				end, 2000)
+			-- Log every 10th bot
+			if i % 10 == 0 or i == planned then
+				logger.info("[BotManager] Loaded bot " .. i .. "/" .. planned .. ": " .. name)
 			end
+		else
+			failedCount = failedCount + 1
+			logger.warn("[BotManager] Failed to load bot: " .. name)
+		end
+		if i % STARTUP_BATCH_LOG == 0 or i == planned then
+			logger.info("[BOT_BATCH] completed {}/{}; loaded={} failed={} elapsed={}ms delay={}ms maxLate={}ms maxLoad={}ms",
+				i, planned, loadedCount, failedCount, Game.monotonicMs() - loadStartedAt, nextDelayMs, maxLatenessMs, maxLoadMs)
+			maxLatenessMs, maxLoadMs = 0, 0
+		end
+	end
+
+	local function scheduleSlice(i, attempt, delay)
+		if i > planned then return end
+		local due = Game.monotonicMs() + delay
+		addEvent(function()
+			local started = Game.monotonicMs()
+			-- The first event always fires late: onStartup runs inside the server's own startup
+			-- task, which keeps the dispatcher busy until the world is up. That is not pressure.
+			local lateMs = i > 1 and math.max(0, started - due) or 0
+			if lateMs > maxLatenessMs then maxLatenessMs = lateMs end
+			local slowestMs = 0
+			while true do
+				local name = botNames[i]
+				local t0 = Game.monotonicMs()
+				local ok, player = pcall(Game.loadBotPlayer, name)
+				local costMs = Game.monotonicMs() - t0
+				if costMs > slowestMs then slowestMs = costMs end
+				if costMs > maxLoadMs then maxLoadMs = costMs end
+				if not ok then
+					logger.error("[BotManager] Error loading bot '{}': {}", name, tostring(player))
+					player = nil
+				end
+				if not player and attempt < 3 then
+					scheduleSlice(i, attempt + 1, 1000)
+					return
+				end
+				settleSlot(i, name, player)
+				if i == planned then
+					finishLoading()
+					return
+				end
+				i, attempt = i + 1, 1
+				if Game.monotonicMs() - started >= STARTUP_SLICE_MS then break end
+			end
+			-- Loads up to the 100 ms floor are healthy; only the excess counts as pressure.
+			local pressureMs = math.max(lateMs, slowestMs - STARTUP_MIN_DELAY_MS)
+			nextDelayMs = math.max(STARTUP_MIN_DELAY_MS, math.floor(nextDelayMs / 2),
+				math.min(STARTUP_MAX_DELAY_MS, pressureMs * STARTUP_PRESSURE_MULT))
+			scheduleSlice(i, 1, nextDelayMs)
 		end, delay)
 	end
-	for i, name in ipairs(botNames) do
-		loadBotAt(i, name, 1, i * 100)
-	end
+	scheduleSlice(1, 1, STARTUP_MIN_DELAY_MS)
 
 	return true
 end
