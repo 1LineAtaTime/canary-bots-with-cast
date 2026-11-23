@@ -277,6 +277,7 @@ void BotEngine::doTraveling(BotState& bot) {
 			bot.followingCityRoute = false;
 			bot.cityRouteWps.clear();
 			bot.cityRouteIdx = 0;
+			botMoveFaceNpc(bot, player); // #198
 			g_game().internalCreatureSay(player, TALKTYPE_SAY, "hi", false);
 			bot.travelPhase = "at_boat";
 			bot.travelWaitUntil = OTSYS_TIME() + uniform_random(3, 10) * 1000LL;

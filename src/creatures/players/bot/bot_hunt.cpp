@@ -706,6 +706,7 @@ void BotEngine::doHuntPrepare(BotState& bot) {
 			bot.prepareStep = 3;
 			bot.prepareWaitUntil = OTSYS_TIME() + uniform_random(10, 60) * 1000LL;
 			bot.prepareHasTarget = false;
+			botMoveFaceNpc(bot, player); // #198
 			g_game().internalCreatureSay(player, TALKTYPE_SAY, "hi", false);
 			castLog(bot, fmt::format("PREPARE: At shop, waiting {}s",
 				(bot.prepareWaitUntil - OTSYS_TIME()) / 1000));

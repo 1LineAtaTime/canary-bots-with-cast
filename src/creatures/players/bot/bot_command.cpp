@@ -1328,6 +1328,9 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// Batch 7 (#30, #96). Listed here in the SAME commit as the table (see the NOTE above).
 		out += "[BOT_CFG] BOT_LEARNING keys (src/config/bot_config_keys.hpp)\n";
 		BOT_LEARNING_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
+		// #198. Listed here in the SAME commit as the table (see the NOTE above).
+		out += "[BOT_CFG] BOT_MOVEMENT keys (src/config/bot_config_keys.hpp)\n";
+		BOT_MOVEMENT_CONFIG_KEYS(BOT_CFG_DUMP_INT, BOT_CFG_DUMP_BOOL, BOT_CFG_DUMP_STR)
 #undef BOT_CFG_DUMP_INT
 #undef BOT_CFG_DUMP_BOOL
 #undef BOT_CFG_DUMP_STR

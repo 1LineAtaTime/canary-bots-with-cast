@@ -143,6 +143,7 @@ set(BOT_ENGINE_SOURCES
     players/bot/bot_realism.cpp  # #102 realism: bed sleep (#27), disguised rescue teleports (#104)
     players/bot/bot_learning.cpp # #30 passive spawn auto-claim, #96 learned danger zones
     players/bot/bot_verb.cpp     # #91 player command verbs: PM/party/panel, security ladder
+    players/bot/bot_movement.cpp # #198 movement realism: path shape, U-turn hesitation, facing, place pauses
 )
 
 if(UNIX)

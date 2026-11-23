@@ -238,6 +238,7 @@ void BotEngine::unregisterBot(uint32_t guid) {
 	walkPauseInfo_.erase(guid);
 	s_walkObsPending.erase(guid); // #120
 	clearWalkDesync(guid);        // #144
+	botMoveForget(guid);          // #198
 	s_walkObsNextCheckMs.erase(guid);
 	// Same reasoning for the mount roll: unregisterBot is the only path that retires a guid
 	// outright, so without this the map would outlive its bots and a reused guid would
@@ -698,6 +699,7 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 	walkPauseInfo_.erase(guid);
 	s_walkObsPending.erase(guid); // #120
 	clearWalkDesync(guid);        // #144
+	botMoveForget(guid);          // #198
 	s_walkObsNextCheckMs.erase(guid);
 	// Dropping the mount roll here is what makes a true-offline deactivate→activate cycle a
 	// genuine reconnect: activateBot then finds no entry and re-rolls unthrottled.

@@ -86,6 +86,10 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 	// next tick). Don't walk now (would race the replay) and don't stack a 2nd event.
 	if (bot.pendingWalkPauseEventId != 0) return;
 
+	// #198: a watched bot about to walk back the way it just came stops and turns first, and a
+	// door / stair stop set just before this issue is honoured (both schedule the walk themselves).
+	if (botMoveHoldWalk(bot, player, dirs)) return;
+
 	const auto& cfg = livenessCfg_;
 
 	// Decide a pause duration (-1 = no pause). Observed tier first.
@@ -98,6 +102,7 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 	// 500 ms per-bot cache, and it returns at once when no real player or cast viewer exists.
 	int32_t pauseMs = -1;
 	bool observedTier = true;  // which tier produced pauseMs
+	bool movedToPlace = false; // #198: the observed pause was moved to the next door / stairs
 
 	const uint8_t wb = bot.walkBias();  // 0-15 personality "pausiness"
 	const int32_t obsChanceBase = cfg.walkPauseObservedChancePct;
@@ -112,6 +117,10 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 			const int32_t maxMs = cfg.walkPauseObservedMaxMs;
 			pauseMs = uniform_random(std::max(1, minMs), std::max(minMs, maxMs));
 			bot.pausesThisRouteObserved++;
+			if (botMoveDeferPause(bot, pauseMs)) {
+				pauseMs = -1;
+				movedToPlace = true;
+			}
 		}
 	}
 	if (obsEligible && !obsRolled) {
@@ -122,7 +131,7 @@ void BotEngine::botStartAutoWalk(BotState& bot, const std::shared_ptr<Player>& p
 
 	// Unobserved tier (also the fallback when an observed pause didn't roll). Unchanged
 	// from the original behavior: short, modest, no personality gate.
-	if (pauseMs < 0) {
+	if (pauseMs < 0 && !movedToPlace) {
 		const int32_t pauseChance = cfg.walkPauseChancePct;
 		if (pauseChance > 0
 		    && static_cast<int32_t>(bot.pausesThisRoute) < cfg.walkPauseMaxPerRoute
@@ -420,6 +429,7 @@ void BotEngine::maybeObservedMidWalkPause(BotState& bot, const std::shared_ptr<P
 	const int32_t maxMs = cfg.walkPauseObservedMaxMs;
 	const int32_t pauseMs = uniform_random(std::max(1, minMs), std::max(minMs, maxMs));
 	bot.pausesThisRouteObserved++;
+	if (botMoveDeferPause(bot, pauseMs)) return; // #198: spent at the next door / stairs instead
 	// Stop where we stand and resume the SAME remaining path afterwards. listWalkDir is consumed
 	// from the back and startAutoWalk copies it as-is, so a straight copy replays it in order.
 	std::vector<Direction> rest = player->listWalkDir;
@@ -486,6 +496,11 @@ void BotEngine::tickLivenessBehaviors(BotState& bot) {
 	// Uses Game::internalCreatureTurn (same path as spell-cast facing). Broadcasts
 	// via Spectators().find<Player>() so cast viewers see it.
 	const int32_t turnIntervalTicks = cfg.turnInPlaceIntervalTicks;
+	// #198: a player walking up to a watched idle bot draws a glance (1 s throttle, only a NEW
+	// player in range rolls); it also stands in for the next random turn.
+	if (botMoveIdleFacing(bot, player)) {
+		bot.nextTurnInPlaceTime = now + uniform_random(3000, 10000);
+	}
 	if (turnIntervalTicks > 0 && bot.tickCounter > 0
 	    && static_cast<int32_t>(bot.tickCounter % turnIntervalTicks) == 0
 	    && now >= bot.nextTurnInPlaceTime) {

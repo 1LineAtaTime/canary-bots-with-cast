@@ -1097,6 +1097,17 @@ void BotEngine::processPendingReplies(int64_t now) {
 					reply.botGuid, reply.group, botAt.x, botAt.y, botAt.z, playerAt.x, playerAt.y, playerAt.z);
 				continue;
 			}
+			// #198: a watched bot answering out loud turns to the player it answers.
+			if (BotState* faceBot = getBotState(reply.botGuid)) {
+				const int32_t facePct = botMoveFaceSpeakerPct(*faceBot);
+				if (facePct > 0 && botMoveObserved(*faceBot, botPlayer)) {
+					s_move60sFaceSpeakerSeen++;
+					if (uniform_random(1, 100) <= facePct) {
+						s_move60sFaceSpeaker++;
+						botMoveFaceCreature(*faceBot, botPlayer, playerAt, "speaker");
+					}
+				}
+			}
 			g_game().internalCreatureSay(botPlayer, TALKTYPE_SAY, line, /*ghostMode=*/false);
 		}
 		// #122: always-on server truth for replies (they are rare: one per player say at most).

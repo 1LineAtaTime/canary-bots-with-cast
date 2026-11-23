@@ -1098,6 +1098,39 @@ botWakeManaFullSec = 180
 botPotionLogAll = false
 -- attack spells never spend the pool below this %, so heals stay payable
 botAttackManaReservePct = 20
+-- #198 movement realism: acts only on a WATCHED bot (a real player on its screen or a cast
+-- viewer) in town / travel walking; unwatched, hibernated and virtual bots walk as before. Each
+-- *Pct is a chance per walk or per event, scaled per bot by its personality (0.5x .. 1.5x).
+-- Path shape: a turn cost and smooth per-walk noise (an L or a Z across a plaza, not a staircase).
+botMoveShapeEnable = true
+botMoveTurnCost90 = 6
+botMoveTurnCost45 = 2
+botMoveHeuristicPct = 125
+botMoveNoiseAmp = 7
+botMoveNoiseScale = 6
+botMoveNoiseHabitPct = 30
+botMoveDiagonalPct = 25
+botMoveDiagonalCost = 18
+botMoveWallOffsetPct = 60
+botMoveWallCost = 3
+botMoveWallCostCap = 9
+botMoveCornerCost = 15
+-- stop and turn before walking straight back (a U-turn re-plan)
+botMoveUturnHesitatePct = 60
+botMoveUturnMinMs = 300
+botMoveUturnMaxMs = 900
+-- face the NPC greeted, the player answered, a player walking up to an idle bot
+botMoveFaceNpcPct = 85
+botMoveFaceSpeakerPct = 75
+botMoveFacePlayerPct = 40
+-- short stops at doors and stairs; share of random mid-street pauses moved there instead
+botMoveDoorPausePct = 50
+botMoveStairPausePct = 40
+botMovePlacePauseMinMs = 200
+botMovePlacePauseMaxMs = 700
+botMovePauseToPlacePct = 50
+botMovePlacePauseDeferMaxMs = 6000
+botMoveLogAll = false
 -- "ultimate" AoE (exevo gran mas vis/flam/frigo/tera, 40 s cooldown): vs monsters only with
 -- at least this many in its area; vs players (PvP) no limit
 botUltAoeMinMonsters = 3

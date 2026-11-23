@@ -30,6 +30,12 @@
 //   int32_t jitter(const Position& pos) const;
 //       Per-bot deterministic cost noise added to each neighbour (0 when the
 //       botNavJitterMask config is 0 — Phase 4a). Kept tiny (<= mask, mask<=7).
+//       #198: both providers compute it with botnav::shapeNoise (smooth, habit + per-walk).
+//   int32_t blockedNeighbors(const Position& pos) const;   (optional, #198)
+//       Count of the 8 neighbours that are statically blocked (wall, no ground). Only
+//       consulted when PathParams::wallCost > 0; a Provider without it gets no wall cost.
+//   bool blockedAt(const Position& pos) const;   (optional, #198)
+//       The same static test for one tile; consulted for PathParams::cornerCost.
 //   bool sightClear(const Position& from, const Position& to) const;
 //       Only consulted when PathParams::clearSight is true. Server: isSightClear.
 //       Offline: dump LOS or always-true. Bot goTo() uses clearSight=false, so
@@ -103,7 +109,107 @@ struct PathParams {
 	// (the stock FindPathParams uses -1, which would match nothing — a footgun; Opus review).
 	int32_t minTargetDist = 0;
 	int32_t maxTargetDist = 0;
+	// #198 path shape (all 0 / stock = the server's exact cost model, so every existing caller and
+	// gate is unchanged). turnCost45/turnCost90 are charged when a step changes direction from the
+	// step that reached its parent: a staircase E S E S pays a turn per tile, an L pays one. The
+	// search stays keyed by tile, not (tile, direction), so it is approximate in the turn dimension
+	// -- that is fine, the goal is shape, not optimality. diagonalCost is the extra cost of the
+	// second axis of a diagonal step (stock 25: a diagonal = 35 against two straights = 20).
+	// wallCost is charged per blocked 8-neighbour of a tile, capped at wallCostCap, so a path keeps
+	// a tile off walls and inside corners where the map leaves room (a 1-wide corridor pays it on
+	// every tile alike, so it never changes there). Needs the Provider's blockedNeighbors().
+	int32_t turnCost45 = 0;
+	int32_t turnCost90 = 0;
+	int32_t diagonalCost = 25;
+	int32_t wallCost = 0;
+	int32_t wallCostCap = 0;
+	// #198: heuristic in percent of the Manhattan lower bound 10 * (dx + dy); 0 = the stock
+	// heuristic 8 * (dx + dy) + 8 * max(dx, dy). The stock max() term is the real source of the
+	// staircase: it rewards stepping along whichever axis has more distance left, so once the two
+	// are equal the greedy search alternates axes every tile (botnavsim: median 6 turns on one-turn
+	// walks with ZERO noise). A plain Manhattan term has no axis preference, so the turn cost picks
+	// an L and the noise picks which L. Above 100 the search is greedier (fewer expansions).
+	int32_t heuristicPct = 0;
+	// #198: extra cost of a 90-degree turn whose INSIDE corner tile is blocked: the taut path that
+	// shaves a building corner (34 % of the bots' 90-degree turns, research report 70). Charged only
+	// on such turns, so a single tile query per turning expansion. Needs the Provider's blockedAt().
+	int32_t cornerCost = 0;
+	bool shaped() const {
+		return turnCost45 != 0 || turnCost90 != 0 || diagonalCost != 25 || wallCost != 0 || heuristicPct != 0 || cornerCost != 0;
+	}
 };
+
+// #198: direction of a unit step as an index 0..7 around the compass (E, SE, S, SW, W, NW, N, NE),
+// so the turn between two steps is the circular index distance (1 = 45 degrees, 2 = 90 ...).
+inline int32_t pcDirIndex(int32_t dx, int32_t dy) {
+	static const int8_t lut[3][3] = {
+		// dy = -1      0       +1
+		{ 5, 4, 3 }, // dx = -1: NW W SW
+		{ 6, -1, 2 }, // dx = 0: N . S
+		{ 7, 0, 1 }, // dx = +1: NE E SE
+	};
+	return lut[dx + 1][dy + 1];
+}
+inline int32_t pcTurnCost(int32_t inDir, int32_t outDir, const PathParams& fpp) {
+	if (inDir < 0 || outDir < 0 || inDir == outDir) {
+		return 0;
+	}
+	int32_t d = std::abs(inDir - outDir);
+	if (d > 4) {
+		d = 8 - d;
+	}
+	// 45 -> t45, 90 -> t90, 135 -> t90 + t45, 180 -> 2 t90
+	return (d / 2) * fpp.turnCost90 + (d % 2) * fpp.turnCost45;
+}
+
+// #198: smooth (value) noise for the path cost, replacing per-tile white noise. White noise on a
+// tie-rich cost surface (every monotone path across a plaza costs the same) picks a random
+// interleaving of E and S steps -- a staircase. Value noise varies over `scale` tiles, so two
+// equal-length routes differ by WHICH SIDE of the plaza they take, not by tile-level zigzag.
+// Two fields are blended: a per-bot "habit" field (fixed for the session) and a per-walk field,
+// so one bot walks about the same way each time but not tile for tile.
+struct NoiseParams {
+	uint32_t habitSeed = 0;
+	uint32_t walkSeed = 0;
+	int32_t amp = 0; // result range [0, amp]; 0 = no noise
+	int32_t scale = 0; // lattice spacing in tiles; <= 1 = legacy white noise (h & amp, amp = mask)
+	int32_t habitPct = 100; // weight of the habit field, 0..100
+};
+inline uint32_t pcHash(uint32_t seed, uint32_t x, uint32_t y) {
+	uint32_t h = seed ^ (x * 0x9E3779B1u) ^ (y * 0x85EBCA77u);
+	h ^= h >> 15;
+	h *= 0x2C1B3C6Du;
+	h ^= h >> 12;
+	return h;
+}
+// Bilinear value noise in [0, 255] at lattice spacing s (s >= 2).
+inline int32_t pcValueNoise255(uint32_t seed, uint32_t x, uint32_t y, int32_t s) {
+	const uint32_t gx = x / static_cast<uint32_t>(s), gy = y / static_cast<uint32_t>(s);
+	const int32_t fx = static_cast<int32_t>(x - gx * static_cast<uint32_t>(s));
+	const int32_t fy = static_cast<int32_t>(y - gy * static_cast<uint32_t>(s));
+	const int32_t v00 = static_cast<int32_t>(pcHash(seed, gx, gy) & 255u);
+	const int32_t v10 = static_cast<int32_t>(pcHash(seed, gx + 1, gy) & 255u);
+	const int32_t v01 = static_cast<int32_t>(pcHash(seed, gx, gy + 1) & 255u);
+	const int32_t v11 = static_cast<int32_t>(pcHash(seed, gx + 1, gy + 1) & 255u);
+	const int32_t top = v00 * (s - fx) + v10 * fx;
+	const int32_t bot = v01 * (s - fx) + v11 * fx;
+	return (top * (s - fy) + bot * fy) / (s * s);
+}
+inline int32_t shapeNoise(const NoiseParams& np, uint32_t x, uint32_t y) {
+	if (np.amp <= 0) {
+		return 0;
+	}
+	if (np.scale <= 1) {
+		// Legacy per-tile white noise, bit-identical to the pre-#198 jitter(): h & mask.
+		return static_cast<int32_t>(pcHash(np.habitSeed, x, y) & static_cast<uint32_t>(np.amp));
+	}
+	int32_t v = pcValueNoise255(np.habitSeed, x, y, np.scale);
+	if (np.habitPct < 100) {
+		const int32_t w = pcValueNoise255(np.walkSeed ^ 0xA5A5F00Du, x, y, np.scale);
+		v = (v * np.habitPct + w * (100 - np.habitPct)) / 100;
+	}
+	return (v * np.amp + 127) / 255;
+}
 
 struct PathNode {
 	PathNode* parent;
@@ -316,6 +422,7 @@ bool findPath(const Position& startPos, const Position& targetPos, std::vector<P
 	const int_fast32_t sY = std::abs(targetPos.getY() - startPos.getY());
 
 	const PathNode* found = nullptr;
+	const bool shaped = fpp.shaped();
 	do {
 		PathNode* n = pool.getBestNode();
 		if (!n) {
@@ -357,6 +464,9 @@ bool findPath(const Position& startPos, const Position& targetPos, std::vector<P
 		}
 
 		const int_fast32_t f = n->f;
+		// #198: the direction of the step that reached n (-1 at the start node: no turn is charged
+		// for the first step).
+		const int32_t inDir = n->parent ? pcDirIndex(static_cast<int32_t>(x - n->parent->x), static_cast<int32_t>(y - n->parent->y)) : -1;
 		for (uint_fast32_t i = 0; i < dirCount; ++i) {
 			pos.x = static_cast<uint16_t>(x + *neighbors++);
 			pos.y = static_cast<uint16_t>(y + *neighbors++);
@@ -377,9 +487,40 @@ bool findPath(const Position& startPos, const Position& targetPos, std::vector<P
 					continue; // unwalkable
 				}
 				extraCost = wc + prov.jitter(pos);
+				if constexpr (requires { prov.blockedNeighbors(pos); }) {
+					if (fpp.wallCost > 0) {
+						extraCost += std::min<int_fast32_t>(fpp.wallCostCap, static_cast<int_fast32_t>(fpp.wallCost) * prov.blockedNeighbors(pos));
+					}
+				}
 			}
 
-			const int_fast32_t cost = getMapWalkCost(static_cast<uint16_t>(x), static_cast<uint16_t>(y), static_cast<uint16_t>(pos.x), static_cast<uint16_t>(pos.y));
+			int_fast32_t cost;
+			if (shaped) {
+				const int32_t sdx = static_cast<int32_t>(pos.x) - static_cast<int32_t>(x);
+				const int32_t sdy = static_cast<int32_t>(pos.y) - static_cast<int32_t>(y);
+				cost = (sdx != 0 && sdy != 0) ? PC_NORMAL_COST + fpp.diagonalCost : PC_NORMAL_COST;
+				const int32_t outDir = pcDirIndex(sdx, sdy);
+				cost += pcTurnCost(inDir, outDir, fpp);
+				if constexpr (requires { prov.blockedAt(pos); }) {
+					if (fpp.cornerCost > 0) {
+						if (sdx != 0 && sdy != 0) {
+							// A diagonal step shaves BOTH orthogonal neighbours it passes between.
+							if (prov.blockedAt(Position(static_cast<uint16_t>(x + sdx), static_cast<uint16_t>(y), pos.z))
+							    || prov.blockedAt(Position(static_cast<uint16_t>(x), static_cast<uint16_t>(y + sdy), pos.z))) {
+								cost += fpp.cornerCost;
+							}
+						} else if (inDir >= 0 && (inDir % 2) == 0 && ((inDir - outDir + 8) % 4) == 2) {
+							// A 90-degree turn between two straight steps: the inside corner is pos - (incoming step).
+							const Position corner(static_cast<uint16_t>(pos.x - (x - n->parent->x)), static_cast<uint16_t>(pos.y - (y - n->parent->y)), pos.z);
+							if (prov.blockedAt(corner)) {
+								cost += fpp.cornerCost;
+							}
+						}
+					}
+				}
+			} else {
+				cost = getMapWalkCost(static_cast<uint16_t>(x), static_cast<uint16_t>(y), static_cast<uint16_t>(pos.x), static_cast<uint16_t>(pos.y));
+			}
 			const int_fast32_t newf = f + cost + extraCost;
 			if (neighborNode) {
 				if (neighborNode->f <= newf) {
@@ -391,7 +532,10 @@ bool findPath(const Position& startPos, const Position& targetPos, std::vector<P
 			} else {
 				const int_fast32_t dX = std::abs(targetPos.getX() - pos.getX());
 				const int_fast32_t dY = std::abs(targetPos.getY() - pos.getY());
-				if (!pool.createOpenNode(n, static_cast<uint16_t>(pos.x), static_cast<uint16_t>(pos.y), newf, ((dX - sX) << 3) + ((dY - sY) << 3) + (std::max(dX, dY) << 3), extraCost)) {
+				const int_fast32_t h = fpp.heuristicPct > 0
+					? ((dX + dY) * PC_NORMAL_COST * fpp.heuristicPct) / 100
+					: ((dX - sX) << 3) + ((dY - sY) << 3) + (std::max(dX, dY) << 3);
+				if (!pool.createOpenNode(n, static_cast<uint16_t>(pos.x), static_cast<uint16_t>(pos.y), newf, h, extraCost)) {
 					if (found) {
 						break;
 					}

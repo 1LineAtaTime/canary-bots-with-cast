@@ -501,5 +501,7 @@ enum ConfigKey_t : uint16_t {
 	BOT_REALISM_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
 	// Batch 7 learning keys (#30, #96). Appended last for the same reason: nothing shifts.
 	BOT_LEARNING_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
+	// #198 movement realism keys. Appended last for the same reason: nothing shifts.
+	BOT_MOVEMENT_CONFIG_KEYS(BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR, BOT_CFG_ENUMERATOR)
 #undef BOT_CFG_ENUMERATOR
 };

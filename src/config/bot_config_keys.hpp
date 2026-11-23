@@ -844,6 +844,65 @@
 	INT (BOT_KNIGHT_HEALTH_POTION_NO_SPELL_PCT, "botKnightHealthPotionNoSpellPct", 85)
 
 // ============================================================================
+// #198 movement realism. Expanded at the very END of ConfigKey_t (after BOT_LEARNING_CONFIG_KEYS),
+// so no existing ordinal moves. Read by the .so through moveCfg() (bot_movement.cpp). Needs a FULL
+// rebuild. Everything here acts only on a bot that is WATCHED (a real player on its screen, or a
+// cast viewer); unwatched, hibernated and virtual bots walk exactly as before. Every *_PCT is a
+// per-event chance, scaled per bot by a personality trait (0.5x .. 1.5x): walkBias for the path
+// rolls, fidgetiness for the hesitation / facing / place-pause rolls.
+// ============================================================================
+#define BOT_MOVEMENT_CONFIG_KEYS(INT, BOOL, STR)                                    \
+	/* Path shape for watched bots: a turn cost, a Manhattan heuristic and smooth     \
+	   per-walk noise in the path kernel, so open ground is crossed in an L or a Z   \
+	   instead of an E-S-E-S staircase. false = the pre-#198 kernel everywhere. */   \
+	BOOL(BOT_MOVE_SHAPE_ENABLE,            "botMoveShapeEnable",            true)     \
+	INT (BOT_MOVE_TURN_COST_90,            "botMoveTurnCost90",             6)        \
+	INT (BOT_MOVE_TURN_COST_45,            "botMoveTurnCost45",             2)        \
+	/* heuristic in % of the Manhattan bound (100..200; higher = greedier search) */ \
+	INT (BOT_MOVE_HEURISTIC_PCT,           "botMoveHeuristicPct",           125)      \
+	/* smooth noise: amplitude 0..10 (cost units, a straight step is 10), lattice    \
+	   scale in tiles, and the share of it that is the bot's fixed "habit" field     \
+	   (the rest is re-rolled per walk, so a bot walks about the same way each time,  \
+	   not tile for tile) */                                                          \
+	INT (BOT_MOVE_NOISE_AMP,               "botMoveNoiseAmp",               7)        \
+	INT (BOT_MOVE_NOISE_SCALE,             "botMoveNoiseScale",             6)        \
+	INT (BOT_MOVE_NOISE_HABIT_PCT,         "botMoveNoiseHabitPct",          30)       \
+	/* % of walks that take diagonal shortcuts (the diagonal's extra cost drops from  \
+	   25 to botMoveDiagonalCost for that walk) */                                    \
+	INT (BOT_MOVE_DIAGONAL_PCT,            "botMoveDiagonalPct",            25)       \
+	INT (BOT_MOVE_DIAGONAL_COST,           "botMoveDiagonalCost",           18)       \
+	/* % of walks that keep a tile off walls and inside corners (cost per blocked     \
+	   neighbour tile, capped) */                                                     \
+	INT (BOT_MOVE_WALL_OFFSET_PCT,         "botMoveWallOffsetPct",          60)       \
+	INT (BOT_MOVE_WALL_COST,               "botMoveWallCost",               3)        \
+	INT (BOT_MOVE_WALL_COST_CAP,           "botMoveWallCostCap",            9)        \
+	/* every watched walk: extra cost of a turn or a diagonal step that shaves a      \
+	   blocked corner tile (the taut path around a building corner) */               \
+	INT (BOT_MOVE_CORNER_COST,             "botMoveCornerCost",             15)       \
+	/* % of U-turn re-plans (first step reverses a step taken < 1.5 s ago) that first \
+	   turn toward the new way and stop for MinMs..MaxMs */                          \
+	INT (BOT_MOVE_UTURN_HESITATE_PCT,      "botMoveUturnHesitatePct",       60)       \
+	INT (BOT_MOVE_UTURN_MIN_MS,            "botMoveUturnMinMs",             300)      \
+	INT (BOT_MOVE_UTURN_MAX_MS,            "botMoveUturnMaxMs",             900)      \
+	/* facing: the NPC the bot greets, the player it answers, a player passing an     \
+	   idle bot (instead of a random direction) */                                    \
+	INT (BOT_MOVE_FACE_NPC_PCT,            "botMoveFaceNpcPct",             85)       \
+	INT (BOT_MOVE_FACE_SPEAKER_PCT,        "botMoveFaceSpeakerPct",         75)       \
+	INT (BOT_MOVE_FACE_PLAYER_PCT,         "botMoveFacePlayerPct",          40)       \
+	/* place pauses: a short stop after opening a door, and before stepping onto      \
+	   stairs; and the share of the random mid-street observed pauses that is moved   \
+	   to the next door or stairs instead (capped at PlacePauseDeferMaxMs) */         \
+	INT (BOT_MOVE_DOOR_PAUSE_PCT,          "botMoveDoorPausePct",           50)       \
+	INT (BOT_MOVE_STAIR_PAUSE_PCT,         "botMoveStairPausePct",          40)       \
+	INT (BOT_MOVE_PLACE_PAUSE_MIN_MS,      "botMovePlacePauseMinMs",        200)      \
+	INT (BOT_MOVE_PLACE_PAUSE_MAX_MS,      "botMovePlacePauseMaxMs",        700)      \
+	INT (BOT_MOVE_PAUSE_TO_PLACE_PCT,      "botMovePauseToPlacePct",        50)       \
+	INT (BOT_MOVE_PLACE_PAUSE_DEFER_MAX_MS, "botMovePlacePauseDeferMaxMs",  6000)     \
+	/* log a [MOVE_WALK] line per new walk of every watched bot (default: cast-watched \
+	   bots only) */                                                                  \
+	BOOL(BOT_MOVE_LOG_ALL,                 "botMoveLogAll",                 false)
+
+// ============================================================================
 // Every BOT_* table above, for code that must visit ALL bot keys regardless of where each table
 // is expanded in ConfigKey_t (the order here is NOT the enum order and must not be used as one).
 //
@@ -867,4 +926,5 @@
 	BOT_CAMERA_CONFIG_KEYS(INT, BOOL, STR)              \
 	BOT_SPAR_CONFIG_KEYS(INT, BOOL, STR)                \
 	BOT_REALISM_CONFIG_KEYS(INT, BOOL, STR)             \
-	BOT_LEARNING_CONFIG_KEYS(INT, BOOL, STR)
+	BOT_LEARNING_CONFIG_KEYS(INT, BOOL, STR)            \
+	BOT_MOVEMENT_CONFIG_KEYS(INT, BOOL, STR)

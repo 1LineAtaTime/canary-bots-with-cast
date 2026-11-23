@@ -1765,6 +1765,9 @@ struct BotTileQueryAdapter {
 	std::shared_ptr<Creature> creature;
 	uint32_t navSeed = 0;
 	int32_t jitterMask = 0;
+	// #198: when noise.scale > 1 the jitter is botnav::shapeNoise (smooth habit + per-walk field),
+	// the same function the offline botnavsim provider calls.
+	botnav::NoiseParams noise {};
 
 	// canWalkTo returns nullptr for blocked/FC tiles (except the botAllowFcPos
 	// whitelisted destination), so FC-avoidance is inherited here for free.
@@ -1776,10 +1779,42 @@ struct BotTileQueryAdapter {
 		return static_cast<int32_t>(AStarNodes::getTileWalkCost(creature, tile));
 	}
 
+	// #198: statically blocked 8-neighbours (no tile, no ground, or a solid blocker), stairs and
+	// teleports excepted. Creatures do not count: the wall cost is about the map, not the crowd.
+	// Only called by the kernel when PathParams::wallCost > 0 (a watched bot's wall-offset walk).
+	static bool staticBlocked(const Position& n) {
+		const auto& tile = g_game().map.getTile(n);
+		if (!tile || !tile->getGround()) {
+			return true;
+		}
+		return tile->hasFlag(TILESTATE_BLOCKSOLID) && !tile->hasFlag(TILESTATE_FLOORCHANGE) && !tile->hasFlag(TILESTATE_TELEPORT);
+	}
+	// #198: the same static test for one tile (the kernel's inside-corner cost).
+	bool blockedAt(const Position& pos) const {
+		return staticBlocked(pos);
+	}
+	int32_t blockedNeighbors(const Position& pos) const {
+		int32_t c = 0;
+		for (int32_t dx = -1; dx <= 1; dx++) {
+			for (int32_t dy = -1; dy <= 1; dy++) {
+				if (dx == 0 && dy == 0) {
+					continue;
+				}
+				if (staticBlocked(Position(static_cast<uint16_t>(pos.x + dx), static_cast<uint16_t>(pos.y + dy), pos.z))) {
+					c++;
+				}
+			}
+		}
+		return c;
+	}
+
 	// Deterministic per-bot per-tile noise in [0, jitterMask]. xor-mul-shift hash.
 	int32_t jitter(const Position& pos) const {
 		if (jitterMask == 0) {
 			return 0;
+		}
+		if (noise.scale > 1 && noise.amp > 0) {
+			return botnav::shapeNoise(noise, pos.x, pos.y);
 		}
 		uint32_t h = navSeed
 			^ (static_cast<uint32_t>(pos.x) * 0x9E3779B1u)
@@ -1821,11 +1856,31 @@ inline void botPathToDirs(const Position& startPos, const std::vector<Position>&
 	std::reverse(outDirs.begin(), outDirs.end());
 }
 
+// #198: the path shape of one walk of a WATCHED bot (bot_movement.cpp, botMoveShapeFor): the kernel
+// cost terms (turn cost, heuristic, diagonal and wall costs) plus the smooth noise. Null = the
+// pre-#198 kernel (white jitter, stock costs) -- every unwatched bot and every non-goTo caller.
+struct BotPathShape {
+	botnav::PathParams cost {}; // only the #198 fields are read
+	botnav::NoiseParams noise {};
+};
+
 // Run the pathcore kernel with per-bot jitter against live tiles. Fills dirList
 // in startAutoWalk order. Returns true on success. Mirrors the server fpp.
-inline bool botJitterPath(const std::shared_ptr<Player>& player, const Position& startPos, const Position& target, const FindPathParams& fpp, uint32_t navSeed, int32_t jitterMask, std::vector<Direction>& dirList) {
+inline bool botJitterPath(const std::shared_ptr<Player>& player, const Position& startPos, const Position& target, const FindPathParams& fpp, uint32_t navSeed, int32_t jitterMask, std::vector<Direction>& dirList, const BotPathShape* shape = nullptr) {
 	BotTileQueryAdapter adapter { player, navSeed, jitterMask };
 	botnav::PathParams pp;
+	if (shape) {
+		adapter.noise = shape->noise;
+		adapter.noise.habitSeed = navSeed;
+		adapter.jitterMask = shape->noise.amp;
+		pp.turnCost45 = shape->cost.turnCost45;
+		pp.turnCost90 = shape->cost.turnCost90;
+		pp.diagonalCost = shape->cost.diagonalCost;
+		pp.wallCost = shape->cost.wallCost;
+		pp.wallCostCap = shape->cost.wallCostCap;
+		pp.heuristicPct = shape->cost.heuristicPct;
+		pp.cornerCost = shape->cost.cornerCost;
+	}
 	pp.fullPathSearch = fpp.fullPathSearch;
 	pp.allowDiagonal = fpp.allowDiagonal;
 	pp.keepDistance = fpp.keepDistance;
@@ -4038,6 +4093,50 @@ struct GoToDirectFirstScope {
 	GoToDirectFirstScope(const GoToDirectFirstScope&) = delete;
 	GoToDirectFirstScope& operator=(const GoToDirectFirstScope&) = delete;
 };
+// #198 movement realism (bot_movement.cpp). Engine-side, keyed by guid: no BotState / ABI change.
+struct MoveCfg {
+	bool shapeEnable = true;
+	int32_t turn90 = 6, turn45 = 2, heuristicPct = 125;
+	int32_t noiseAmp = 7, noiseScale = 6, noiseHabitPct = 30;
+	int32_t diagPct = 25, diagCost = 18;
+	int32_t wallPct = 60, wallCost = 3, wallCap = 9, cornerCost = 15;
+	int32_t uturnPct = 60, uturnMinMs = 300, uturnMaxMs = 900;
+	int32_t faceNpcPct = 85, faceSpeakerPct = 75, facePlayerPct = 40;
+	int32_t doorPausePct = 50, stairPausePct = 40, placeMinMs = 200, placeMaxMs = 700;
+	int32_t pauseToPlacePct = 50, placeDeferMaxMs = 6000;
+	bool logAll = false;
+};
+inline MoveCfg s_moveCfg {};
+inline int64_t s_moveCfgAtMs = 0;
+// One walk = one destination: the per-walk noise salt and the diagonal / wall rolls are drawn when
+// a watched bot's goTo target changes (more than 2 tiles) or 60 s after the last draw, so the chunks
+// of one journey share them (a re-plan mid-journey does not swap to another side of the plaza).
+struct MoveWalk {
+	Position target {};
+	uint32_t salt = 0;
+	bool diag = false;
+	bool wall = false;
+	int64_t atMs = 0;
+};
+inline std::unordered_map<uint32_t, MoveWalk> s_moveWalk;
+// The last step a bot took (processBot), for the U-turn test.
+struct MoveStep {
+	int8_t dx = 0, dy = 0;
+	int64_t atMs = 0;
+};
+inline std::unordered_map<uint32_t, MoveStep> s_moveLastStep;
+inline std::unordered_map<uint32_t, int64_t> s_moveUturnAtMs;     // last U-turn hesitation (4 s cooldown)
+inline std::unordered_map<uint32_t, int64_t> s_movePlaceHoldUntil; // a door / stair stop the next walk issue honours
+inline std::unordered_map<uint32_t, int32_t> s_moveDeferredPauseMs; // a mid-street pause moved to the next door / stair
+inline std::unordered_map<uint32_t, uint32_t> s_moveGlanced;        // the last player an idle bot turned to
+// Always-on 60 s counters, logged as "[MOVE] 60s ..." by the tick loop's 60 s block.
+inline uint32_t s_move60sWalks = 0, s_move60sShaped = 0, s_move60sShapeFail = 0, s_move60sDiag = 0, s_move60sWall = 0;
+inline uint32_t s_move60sUturn = 0, s_move60sUturnSeen = 0;
+inline uint32_t s_move60sFaceNpc = 0, s_move60sFaceSpeaker = 0, s_move60sFacePlayer = 0;
+inline uint32_t s_move60sDoor = 0, s_move60sStair = 0, s_move60sDeferred = 0, s_move60sDeferredSpent = 0;
+// the matching denominators: watched opportunities that rolled ("x/y" in the [MOVE] 60s line)
+inline uint32_t s_move60sFaceNpcSeen = 0, s_move60sFaceSpeakerSeen = 0, s_move60sFacePlayerSeen = 0, s_move60sDoorSeen = 0, s_move60sStairSeen = 0;
+
 // Always-on 60 s counters, logged as "[DIRECT_FIRST] 60s ..." by the tick loop's 60 s block.
 inline uint32_t s_directFirstHit60s = 0;        // direct search found the whole route
 inline uint32_t s_directFirstMiss60s = 0;       // direct search failed -> chunked walk (one wasted search)
@@ -6140,6 +6239,32 @@ private:
 	// Result is cached per-bot for ~500ms (walkObservedCache) so the observed-tier
 	// walk pause doesn't run a Spectators::find<Player> scan on every walk step.
 	bool botWalkObserved(BotState& bot, const std::shared_ptr<Player>& player);
+
+	// #198 movement realism (bot_movement.cpp). Every behaviour acts only on a WATCHED bot:
+	// botMoveObserved = its own cast has viewers, or botWalkObserved (a real player or a cast-watched
+	// bot on its screen; 500 ms cache).
+	bool botMoveObserved(BotState& bot, const std::shared_ptr<Player>& player);
+	// Fills `shape` for this goTo search and returns true when the bot is watched and the shape is
+	// enabled; draws the per-walk salt and the diagonal / wall-offset rolls when the walk is new.
+	bool botMoveShapeFor(BotState& bot, const std::shared_ptr<Player>& player, const Position& target, BotPathShape& shape);
+	// processBot: remember the step just taken (U-turn test).
+	void botMoveNoteStep(BotState& bot);
+	// botStartAutoWalk: a U-turn hesitation or a door / stair hold. Returns true when it scheduled
+	// the walk itself (the caller must not issue it).
+	bool botMoveHoldWalk(BotState& bot, const std::shared_ptr<Player>& player, const std::vector<Direction>& dirs);
+	// An observed mid-street pause that rolled: true = it was moved to the next door / stair.
+	bool botMoveDeferPause(BotState& bot, int32_t pauseMs);
+	// A door just opened / the bot is about to step onto stairs: maybe stop there briefly.
+	void botMoveDoorOpened(BotState& bot, const std::shared_ptr<Player>& player, const Position& doorPos);
+	bool botMoveStairHold(BotState& bot, const std::shared_ptr<Player>& player, const Position& stairPos);
+	// Facing: the NPC greeted, the player answered, a player passing an idle bot.
+	void botMoveFaceNpc(BotState& bot, const std::shared_ptr<Player>& player);
+	void botMoveFaceCreature(BotState& bot, const std::shared_ptr<Player>& player, const Position& at, const char* why);
+	bool botMoveIdleFacing(BotState& bot, const std::shared_ptr<Player>& player);
+	int32_t botMoveFaceSpeakerPct(const BotState& bot); // personality-scaled chance
+	bool botMoveLogFor(const std::shared_ptr<Player>& player); // per-event journal lines for this bot?
+	void botMoveForget(uint32_t guid);
+	std::string botMove60sSummary();
 
 	// #120: the observed-tier pause used to be rolled once, when a walk was ISSUED -- usually
 	// off-screen, since a bot is issued its path before it walks into view. A guid in this set is

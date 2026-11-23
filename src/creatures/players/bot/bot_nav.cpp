@@ -470,6 +470,18 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 
 	std::vector<Direction> dirList;
 	const int32_t navJitterMask = botNavJitterMaskClamped();
+	// #198: a WATCHED bot's walk gets the human path shape (turn cost, Manhattan heuristic, smooth
+	// per-walk noise, and this walk's diagonal / wall-offset rolls) through the same kernel. Every
+	// unwatched bot keeps the exact pre-#198 search. A kernel miss still falls through to the stock
+	// pathfinder below, so the shape never costs a walk.
+	BotPathShape moveShape;
+	const bool moveShaped = botMoveShapeFor(bot, player, target, moveShape);
+	const BotPathShape* shapePtr = moveShaped ? &moveShape : nullptr;
+	const bool useKernel = navJitterMask > 0 || moveShaped;
+	// #198: a short stop and a look before stepping onto stairs (honoured by botStartAutoWalk).
+	if (allowFc && moveShaped && dist <= 2) {
+		botMoveStairHold(bot, player, target);
+	}
 
 	// #119: direct-first. Inside botnav::directFirstBand (CHUNK_DIST < cheb <= 2*CHUNK_DIST) ask
 	// ONE ordinary 512-node search for the whole route to the true target before chunking. The
@@ -491,9 +503,12 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 			s_directFirstSuppressed60s++;
 		} else {
 			fpp.maxTargetDist = arrivalDist;
-			const bool found = navJitterMask > 0
-				? botJitterPath(player, bot.currentPos, target, fpp, botNavSeed(bot.guid), navJitterMask, dirList)
+			const bool found = useKernel
+				? botJitterPath(player, bot.currentPos, target, fpp, botNavSeed(bot.guid), navJitterMask, dirList, shapePtr)
 				: g_game().map.getPathMatchingCond(player, target, dirList, FrozenPathingConditionCall(target), fpp);
+			if (moveShaped) {
+				(found ? s_move60sShaped : s_move60sShapeFail)++;
+			}
 			if (found) {
 				s_directFirstHit60s++;
 				if (allowFc) player->clearBotAllowFcPos();
@@ -520,13 +535,15 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	// Falls through to the stock server pathfinder if the kernel returns no path, so jitter
 	// never reduces robustness. At mask == 0 (default) this branch is skipped entirely and
 	// behavior is bit-identical to before.
-	if (navJitterMask > 0
-		&& botJitterPath(player, bot.currentPos, pathTarget, fpp, botNavSeed(bot.guid), navJitterMask, dirList)) {
+	if (useKernel
+		&& botJitterPath(player, bot.currentPos, pathTarget, fpp, botNavSeed(bot.guid), navJitterMask, dirList, shapePtr)) {
+		if (moveShaped) s_move60sShaped++;
 		if (allowFc) player->clearBotAllowFcPos();
-		audPath.ok("jitter", dirList.size());
+		audPath.ok(moveShaped ? "shaped" : "jitter", dirList.size());
 		botStartAutoWalk(bot, player, dirList);
 		return true;
 	}
+	if (moveShaped) s_move60sShapeFail++;
 	dirList.clear();
 	// Use server's SSE-optimized getPathMatchingCond (512 nodes, bounded by maxSearchDist).
 	// With CHUNK_DIST=12, each sub-problem stays within the 512-node budget.
@@ -1560,6 +1577,7 @@ bool BotEngine::tryOpenDoorAt(BotState& bot, const std::shared_ptr<Player>& play
 			}
 			castLog(bot, fmt::format("DOOR: Opened door {} at ({},{},{})",
 				closedId, doorPos.x, doorPos.y, doorPos.z));
+			botMoveDoorOpened(bot, player, doorPos); // #198
 			return true;
 		}
 	}
@@ -1576,6 +1594,7 @@ bool BotEngine::tryOpenDoorAt(BotState& bot, const std::shared_ptr<Player>& play
 			if (!tile->hasFlag(TILESTATE_BLOCKPATH) && !tile->hasFlag(TILESTATE_BLOCKSOLID)) {
 				castLog(bot, fmt::format("DOOR: Opened unknown door {} at ({},{},{})",
 					itemId, doorPos.x, doorPos.y, doorPos.z));
+				botMoveDoorOpened(bot, player, doorPos); // #198
 				return true;
 			}
 		}
@@ -1613,6 +1632,7 @@ bool BotEngine::tryOpenAdjacentDoor(BotState& bot, const std::shared_ptr<Player>
 					}
 					castLog(bot, fmt::format("DOOR: Opened adjacent door {} at ({},{},{})",
 						closedId, tilePos.x, tilePos.y, tilePos.z));
+					botMoveDoorOpened(bot, player, tilePos); // #198
 					return true;
 				}
 			}

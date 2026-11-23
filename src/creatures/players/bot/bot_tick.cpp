@@ -2326,6 +2326,7 @@ void BotEngine::forceDeactivateBot(uint32_t guid) {
 	walkPauseInfo_.erase(guid);
 	s_walkObsPending.erase(guid); // #120
 	clearWalkDesync(guid);        // #144
+	botMoveForget(guid);          // #198
 	s_walkObsNextCheckMs.erase(guid);
 	s_zPlanWait.erase(guid); // #116
 	clearDepotBlacklist(guid);
@@ -3699,7 +3700,8 @@ bool BotEngine::handlePzRoam(BotState& bot) {
 	int32_t stayPct = static_cast<int32_t>(g_configManager().getNumber(BOT_PZROAM_STAY_PCT));
 	if (uniform_random(1, 100) <= stayPct) {
 		static const Direction kDirs[4] = { DIRECTION_NORTH, DIRECTION_EAST, DIRECTION_SOUTH, DIRECTION_WEST };
-		g_game().internalCreatureTurn(player, kDirs[uniform_random(0, 3)]);
+		if (!botMoveIdleFacing(bot, player)) // #198: face a player nearby, else a random way
+			g_game().internalCreatureTurn(player, kDirs[uniform_random(0, 3)]);
 		castLog(bot, "PZROAM: staying (turn in place)");
 	} else {
 		Position dest = findRandomTileNear(bot.currentPos, 4, /*pzFilter=*/0); // non-PZ only
@@ -3934,6 +3936,7 @@ void BotEngine::tick() {
 			for (const auto& b : bots_) {
 				if (b.active && !b.hibernated) awakeBots++;
 			}
+			g_logger().info("{}", botMove60sSummary()); // #198
 			g_logger().info("[DIRECT_FIRST] 60s hit={} miss={} suppressed={} awake={} missPerAwakeBot={:.1f}",
 				s_directFirstHit60s, s_directFirstMiss60s, s_directFirstSuppressed60s, awakeBots,
 				awakeBots ? static_cast<double>(s_directFirstMiss60s) / awakeBots : 0.0);
@@ -5073,6 +5076,7 @@ void BotEngine::processBot(BotState& bot) {
 	static constexpr int64_t STUCK_ATTACK_INTERVAL_MS = 3000;
 	if (bot.currentPos != bot.lastPos) {
 		s_lastMoveTime[bot.guid] = OTSYS_TIME();
+		botMoveNoteStep(bot); // #198: the U-turn test needs the last step's direction
 	} else if (bot.active && (bot.state == BotAIState::HUNTING || bot.state == BotAIState::TRAVELING)) {
 		auto moveIt = s_lastMoveTime.find(bot.guid);
 		int64_t lastMove = (moveIt != s_lastMoveTime.end()) ? moveIt->second : OTSYS_TIME();
@@ -5775,6 +5779,7 @@ void BotEngine::doIdle(BotState& bot) {
 						// happens when a real player uses them too.
 						static const char* kGreetings[] = { "hi", "hello", "hey", "heya" };
 						const char* greet = kGreetings[uniform_random(0, 3)];
+						botMoveFaceNpc(bot, p); // #198
 						g_game().internalCreatureSay(p, TALKTYPE_SAY, greet, false);
 						castLog(bot, fmt::format("IDLE: greeting NPC '{}' with '{}'", nvIt->second, greet));
 						// Journal signal so NPC visits are verifiable without an in-game observer
@@ -6642,6 +6647,7 @@ bool BotEngine::handleActionWaypoint(BotState& bot, const Waypoint& waypoint) {
 		// merges it with its own 500ms action pause via std::max, so ordering between the two is
 		// not load-bearing here.
 		const char* greeting = (uniform_random(0, 1) == 0) ? "hi" : "hello";
+		botMoveFaceNpc(bot, player); // #198
 		g_game().internalCreatureSay(player, TALKTYPE_SAY, greeting, false);
 		const int32_t waitMs = uniform_random(3, 10) * 1000;
 		auto& pauseUntil = s_actionWpPauseUntil[bot.guid];
@@ -7112,6 +7118,9 @@ void BotEngine::handleFloorChange(BotState& bot) {
 			}
 
 			auto& trans = bot.fcTransitions[bot.fcTransIdx];
+			// #198: a watched, unhurried bot stops and looks at the stairs (at most 1.5 s, one roll
+			// per stair tile) before the step. No attempt is consumed while it waits.
+			if (botMoveStairHold(bot, player, trans.pos)) return;
 			int32_t dist = std::max(
 				std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(trans.pos.x)),
 				std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(trans.pos.y)));

@@ -733,6 +733,7 @@ void BotEngine::startHouseVisit(BotState& bot) {
 			// all that is left of it.
 			static const char* kGreetings[] = { "hi", "hello", "hey", "heya" };
 			const char* greet = kGreetings[uniform_random(0, 3)];
+			botMoveFaceNpc(bot, player); // #198
 			g_game().internalCreatureSay(player, TALKTYPE_SAY, greet, false);
 			modeName = "hireling";
 			break;
