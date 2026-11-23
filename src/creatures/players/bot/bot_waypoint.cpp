@@ -756,6 +756,30 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 							laneTileTakeable = true;
 							s_laneReservedThisTick.insert(botTileKey(lanePos)); // claim it
 						}
+						// #210: a WATCHED bot does not take a lane tile that sits against a wall when
+						// the waypoint itself is clear of walls. In a 3-wide street the lane tile IS
+						// the wall row, and every NODE leg was walked to it exactly, so the whole
+						// route hugged the wall (live: 70.8 % avoidable wall contact on the camera
+						// bots' route walks; botnavsim, Thais city-route legs: lane bots 73.7 % ->
+						// 59.7 %). A wider street keeps the lane.
+						if (laneTileTakeable && s_moveCfg.shapeEnable && botMoveObserved(bot, player)) {
+							auto againstWall = [](const Position& p) {
+								for (int32_t ddx = -1; ddx <= 1; ddx++) {
+									for (int32_t ddy = -1; ddy <= 1; ddy++) {
+										if ((ddx != 0 || ddy != 0)
+										    && BotTileQueryAdapter::staticBlocked(Position(static_cast<uint16_t>(p.x + ddx), static_cast<uint16_t>(p.y + ddy), p.z))) {
+											return true;
+										}
+									}
+								}
+								return false;
+							};
+							if (againstWall(lanePos) && !againstWall(wp)) {
+								laneTileTakeable = false;
+								s_laneReservedThisTick.erase(botTileKey(lanePos));
+								s_move60sLaneWall++;
+							}
+						}
 					} else {
 						s_laneReserveClash++;
 					}

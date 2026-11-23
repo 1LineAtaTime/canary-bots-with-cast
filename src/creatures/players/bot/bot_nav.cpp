@@ -411,6 +411,52 @@ bool BotEngine::botTraceLegWalk(const std::shared_ptr<Player>& mover, const Posi
 namespace {
 	constexpr int64_t DIRECT_FIRST_MISS_MS = 3000;
 	std::unordered_map<uint32_t, int64_t> s_directFirstSuppressUntil;
+
+	// #209: per-bot back-off for the watched-bot (shaped) kernel search. A walk whose target the
+	// map cannot reach fails the kernel AND the stock search behind it on every tick (measured
+	// live: ~1,600 kernel misses/min). After such a total miss the bot skips the kernel -- it goes
+	// straight to the stock search, as an unwatched bot does -- for 1 s, doubling per repeat miss
+	// up to 16 s: ~7 kernel searches in the first minute, then ~4/min. Per BOT, not per target: a
+	// first live cut keyed on the target (within 2 tiles) still let one bot miss 84 times a minute,
+	// alternating between targets further apart. Consecutive total misses escalate whatever the
+	// target; any search that finds a path (kernel or stock) clears it, so the shape is back on the
+	// bot's very next reachable walk.
+	constexpr int64_t SHAPE_MISS_BACKOFF_BASE_MS = 1000;
+	constexpr uint8_t SHAPE_MISS_BACKOFF_MAX_LEVEL = 4; // 1, 2, 4, 8, 16 s
+	struct ShapeMissBackoff {
+		int64_t untilMs = 0;
+		uint8_t level = 0;
+	};
+	std::unordered_map<uint32_t, ShapeMissBackoff> s_shapeMissBackoff;
+
+	bool shapeBackedOff(uint32_t guid, const Position& /*target*/, int64_t nowMs) {
+		if (s_shapeMissBackoff.empty()) {
+			return false;
+		}
+		const auto it = s_shapeMissBackoff.find(guid);
+		return it != s_shapeMissBackoff.end() && nowMs < it->second.untilMs;
+	}
+	void noteShapeTotalMiss(uint32_t guid, const Position& /*target*/, int64_t nowMs) {
+		ShapeMissBackoff& b = s_shapeMissBackoff[guid];
+		b.level = b.untilMs != 0 ? static_cast<uint8_t>(std::min<int>(b.level + 1, SHAPE_MISS_BACKOFF_MAX_LEVEL)) : 0;
+		b.untilMs = nowMs + (SHAPE_MISS_BACKOFF_BASE_MS << b.level);
+	}
+	void noteShapeReach(uint32_t guid, const Position& /*target*/) {
+		if (!s_shapeMissBackoff.empty()) {
+			s_shapeMissBackoff.erase(guid);
+		}
+	}
+	void countShapeMiss(uint32_t guid) {
+		s_move60sShapeFail++;
+		s_move60sShapeFailByBot[guid]++;
+	}
+
+	// #210: the planner's direct search with the watched-bot shape needs the planner's node budget
+	// (BotAStarNodes::BOT_MAX_NODES), not the 512-node engine pool goTo's chunks use.
+	botnav::PathNodePool& plannerShapePool() {
+		static botnav::PathNodePool pool(BotAStarNodes::BOT_MAX_NODES); // this TU only; freed with the .so
+		return pool;
+	}
 }
 
 bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
@@ -476,8 +522,15 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	// pathfinder below, so the shape never costs a walk.
 	BotPathShape moveShape;
 	const bool moveShaped = botMoveShapeFor(bot, player, target, moveShape);
-	const BotPathShape* shapePtr = moveShaped ? &moveShape : nullptr;
-	const bool useKernel = navJitterMask > 0 || moveShaped;
+	// #209: after a total miss the kernel is skipped (stock search only) for the
+	// back-off window -- the shaped AND the jitter kernel, since either would fail the same way.
+	const bool shapeOff = moveShaped && shapeBackedOff(bot.guid, target, OTSYS_TIME());
+	if (shapeOff) {
+		s_move60sShapeSkip++;
+	}
+	const bool kernelShaped = moveShaped && !shapeOff;
+	const BotPathShape* shapePtr = kernelShaped ? &moveShape : nullptr;
+	const bool useKernel = !shapeOff && (navJitterMask > 0 || moveShaped);
 	// #198: a short stop and a look before stepping onto stairs (honoured by botStartAutoWalk).
 	if (allowFc && moveShaped && dist <= 2) {
 		botMoveStairHold(bot, player, target);
@@ -506,10 +559,15 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 			const bool found = useKernel
 				? botJitterPath(player, bot.currentPos, target, fpp, botNavSeed(bot.guid), navJitterMask, dirList, shapePtr)
 				: g_game().map.getPathMatchingCond(player, target, dirList, FrozenPathingConditionCall(target), fpp);
-			if (moveShaped) {
-				(found ? s_move60sShaped : s_move60sShapeFail)++;
+			if (kernelShaped) {
+				if (found) {
+					s_move60sShaped++;
+				} else {
+					countShapeMiss(bot.guid);
+				}
 			}
 			if (found) {
+				if (moveShaped) noteShapeReach(bot.guid, target);
 				s_directFirstHit60s++;
 				if (allowFc) player->clearBotAllowFcPos();
 				audPath.ok("astar-direct", dirList.size());
@@ -537,18 +595,22 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 	// behavior is bit-identical to before.
 	if (useKernel
 		&& botJitterPath(player, bot.currentPos, pathTarget, fpp, botNavSeed(bot.guid), navJitterMask, dirList, shapePtr)) {
-		if (moveShaped) s_move60sShaped++;
+		if (kernelShaped) {
+			s_move60sShaped++;
+			noteShapeReach(bot.guid, target);
+		}
 		if (allowFc) player->clearBotAllowFcPos();
-		audPath.ok(moveShaped ? "shaped" : "jitter", dirList.size());
+		audPath.ok(kernelShaped ? "shaped" : "jitter", dirList.size());
 		botStartAutoWalk(bot, player, dirList);
 		return true;
 	}
-	if (moveShaped) s_move60sShapeFail++;
+	if (kernelShaped) countShapeMiss(bot.guid);
 	dirList.clear();
 	// Use server's SSE-optimized getPathMatchingCond (512 nodes, bounded by maxSearchDist).
 	// With CHUNK_DIST=12, each sub-problem stays within the 512-node budget.
 	if (g_game().map.getPathMatchingCond(player, pathTarget, dirList, FrozenPathingConditionCall(pathTarget), fpp)) {
 		if (allowFc) player->clearBotAllowFcPos();
+		if (moveShaped) noteShapeReach(bot.guid, target);
 		audPath.ok(dist > CHUNK_DIST ? "astar-chunk" : "astar", dirList.size());
 		botStartAutoWalk(bot, player,dirList);
 		return true;
@@ -580,6 +642,7 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 			dirList.clear();
 			if (g_game().map.getPathMatchingCond(player, offsetTarget, dirList, FrozenPathingConditionCall(offsetTarget), fpp)) {
 				if (allowFc) player->clearBotAllowFcPos();
+				if (moveShaped) noteShapeReach(bot.guid, target);
 				audPath.ok("astar-offset", dirList.size());
 				botStartAutoWalk(bot, player,dirList);
 				return true;
@@ -589,6 +652,10 @@ bool BotEngine::goTo(BotState& bot, const Position& target, int32_t maxDist) {
 
 	if (allowFc) player->clearBotAllowFcPos();
 	audPath.result("fail");
+	// #209: every search failed, the kernel's included -- back the kernel off for this target.
+	if (kernelShaped) {
+		noteShapeTotalMiss(bot.guid, target, OTSYS_TIME());
+	}
 
 	// Give up. A same-floor target that is only reachable by leaving this floor and coming back
 	// (bridges, underpasses, castle interiors, Thais' stacked cellars) is NOT solved here — the
@@ -1077,14 +1144,42 @@ bool BotEngine::planScopedWalk(BotState& bot, const Position& target, int32_t ma
 		const bool allowFc = (maxDist == 0 && isWalkOnFcTile(target));
 		if (allowFc) player->setBotAllowFcPos(target);
 		std::vector<Direction> dirList;
-		const bool ok = botGetPathMatchingCond(player, target, dirList,
-			FrozenPathingConditionCall(target), fpp, BotAStarNodes::BOT_MAX_NODES);
+		// #210: a WATCHED bot's direct route gets the #198 path shape, like every goTo chunk it
+		// walks. This search used to be the stock cost model only, so `goto`, NPC visits and roam
+		// walks -- the camera routes -- never had the shape at all: stock turns, no diagonals and
+		// its wall-hugging line (botnavsim, the live camera routes as one wide search: avoidable
+		// wall contact 64.2 % stock -> 58.7 %, staircase median 9 -> 3). Same 4096-node budget
+		// and box; a kernel miss falls through to the stock search, and a total miss backs the
+		// kernel off (#209), so the shape never costs a walk.
+		BotPathShape moveShape;
+		const bool moveShaped = botMoveShapeFor(bot, player, target, moveShape)
+			&& !shapeBackedOff(bot.guid, target, OTSYS_TIME());
+		bool ok = false;
+		if (moveShaped) {
+			ok = botJitterPath(player, bot.currentPos, target, fpp, botNavSeed(bot.guid), botNavJitterMaskClamped(),
+				dirList, &moveShape, &plannerShapePool());
+			if (ok) {
+				s_move60sShaped++;
+				s_move60sPlannerShaped++;
+			} else {
+				countShapeMiss(bot.guid);
+				dirList.clear();
+			}
+		}
+		if (!ok) {
+			ok = botGetPathMatchingCond(player, target, dirList,
+				FrozenPathingConditionCall(target), fpp, BotAStarNodes::BOT_MAX_NODES);
+		}
 		if (allowFc) player->clearBotAllowFcPos();
 		if (ok) {
+			noteShapeReach(bot.guid, target);
 			botStartAutoWalk(bot, player, dirList);
-			castLog(bot, fmt::format("PLAN: direct route to ({},{},{}) — {} steps (wide search)",
-				target.x, target.y, target.z, dirList.size()));
+			castLog(bot, fmt::format("PLAN: direct route to ({},{},{}) — {} steps (wide search{})",
+				target.x, target.y, target.z, dirList.size(), moveShaped ? ", shaped" : ""));
 			return true;
+		}
+		if (moveShaped) {
+			noteShapeTotalMiss(bot.guid, target, OTSYS_TIME());
 		}
 	}
 

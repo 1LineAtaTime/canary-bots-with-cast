@@ -878,10 +878,13 @@
 	INT (BOT_MOVE_DIAGONAL_PCT,            "botMoveDiagonalPct",            25)       \
 	INT (BOT_MOVE_DIAGONAL_COST,           "botMoveDiagonalCost",           18)       \
 	/* % of walks that keep a tile off walls and inside corners (cost per blocked     \
-	   neighbour tile, capped) */                                                     \
+	   neighbour tile, capped). #210: every other watched walk pays the Low cost:     \
+	   the turn cost alone holds a straight run along a wall (botnavsim, 306          \
+	   Thais routes: 48.5 % avoidable wall contact without it, 44.3 % stock) */       \
 	INT (BOT_MOVE_WALL_OFFSET_PCT,         "botMoveWallOffsetPct",          60)       \
-	INT (BOT_MOVE_WALL_COST,               "botMoveWallCost",               3)        \
-	INT (BOT_MOVE_WALL_COST_CAP,           "botMoveWallCostCap",            9)        \
+	INT (BOT_MOVE_WALL_COST,               "botMoveWallCost",               5)        \
+	INT (BOT_MOVE_WALL_COST_CAP,           "botMoveWallCostCap",            15)       \
+	INT (BOT_MOVE_WALL_COST_LOW,           "botMoveWallCostLow",            3)        \
 	/* every watched walk: extra cost of a turn or a diagonal step that shaves a      \
 	   blocked corner tile (the taut path around a building corner) */               \
 	INT (BOT_MOVE_CORNER_COST,             "botMoveCornerCost",             15)       \

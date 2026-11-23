@@ -96,6 +96,7 @@ namespace {
 		c.wallPct = clampi(cm.getNumber(BOT_MOVE_WALL_OFFSET_PCT), 0, 100);
 		c.wallCost = clampi(cm.getNumber(BOT_MOVE_WALL_COST), 0, 10);
 		c.wallCap = clampi(cm.getNumber(BOT_MOVE_WALL_COST_CAP), 0, 30);
+		c.wallCostLow = clampi(cm.getNumber(BOT_MOVE_WALL_COST_LOW), 0, c.wallCost);
 		c.cornerCost = clampi(cm.getNumber(BOT_MOVE_CORNER_COST), 0, 60);
 		c.uturnPct = clampi(cm.getNumber(BOT_MOVE_UTURN_HESITATE_PCT), 0, 100);
 		c.uturnMinMs = clampi(cm.getNumber(BOT_MOVE_UTURN_MIN_MS), 50, 5000);
@@ -209,7 +210,10 @@ bool BotEngine::botMoveShapeFor(BotState& bot, const std::shared_ptr<Player>& pl
 	shape.cost.turnCost45 = c.turn45;
 	shape.cost.heuristicPct = c.heuristicPct;
 	shape.cost.diagonalCost = w.diag ? c.diagCost : botnav::PC_DIAGONAL_COST;
-	shape.cost.wallCost = w.wall ? c.wallCost : 0;
+	// #210: a walk that did not roll the offset still pays the low wall cost. With none at all the
+	// turn cost holds a straight run along whatever wall the walk starts against (botnavsim: 48.5 %
+	// avoidable wall contact vs 44.3 % for the stock search).
+	shape.cost.wallCost = w.wall ? c.wallCost : c.wallCostLow;
 	shape.cost.wallCostCap = c.wallCap;
 	shape.cost.cornerCost = c.cornerCost;
 	shape.noise.amp = c.noiseAmp;
@@ -488,13 +492,29 @@ void BotEngine::botMoveForget(uint32_t guid) {
 }
 
 std::string BotEngine::botMove60sSummary() {
+	// #209: the bot with the most kernel misses this minute (acceptance: <= 60 on one target).
+	uint32_t worstMisses = 0, worstGuid = 0;
+	for (const auto& [guid, n] : s_move60sShapeFailByBot) {
+		if (n > worstMisses) {
+			worstMisses = n;
+			worstGuid = guid;
+		}
+	}
+	std::string worstName;
+	if (worstGuid != 0) {
+		if (auto it = guidToIndex_.find(worstGuid); it != guidToIndex_.end()) {
+			worstName = fmt::format("@'{}'", bots_[it->second].name);
+		}
+	}
 	const std::string out = fmt::format(
-		"[MOVE] 60s walks={} shaped={} shapeFail={} diag={} wall={} uturn={}/{} faceNpc={}/{} faceSpeaker={}/{} facePlayer={}/{} door={}/{} stairs={}/{} deferred={} deferredSpent={}",
+		"[MOVE] 60s walks={} shaped={} shapeFail={} diag={} wall={} uturn={}/{} faceNpc={}/{} faceSpeaker={}/{} facePlayer={}/{} door={}/{} stairs={}/{} deferred={} deferredSpent={} shapeSkip={} shapeFailMax={}{} laneWall={} plannerShaped={}",
 		s_move60sWalks, s_move60sShaped, s_move60sShapeFail, s_move60sDiag, s_move60sWall, s_move60sUturn, s_move60sUturnSeen,
 		s_move60sFaceNpc, s_move60sFaceNpcSeen, s_move60sFaceSpeaker, s_move60sFaceSpeakerSeen, s_move60sFacePlayer,
 		s_move60sFacePlayerSeen, s_move60sDoor, s_move60sDoorSeen, s_move60sStair, s_move60sStairSeen, s_move60sDeferred,
-		s_move60sDeferredSpent);
+		s_move60sDeferredSpent, s_move60sShapeSkip, worstMisses, worstName, s_move60sLaneWall, s_move60sPlannerShaped);
 	s_move60sWalks = s_move60sShaped = s_move60sShapeFail = s_move60sDiag = s_move60sWall = 0;
+	s_move60sShapeSkip = s_move60sLaneWall = s_move60sPlannerShaped = 0;
+	s_move60sShapeFailByBot.clear();
 	s_move60sUturn = s_move60sUturnSeen = 0;
 	s_move60sFaceNpc = s_move60sFaceSpeaker = s_move60sFacePlayer = 0;
 	s_move60sFaceNpcSeen = s_move60sFaceSpeakerSeen = s_move60sFacePlayerSeen = 0;

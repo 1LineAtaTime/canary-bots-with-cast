@@ -1801,15 +1801,21 @@ struct BotTileQueryAdapter {
 		return static_cast<int32_t>(AStarNodes::getTileWalkCost(creature, tile));
 	}
 
-	// #198: statically blocked 8-neighbours (no tile, no ground, or a solid blocker), stairs and
+	// #198: statically blocked 8-neighbours (no tile, no ground, or a blocker), stairs and
 	// teleports excepted. Creatures do not count: the wall cost is about the map, not the crowd.
 	// Only called by the kernel when PathParams::wallCost > 0 (a watched bot's wall-offset walk).
+	// #210: IMMOVABLE solid blockers only -- exactly what a bot cannot walk through. A bot's path
+	// query (Tile::queryAdd with FLAG_IGNOREBLOCKITEM) ignores every BLOCKPATH item and every
+	// MOVEABLE solid item, so the navdump (and botnavsim, and movement_metrics) records those tiles
+	// as open floor. Counting all BLOCKSOLID here made the live kernel steer around crates and
+	// furniture that the offline proof and the metric both treat as floor.
 	static bool staticBlocked(const Position& n) {
 		const auto& tile = g_game().map.getTile(n);
 		if (!tile || !tile->getGround()) {
 			return true;
 		}
-		return tile->hasFlag(TILESTATE_BLOCKSOLID) && !tile->hasFlag(TILESTATE_FLOORCHANGE) && !tile->hasFlag(TILESTATE_TELEPORT);
+		return tile->hasFlag(TILESTATE_IMMOVABLEBLOCKSOLID)
+			&& !tile->hasFlag(TILESTATE_FLOORCHANGE) && !tile->hasFlag(TILESTATE_TELEPORT);
 	}
 	// #198: the same static test for one tile (the kernel's inside-corner cost).
 	bool blockedAt(const Position& pos) const {
@@ -1888,7 +1894,9 @@ struct BotPathShape {
 
 // Run the pathcore kernel with per-bot jitter against live tiles. Fills dirList
 // in startAutoWalk order. Returns true on success. Mirrors the server fpp.
-inline bool botJitterPath(const std::shared_ptr<Player>& player, const Position& startPos, const Position& target, const FindPathParams& fpp, uint32_t navSeed, int32_t jitterMask, std::vector<Direction>& dirList, const BotPathShape* shape = nullptr) {
+// `pool` = the node budget: the 512-node engine pool by default; #210's planner direct search
+// passes its own 4096-node pool (the stock planner's BotAStarNodes budget).
+inline bool botJitterPath(const std::shared_ptr<Player>& player, const Position& startPos, const Position& target, const FindPathParams& fpp, uint32_t navSeed, int32_t jitterMask, std::vector<Direction>& dirList, const BotPathShape* shape = nullptr, botnav::PathNodePool* pool = nullptr) {
 	BotTileQueryAdapter adapter { player, navSeed, jitterMask };
 	botnav::PathParams pp;
 	if (shape) {
@@ -1911,7 +1919,7 @@ inline bool botJitterPath(const std::shared_ptr<Player>& player, const Position&
 	pp.minTargetDist = fpp.minTargetDist;
 	pp.maxTargetDist = fpp.maxTargetDist;
 	std::vector<Position> posPath;
-	if (!botnav::findPath(startPos, target, posPath, pp, adapter, s_botPathPool)) {
+	if (!botnav::findPath(startPos, target, posPath, pp, adapter, pool ? *pool : s_botPathPool)) {
 		return false;
 	}
 	botPathToDirs(startPos, posPath, dirList);
@@ -4140,7 +4148,7 @@ struct MoveCfg {
 	int32_t turn90 = 6, turn45 = 2, heuristicPct = 125;
 	int32_t noiseAmp = 7, noiseScale = 6, noiseHabitPct = 30;
 	int32_t diagPct = 25, diagCost = 18;
-	int32_t wallPct = 60, wallCost = 3, wallCap = 9, cornerCost = 15;
+	int32_t wallPct = 60, wallCost = 5, wallCap = 15, wallCostLow = 3, cornerCost = 15;
 	int32_t uturnPct = 60, uturnMinMs = 300, uturnMaxMs = 900;
 	int32_t faceNpcPct = 85, faceSpeakerPct = 75, facePlayerPct = 40;
 	int32_t doorPausePct = 50, stairPausePct = 40, placeMinMs = 200, placeMaxMs = 700;
@@ -4177,6 +4185,14 @@ inline uint32_t s_move60sFaceNpc = 0, s_move60sFaceSpeaker = 0, s_move60sFacePla
 inline uint32_t s_move60sDoor = 0, s_move60sStair = 0, s_move60sDeferred = 0, s_move60sDeferredSpent = 0;
 // the matching denominators: watched opportunities that rolled ("x/y" in the [MOVE] 60s line)
 inline uint32_t s_move60sFaceNpcSeen = 0, s_move60sFaceSpeakerSeen = 0, s_move60sFacePlayerSeen = 0, s_move60sDoorSeen = 0, s_move60sStairSeen = 0;
+// #209: shaped searches skipped by the per-bot miss back-off, and kernel misses per bot (the line
+// names the worst bot: the acceptance is a per-bot rate on one unreachable target).
+inline uint32_t s_move60sShapeSkip = 0;
+inline std::unordered_map<uint32_t, uint32_t> s_move60sShapeFailByBot;
+// #210: city-route lane tiles passed over because they sit against a wall while the waypoint
+// centre is clear ("laneWall=" in the [MOVE] 60s line), and planner (goto / NPC visit / roam)
+// direct routes searched with the watched-bot shape ("plannerShaped=").
+inline uint32_t s_move60sLaneWall = 0, s_move60sPlannerShaped = 0;
 
 // Always-on 60 s counters, logged as "[DIRECT_FIRST] 60s ..." by the tick loop's 60 s block.
 inline uint32_t s_directFirstHit60s = 0;        // direct search found the whole route
@@ -5143,6 +5159,11 @@ private:
 	std::vector<ZTransition> findZTransitions(const Position& center, int32_t radius, bool goDown);
 	Position computeFloorChangeDest(const Position& fcPos, bool goDown);
 	void resetFloorChange(BotState& bot);
+	// #211: an operator `teleport` / `goto` takes the bot over: drop the walk in flight (queue,
+	// walk-pause replay, desync track), the floor change and the city route it was following.
+	// dropCombat (goto / pin on, which put the bot in IDLE) also drops a fight it was in: the
+	// state change alone left attackerId set, which turns the #198 shape and walk pauses off.
+	void commandResetWalk(BotState& bot, const std::shared_ptr<Player>& player, bool dropCombat = false);
 	// Returns true = give-up handled (caller must NOT advance fcTransIdx); false = legacy path.
 	// `site` tags the [ZBLACKLIST] entry written on the give-up branch, so callers routed through
 	// this shared gate keep their own identity in the journal.

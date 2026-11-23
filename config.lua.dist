@@ -1112,8 +1112,10 @@ botMoveNoiseHabitPct = 30
 botMoveDiagonalPct = 25
 botMoveDiagonalCost = 18
 botMoveWallOffsetPct = 60
-botMoveWallCost = 3
-botMoveWallCostCap = 9
+botMoveWallCost = 5
+botMoveWallCostCap = 15
+-- #210: wall cost of every other watched walk (the turn cost alone hugs walls)
+botMoveWallCostLow = 3
 botMoveCornerCost = 15
 -- stop and turn before walking straight back (a U-turn re-plan)
 botMoveUturnHesitatePct = 60

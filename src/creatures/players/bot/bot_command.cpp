@@ -2915,6 +2915,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			}
 			const Position dest(static_cast<uint16_t>(x), static_cast<uint16_t>(y),
 				static_cast<uint8_t>(z));
+			commandResetWalk(bot, player); // #211: same dead-queue hazard as `teleport`
 			BOT_TELEPORT(player, dest, true);
 			bot.currentPos = dest;
 			bot.lastPos = dest;
@@ -2930,6 +2931,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 
 		if (command == "pin on" || command == "pin off" || command == "pin status") {
 			if (command == "pin on") {
+				commandResetWalk(bot, player, /*dropCombat=*/true); // #211: a pinned bot starts clean
 				s_debugPinned.insert(bot.guid);
 				bot.stopCooldownUntil = 0; // pin supersedes the 5-min stop cooldown
 				bot.huntScriptId = 0;
@@ -3458,6 +3460,10 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			auto args = command.substr(5);
 			int x, y, z;
 			if (sscanf(args.c_str(), "%d,%d,%d", &x, &y, &z) == 3) {
+				// #211: take the bot over first. Setting IDLE alone left a TRAVELING / HUNTING bot's
+				// city route in place (doIdle follows followingCityRoute before any walk target, so
+				// the bot kept walking to the boat) and its old walk queue running.
+				commandResetWalk(bot, player, /*dropCombat=*/true);
 				bot.walkTarget = Position(x, y, z);
 				bot.hasWalkTarget = true;
 				bot.currentPOI = nullptr;
@@ -3494,8 +3500,14 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			int x, y, z;
 			if (sscanf(args.c_str(), "%d,%d,%d", &x, &y, &z) == 3) {
 				Position dest(x, y, z);
+				// #211: drop the walk BEFORE the jump. A server teleport stops the walk event but
+				// keeps listWalkDir, and writing bot.currentPos below hides the jump from
+				// processBot's teleport detection, which would otherwise clear it: the bot stood
+				// frozen on a dead queue (observed 4.5 min, pathLen=7, every later goto ignored).
+				commandResetWalk(bot, player);
 				BOT_TELEPORT(player, dest, true);
 				bot.currentPos = dest;
+				bot.lastPos = dest;
 				// Update townId based on new position
 				uint32_t newTownId = findNearestTown(dest);
 				if (newTownId > 0) {
@@ -4039,6 +4051,60 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 // !!! Game::restartBotTickLoop) -- otherwise it silently reopens this crash. That is exactly how
 // !!! the original bug happened: this drain loop existed and was correct, but the reload path
 // !!! never reached it. The POST_BUILD gate rejects a direct Dispatcher scheduling call.
+// #211: what an operator `teleport` / `goto` must drop so the command, not the bot's previous
+// activity, owns the next tick. The mirror of processBot's unexpected-teleport branch, plus the
+// pending walk-pause replay (it would re-issue the old queue) and the desync track. Journal:
+// "[CMD_WALK_RESET]" when it actually dropped something (rare: operator commands only).
+void BotEngine::commandResetWalk(BotState& bot, const std::shared_ptr<Player>& player, bool dropCombat) {
+	const size_t queued = player ? player->listWalkDir.size() : 0;
+	const bool hadRoute = bot.followingCityRoute;
+	const bool hadFc = bot.fcState != FloorChangeState::NONE;
+	const bool hadPause = bot.pendingWalkPauseEventId != 0;
+	if (hadPause) {
+		g_dispatcher().stopEvent(bot.pendingWalkPauseEventId);
+		bot.pendingWalkPauseEventId = 0;
+		walkPauseInfo_.erase(bot.guid);
+	}
+	if (queued > 0) {
+		player->listWalkDir.clear();
+		player->stopEventWalk();
+	}
+	if (hadFc) {
+		resetFloorChange(bot);
+	}
+	bot.followingCityRoute = false;
+	bot.cityRouteWps.clear();
+	bot.cityRouteIdx = 0;
+	bot.pendingNavDest.clear();
+	clearWalkDesync(bot.guid);
+	s_walkObsPending.erase(bot.guid);
+	s_moveLastStep.erase(bot.guid);
+	// The operator puts the bot in IDLE: a fight it was in is over. Without this the attacker id of
+	// a fight interrupted by the command stayed set for good (observed: a camera bot walked a
+	// whole 9-minute run unshaped, attackerId=268500739, because leisureState() saw a fight).
+	const bool hadCombat = dropCombat && (bot.attackerId != 0 || bot.huntTargetId != 0);
+	if (hadCombat) {
+		bot.attackerId = 0;
+		bot.huntTargetId = 0;
+		bot.ignoredAttackerId = 0;
+		bot.combatDecision.clear();
+		bot.combatStartTime = 0;
+		bot.hasPCPos = false;
+		bot.hasFleeTarget = false;
+		bot.fleeDirectional = false;
+		s_returnPos.erase(bot.guid);
+		s_returnStartTime.erase(bot.guid);
+		if (player) {
+			player->setAttackedCreature(nullptr);
+			player->setFollowCreature(nullptr);
+		}
+	}
+	if (queued > 0 || hadRoute || hadFc || hadPause || hadCombat) {
+		g_logger().info("[CMD_WALK_RESET] bot='{}' queue={} route={} fc={} pause={} combat={} state={}",
+			bot.name, queued, hadRoute ? 1 : 0, hadFc ? 1 : 0, hadPause ? 1 : 0, hadCombat ? 1 : 0, botStateName(bot.state));
+	}
+}
+
 void BotEngine::cancelPendingDispatcherEvents() {
 	uint32_t cancelled = 0;
 	for (auto& bot : bots_) {
