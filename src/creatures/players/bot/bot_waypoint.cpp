@@ -945,6 +945,21 @@ bool BotEngine::tryAttackBlockingMonster(BotState& bot) {
 			player->setAttackedCreature(creature);
 			castLog(bot, fmt::format("BLOCKED: Attacking {} at ({},{},{})",
 				monster->getName(), monster->getPosition().x, monster->getPosition().y, monster->getPosition().z));
+			// Quest = blockers only (botQuestFightsBlockersOnly): this is the ONE fight a quest
+			// bot takes. Attack in place: chaseMode would otherwise turn setAttackedCreature into
+			// a follow, and the bot would leave its route after the monster.
+			if (bot.state == BotAIState::HUNTING && bot.huntScriptId > 0) {
+				for (const auto& s : huntScripts_) {
+					if (s.id != bot.huntScriptId) continue;
+					if (botQuestFightsBlockersOnly(&s)) {
+						player->setFollowCreature(nullptr);
+						g_logger().info("[QUEST_FIGHT] bot={} monster={} reason=blocking script={} phase={} pos={},{},{}",
+							bot.name, monster->getName(), s.id, static_cast<int>(bot.huntPhase),
+							pos.x, pos.y, pos.z);
+					}
+					break;
+				}
+			}
 			castSpell(bot, creature);
 			return true;
 		}

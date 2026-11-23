@@ -382,6 +382,7 @@ const BotPOI* BotEngine::selectNextPOI(BotState& bot) {
 			if (houseCandidateClaimed) {
 				if (candidates[i]->type == POIType::HOUSE) {
 					const auto& run = s_houseRuns[bot.guid];
+					visitStats_.houseStarted++;
 					g_logger().info("[HOUSE_VISIT_START] guid={} house={} town={} mode={} tile=({},{},{}) from=({},{},{}) dist={}",
 						bot.guid, run.houseId, bot.townId, static_cast<int>(run.mode),
 						run.tile.x, run.tile.y, run.tile.z,
@@ -406,6 +407,7 @@ const BotPOI* BotEngine::selectNextPOI(BotState& bot) {
 					const ShrineSpot& s = offeredSpot[kind - 1];
 					s_shrineRuns[bot.guid] = ShrineRun { s.shrine, s.stand, kind,
 						ShrinePhase::APPROACH, 0, 0, 0 };
+					visitStats_.shrineStarted++;
 					g_logger().info("[SHRINE_VISIT_START] guid={} town={} kind={} shrine=({},{},{}) "
 						"stand=({},{},{}) from=({},{},{}) dist={}",
 						bot.guid, bot.townId, rewardWon ? "reward" : "imbuing",
@@ -465,6 +467,7 @@ const BotPOI* BotEngine::selectNextPOI(BotState& bot) {
 			const ShrineSpot& s = offeredSpot[kind - 1];
 			s_shrineRuns[bot.guid] = ShrineRun { s.shrine, s.stand, kind,
 				ShrinePhase::APPROACH, 0, 0, 0 };
+				visitStats_.shrineStarted++;
 			g_logger().info("[SHRINE_VISIT_START] guid={} town={} kind={} shrine=({},{},{}) "
 				"stand=({},{},{}) (rounding fallback)",
 				bot.guid, bot.townId, rewardWon ? "reward" : "imbuing",
@@ -573,6 +576,10 @@ void BotEngine::refreshLivenessCfgIfStale(int64_t maxAgeMs) {
 	c.flaskDropIntervalSec     = std::max(0, static_cast<int32_t>(cm.getNumber(BOT_FLASK_DROP_INTERVAL_SEC)));
 	c.flaskDropMinCount        = std::max(1, static_cast<int32_t>(cm.getNumber(BOT_FLASK_DROP_MIN_COUNT)));
 	c.attackManaReservePct     = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_ATTACK_MANA_RESERVE_PCT)), 0, 90);
+	c.ultAoeMinMonsters        = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_ULT_AOE_MIN_MONSTERS)), 0, 30);
+	c.knightHealSpellPct       = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_KNIGHT_HEAL_SPELL_PCT)), 0, 100);
+	c.knightAttackManaReservePct = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_KNIGHT_ATTACK_MANA_RESERVE_PCT)), 0, 90);
+	c.knightHealthPotionNoSpellPct = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_KNIGHT_HEALTH_POTION_NO_SPELL_PCT)), 0, 100);
 	c.wakeManaFullSec          = std::max(1, static_cast<int32_t>(cm.getNumber(BOT_WAKE_MANA_FULL_SEC)));
 	c.foodChancePct            = static_cast<int32_t>(cm.getNumber(BOT_FOOD_CHANCE_PCT));
 	c.foodMinIntervalMs        = static_cast<int32_t>(cm.getNumber(BOT_FOOD_MIN_INTERVAL_MS));

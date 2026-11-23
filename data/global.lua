@@ -33,8 +33,15 @@ function IsTravelFree()
 end
 
 -- NOTE: 0 is disabled.
-PARTY_PROTECTION = (IsRetroPVP() and 0) or 1
-ADVANCED_SECURE_MODE = (IsRetroPVP() and 0) or 1
+-- Fork (FORK_DELTA): upstream #4033 made worldType "pvp" an alias of retro-pvp, which silently
+-- turned party protection and advanced secure mode OFF on every existing "pvp" world (on 15.00
+-- they were on unless toggleServerIsRetroPVP=true). Only an explicit "retro-pvp" turns them off now,
+-- so party members never damage each other and secure mode spares unmarked players, as before.
+local function isExplicitRetroPVP()
+	return getWorldType() == "retro-pvp"
+end
+PARTY_PROTECTION = (isExplicitRetroPVP() and 0) or 1
+ADVANCED_SECURE_MODE = (isExplicitRetroPVP() and 0) or 1
 
 NORTH = DIRECTION_NORTH
 EAST = DIRECTION_EAST

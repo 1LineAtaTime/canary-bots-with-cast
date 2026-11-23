@@ -714,6 +714,7 @@ void BotEngine::startHouseVisit(BotState& bot) {
 	}
 
 	run.phase = HousePhase::IDLE;
+	visitStats_.houseArrived++;
 	const int32_t secs = uniform_random(std::max(1, livenessCfg_.houseIdleMinSec),
 	                                    std::max(livenessCfg_.houseIdleMinSec, livenessCfg_.houseIdleMaxSec));
 	run.until = OTSYS_TIME() + secs * 1000LL;
@@ -846,12 +847,68 @@ void BotEngine::stopHouseTrainingIfActive(BotState& bot) {
 	it->second.trainingActive = false;
 }
 
+bool BotEngine::hibernateHouseVisit(BotState& bot) {
+	auto it = s_houseRuns.find(bot.guid);
+	if (it == s_houseRuns.end()) {
+		return false;
+	}
+	auto& run = it->second;
+	if (run.tile.x == 0) {
+		endHouseVisit(bot.guid, "hibernate");
+		return false;
+	}
+	// A body-bound sub-activity cannot run unseen: stop the Lua training loop while the Player is
+	// still in the world, and let the visit continue as a plain idle.
+	stopHouseTrainingIfActive(bot);
+	if (run.mode == HouseMode::DUMMY || run.mode == HouseMode::BED || run.mode == HouseMode::HIRELING) {
+		run.mode = HouseMode::IDLE;
+	}
+	const int64_t now = OTSYS_TIME();
+	const bool approach = run.phase == HousePhase::APPROACH;
+	if (approach) {
+		// Virtual arrival: exactly what startHouseVisit would have rolled, minus the body.
+		const int32_t secs = uniform_random(std::max(1, livenessCfg_.houseIdleMinSec),
+		                                    std::max(livenessCfg_.houseIdleMinSec, livenessCfg_.houseIdleMaxSec));
+		run.phase = HousePhase::IDLE;
+		run.until = now + secs * 1000LL;
+		run.settleUntil = 0;
+		bot.currentPos = run.tile;
+		bot.lastPos = run.tile;
+		bot.currentPOI = nullptr;
+		visitStats_.houseArrived++;
+		visitStats_.houseArrivedVirtual++;
+		g_logger().info("[HOUSE_VISIT_ARRIVE] guid={} house={} mode=idle idle={}s virtual=1",
+		                bot.guid, run.houseId, secs);
+	}
+	bot.state = BotAIState::DWELLING;
+	bot.dwellUntil = run.until + 5000;
+	// The claims were sized for a live walk + dwell (HOUSE_CLAIM_MS); keep them at least until the
+	// virtual dwell ends so no other bot is offered this tile meanwhile.
+	const int64_t holdUntil = run.until + 60000;
+	for (auto& [key, c] : s_houseTileClaims) {
+		if (c.guid == bot.guid) c.expiresAt = std::max(c.expiresAt, holdUntil);
+	}
+	if (auto oit = s_houseOccupants.find(run.houseId); oit != s_houseOccupants.end()) {
+		for (auto& c : oit->second) {
+			if (c.guid == bot.guid) c.expiresAt = std::max(c.expiresAt, holdUntil);
+		}
+	}
+	visitStats_.houseCarried++;
+	g_logger().info("[HOUSE_VISIT_VIRTUAL] guid={} house={} from={} remaining={}s",
+	                bot.guid, run.houseId, approach ? "approach" : "idle",
+	                std::max<int64_t>(0, run.until - now) / 1000);
+	return true;
+}
+
 void BotEngine::endHouseVisit(uint32_t guid, const char* reason) {
 	const auto it = s_houseRuns.find(guid);
 	if (it == s_houseRuns.end()) {
 		return; // idempotent — every exit path may call this
 	}
 	const uint32_t houseId = it->second.houseId;
+	const bool arrived = it->second.phase == HousePhase::IDLE;
+	// A candidate that lost the POI roll never started (claimHouseVisit runs before the roll).
+	if (!arrived && std::strcmp(reason, "lost_roll") != 0) visitStats_.houseCancelled++;
 
 	if (it->second.trainingActive) {
 		if (const auto idx = guidToIndex_.find(guid); idx != guidToIndex_.end()) {
@@ -875,7 +932,7 @@ void BotEngine::endHouseVisit(uint32_t guid, const char* reason) {
 		}
 	}
 
-	g_logger().info("[HOUSE_VISIT_END] guid={} house={} reason={}", guid, houseId, reason);
+	g_logger().info("[HOUSE_VISIT_END] guid={} house={} reason={} arrived={}", guid, houseId, reason, arrived ? 1 : 0);
 }
 
 // ============================================================================
@@ -1131,6 +1188,7 @@ std::string BotEngine::forceHouseVisit(BotState& bot, const std::string& arg) {
 		: run.mode == HouseMode::LOCKER ? "locker"
 		: run.mode == HouseMode::SHRINE ? "shrine"
 		: run.mode == HouseMode::BED ? "bed" : "idle";
+	visitStats_.houseStarted++;
 	g_logger().info("[HOUSE_VISIT_START] guid={} house={} mode={} tile=({},{},{}) from=({},{},{}) forced",
 	                bot.guid, run.houseId, modeName, run.tile.x, run.tile.y, run.tile.z,
 	                bot.currentPos.x, bot.currentPos.y, bot.currentPos.z);

@@ -964,6 +964,7 @@ bool BotEngine::startAdventurerStoneTrip(BotState& bot) {
 	bot.advStoneIdleAt = pickAdventurerStoneIdleIdx();
 	bot.advStoneDwellUntil = 0;
 	bot.advStoneDeadline = 0;
+	armAdvStoneTripDeadline(bot.guid);
 	// 3-way dwell sub-activity (chest / dummy / waypoint) — pre-selected at trip start so the
 	// scan happens once, with the dungeon still empty of crowd-state churn from this trip.
 	selectAdvStoneSubActivity(bot);
@@ -984,12 +985,66 @@ bool BotEngine::startAdventurerStoneTrip(BotState& bot) {
 	return true;
 }
 
+void BotEngine::armAdvStoneTripDeadline(uint32_t guid) {
+	const int64_t maxDwellSec = std::max({
+		static_cast<int64_t>(g_configManager().getNumber(BOT_ADV_STONE_DWELL_IDLE_MAX_SEC)),
+		static_cast<int64_t>(g_configManager().getNumber(BOT_ADV_STONE_DWELL_CHEST_MAX_SEC)),
+		static_cast<int64_t>(g_configManager().getNumber(BOT_ADV_STONE_DWELL_DUMMY_MAX_SEC)) });
+	const int64_t walkSec = static_cast<int64_t>(adventurerStoneRoute_.size()) * 5;
+	advStoneTripDeadline_[guid] = OTSYS_TIME() + (maxDwellSec + walkSec + 600) * 1000LL;
+}
+
+bool BotEngine::advStoneTripOverdue(uint32_t guid) {
+	auto it = advStoneTripDeadline_.find(guid);
+	if (it == advStoneTripDeadline_.end()) {
+		armAdvStoneTripDeadline(guid);
+		return false;
+	}
+	return OTSYS_TIME() > it->second;
+}
+
+Position BotEngine::advStoneHomeTemple(uint32_t startTownId, const Position& fallback) const {
+	auto poiIt = cityPOIs_.find(startTownId);
+	if (poiIt != cityPOIs_.end()) {
+		for (const auto& poi : poiIt->second) {
+			if (poi.type == POIType::TEMPLE) return poi.pos;
+		}
+	}
+	if (auto town = g_game().map.towns.getTown(startTownId)) return town->getTemplePosition();
+	return fallback;
+}
+
+// Ends a live trip that cannot finish through the forcefield: walks it home the way the
+// forcefield would (teleport to the START town's temple) instead of leaving the bot standing on
+// the island, where findNearestTown reads it as Rookgaard (bug_adv_stone_island_findnearesttown).
+void BotEngine::endAdventurerStoneTripAtHome(BotState& bot, const std::shared_ptr<Player>& player, const char* reason) {
+	const uint32_t startTown = bot.advStoneStartTownId;
+	const Position from = player->getPosition();
+	const Position home = advStoneHomeTemple(startTown, from);
+	if (home != from && home.x > 0) {
+		g_game().addMagicEffect(from, CONST_ME_TELEPORT);
+		BOT_TELEPORT(player, home, true);
+		g_game().addMagicEffect(home, CONST_ME_TELEPORT);
+		bot.currentPos = home;
+		syncTownIdToPos(bot);
+	}
+	g_logger().info("[ADVSTONE] exit reason={} bot={} virtual=0 town={}", reason, bot.name, startTown);
+	endAdventurerStoneTrip(bot);
+}
+
 void BotEngine::doAdventurerStone(BotState& bot) {
 	auto player = bot.getPlayer();
 	if (!player || player->isRemoved()) {
 		// Death handler clears advStoneActive — defensive; if we somehow get here with
 		// a despawned player, just end the trip rather than try to drive a corpse.
 		endAdventurerStoneTrip(bot);
+		return;
+	}
+
+	// Whole-trip backstop (same budget as the virtual twin, virtualAdvanceAdvStone).
+	if (advStoneTripOverdue(bot.guid)) {
+		castLog(bot, "ADVSTONE: whole-trip deadline elapsed, returning home");
+		endAdventurerStoneTripAtHome(bot, player, "deadline");
 		return;
 	}
 
@@ -1016,6 +1071,7 @@ void BotEngine::doAdventurerStone(BotState& bot) {
 			uint32_t homeTown = findAdventurerStoneTownAt(pos);
 			if (homeTown != 0) {
 				castLog(bot, fmt::format("ADVSTONE: trip complete, returned to town {}", homeTown));
+				g_logger().info("[ADVSTONE] exit reason=done bot={} virtual=0 town={}", bot.name, homeTown);
 				endAdventurerStoneTrip(bot);
 				return;
 			}
@@ -1229,6 +1285,7 @@ void BotEngine::doAdventurerStone(BotState& bot) {
 		uint32_t arrivedTown = findAdventurerStoneTownAt(pos);
 		if (arrivedTown != 0) {
 			castLog(bot, fmt::format("ADVSTONE: trip complete, returned to town {}", arrivedTown));
+			g_logger().info("[ADVSTONE] exit reason=done bot={} virtual=0 town={}", bot.name, arrivedTown);
 			endAdventurerStoneTrip(bot);
 			return;
 		}
@@ -1236,7 +1293,7 @@ void BotEngine::doAdventurerStone(BotState& bot) {
 		if (OTSYS_TIME() > bot.advStoneDeadline) {
 			castLog(bot, fmt::format("ADVSTONE: forcefield deadline elapsed (pos ({},{},{})), ending trip",
 				pos.x, pos.y, pos.z));
-			endAdventurerStoneTrip(bot);
+			endAdventurerStoneTripAtHome(bot, player, "deadline");
 			return;
 		}
 		// Re-issue the goTo periodically in case the bot got knocked off-path
@@ -1253,6 +1310,7 @@ void BotEngine::clearAdvStoneState(BotState& bot) {
 	// forceDeactivate, hot-reload teardown) so the Lua addEvent doesn't outlive the trip,
 	// AND from party recruitment so an AdvStone-active bot stops preempting doParty.
 	stopAdvStoneTrainingIfActive(bot);
+	advStoneTripDeadline_.erase(bot.guid);
 	bot.advStoneActive = false;
 	bot.advStonePhase = 0;
 	bot.advStoneRouteIdx = 0;

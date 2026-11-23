@@ -452,6 +452,19 @@ const PotionDef* pickNeedPotion(NeedPotion kind, uint32_t vocBitMask, uint32_t l
 }
 } // namespace
 
+uint32_t BotEngine::routineHealSpellCost(const std::shared_ptr<Player>& p, uint8_t baseVoc) const {
+	if (!p) return 0;
+	const auto& heals = getHealSpells(baseVoc);
+	const int32_t level = p->getLevel();
+	for (int i = static_cast<int>(heals.size()) - 1; i >= 0; --i) { // strongest first, as doHealing
+		if (level < heals[i].level || heals[i].cd > HEAL_LONG_CD_THRESHOLD_S) continue;
+		const auto& sp = g_spells().getInstantSpell(heals[i].name);
+		if (!sp) continue;
+		return sp->getManaCost(p);
+	}
+	return 0;
+}
+
 bool BotEngine::maybeNeedPotion(BotState& bot) {
 	const auto& cfg = livenessCfg_;
 	if (!cfg.manaPotionEnable) {
@@ -483,19 +496,33 @@ bool BotEngine::maybeNeedPotion(BotState& bot) {
 	const bool noHeal = sparSuppressesHealing(bot);
 
 	NeedPotion kind = NeedPotion::None;
+	const char* why = "none";
 	if (baseVoc == 4) {
-		// A knight below its mana line cannot count on exura ico, so it heals with potions from
-		// 85 % HP instead of waiting for botKnightHealthPotionPct: two knights
-		// died at 0 % mana in Roshamuul Prison -2 drinking mana while their HP fell (live 2026-11-22).
+		// Knight (#187 follow-up, live 2026-11-23): health potions below botKnightHealthPotionPct, or
+		// below botKnightHealthPotionNoSpellPct ONLY when the heal spell is unaffordable (mana < 2x
+		// the cost of what doHealing casts first). The old "mana low and HP < 85 %" rule took 47 %
+		// of all potion slots (633 of 1,335 in 29 min, all at 60-85 % HP) from a knight whose mana
+		// was ALWAYS low, so it never refilled; exura med ico heals ~3x more HP per mana than a
+		// supreme health potion. Routine knight healing is the spell's job (botKnightHealSpellPct).
 		const bool manaLow = maxMana > 0 && manaPct < cfg.knightManaPotionPct;
-		if (!noHeal && (hpPct < cfg.knightHealthPotionPct || (manaLow && hpPct < 85))) {
+		if (!noHeal && hpPct < cfg.knightHealthPotionPct) {
 			kind = NeedPotion::Health;
-		} else if (manaLow) {
+			why = "hp_below_line";
+		} else if (!noHeal && hpPct < cfg.knightHealthPotionNoSpellPct) {
+			const uint32_t healCost = routineHealSpellCost(player, baseVoc);
+			if (healCost == 0 || static_cast<uint32_t>(manaBefore) < 2 * healCost) {
+				kind = NeedPotion::Health;
+				why = "heal_unaffordable";
+			}
+		}
+		if (kind == NeedPotion::None && manaLow) {
 			kind = NeedPotion::Mana;
+			why = "mana_below_line";
 		}
 	} else if (baseVoc >= 1 && baseVoc <= 3) {
 		if (maxMana > 0 && manaPct < cfg.manaPotionPct) {
 			kind = (baseVoc == 3 && !noHeal && hpPct < cfg.spiritPotionHpPct) ? NeedPotion::Spirit : NeedPotion::Mana;
+			why = kind == NeedPotion::Spirit ? "mana_and_hp_below_line" : "mana_below_line";
 		}
 	}
 	if (kind == NeedPotion::None) {
@@ -507,6 +534,7 @@ bool BotEngine::maybeNeedPotion(BotState& bot) {
 	const PotionDef* pick = pickNeedPotion(kind, bit, level);
 	if (!pick && kind == NeedPotion::Spirit) {
 		kind = NeedPotion::Mana; // paladin below level 80: no spirit potion exists yet
+		why = "mana_below_line";
 		pick = pickNeedPotion(kind, bit, level);
 	}
 	if (!pick) {
@@ -544,9 +572,11 @@ bool BotEngine::maybeNeedPotion(BotState& bot) {
 	sip = std::max<int64_t>(sip, now + std::max(1000, cfg.potionMinIntervalMs));
 
 	if (cfg.potionLogAll || bot.verboseLog || player->getCastViewerCount() > 0) {
-		g_logger().info("[BOT_POTION] bot='{}' voc={} lvl={} item={} reason={} manaBefore={}/{} manaAfter={} hpBefore={}/{} hpAfter={} state={}",
+		// manaPct/hpPct = at the decision; why = which rule fired (knights: hp_below_line |
+		// heal_unaffordable | mana_below_line). Appended fields: older parsers keep working.
+		g_logger().info("[BOT_POTION] bot='{}' voc={} lvl={} item={} reason={} manaBefore={}/{} manaAfter={} hpBefore={}/{} hpAfter={} state={} manaPct={} hpPct={} why={}",
 			player->getName(), baseVoc, level, pick->id, needPotionName(kind), manaBefore, maxMana,
-			player->getMana(), hpBefore, maxHp, player->getHealth(), static_cast<int>(bot.state));
+			player->getMana(), hpBefore, maxHp, player->getHealth(), static_cast<int>(bot.state), manaPct, hpPct, why);
 	}
 	castLog(bot, fmt::format("SUPPLY: need potion {} ({}) mana {}->{}/{} hp {}->{}/{}", pick->id,
 		needPotionName(kind), manaBefore, player->getMana(), maxMana, hpBefore, player->getHealth(), maxHp));

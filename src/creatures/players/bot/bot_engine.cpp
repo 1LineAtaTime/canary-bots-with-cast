@@ -957,9 +957,12 @@ bool BotEngine::hibernateBot(uint32_t guid) {
 		// handler is a pure dwellUntil timer, so a hibernated bot carrying a session-length
 		// dwellUntil would sit idle for minutes. clearFishingRun puts that back to normal.
 		clearFishingRun(bot.guid);
-		endHouseVisit(bot.guid, "hibernate");
+		// House / shrine visits are carried into hibernation by the virtual twin rather than
+		// cancelled (see hibernateHouseVisit). These run before the walk state below is cleared
+		// and while the Player is still in the world (dummy training must stop here).
+		hibernateHouseVisit(bot);
 		endSpar(bot.guid, "hibernate"); // #87
-		endShrineVisit(bot.guid, "hibernate");
+		hibernateShrineVisit(bot);
 		bot.followingCityRoute = false;
 		bot.cityRouteWps.clear();
 		bot.cityRouteIdx = 0;

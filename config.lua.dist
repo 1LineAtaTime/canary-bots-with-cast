@@ -1079,12 +1079,16 @@ botPotionMinIntervalMs = 20000
 -- "Aaaah...", empty flask, potion exhaust) when mana falls below the threshold. Paladins drink a
 -- great/ultimate spirit potion instead when HP is also below botSpiritPotionHpPct; knights drink
 -- health potions below botKnightHealthPotionPct and mana potions below botKnightManaPotionPct.
+-- Knights (#187 follow-up) are tuned so their mana averages ~60 %: exura ico/med ico from
+-- botKnightHealSpellPct HP, a health potion between botKnightHealthPotionPct and
+-- botKnightHealthPotionNoSpellPct only when the heal spell is unaffordable (mana < 2x its cost),
+-- and attack spells / exeta res never spend below botKnightAttackManaReservePct.
 -- Empty flasks are dropped at the bot's feet every ~botFlaskDropIntervalSec (0 = never) once it
 -- carries botFlaskDropMinCount. A woken hibernated bot gets the mana it would have regenerated
 -- unseen (full after botWakeManaFullSec). botManaPotionEnable=false restores the old instant refills.
 botManaPotionEnable = true
 botManaPotionPct = 70
-botKnightManaPotionPct = 40
+botKnightManaPotionPct = 60
 botKnightHealthPotionPct = 60
 botSpiritPotionHpPct = 70
 botPotionJitterMs = 400
@@ -1094,6 +1098,12 @@ botWakeManaFullSec = 180
 botPotionLogAll = false
 -- attack spells never spend the pool below this %, so heals stay payable
 botAttackManaReservePct = 20
+-- "ultimate" AoE (exevo gran mas vis/flam/frigo/tera, 40 s cooldown): vs monsters only with
+-- at least this many in its area; vs players (PvP) no limit
+botUltAoeMinMonsters = 3
+botKnightHealSpellPct = 88
+botKnightAttackManaReservePct = 50
+botKnightHealthPotionNoSpellPct = 85
 botFoodChancePct = 6
 botFoodMinIntervalMs = 60000
 -- Rune crafting: only when the bot is genuinely IDLE IN PLACE for more than 10s (the
@@ -1273,6 +1283,15 @@ botSparLevelBandPct      = 20     -- levels within this % of the higher one may 
 botSparCooldownSec       = 900    -- per-bot wait before the next spar
 botSparRematchSec        = 3600   -- the same two bots do not spar again for this long
 botSparTowns             = ""     -- csv of town names ("" = every town with a depot POI)
+-- ---- #30 passive spawn auto-claim (bot_learning.cpp) ----
+-- OFF: spawn claims are explicit-only (`/cavebot claim`). When enabled, a real player who stays in
+-- a spawn group's area for botSpawnAutoClaimDwellSec (fighting there: 20 s) claims the group and
+-- current holders walk out. An auto-claim never keeps roamers away or repels nearby hunts; only
+-- the explicit command does that. Journal: [SPAWN_CLAIM] auto claim|release|evict.
+botSpawnAutoClaimEnable   = false
+botSpawnAutoClaimDwellSec = 60     -- seconds inside the area before the claim
+botSpawnAutoClaimIdleSec  = 180    -- no move and no attack for this long releases it
+botSpawnAutoClaimLeaveSec = 60     -- seconds out of the area before it releases
 -- ---- PZ-blocked roaming ----
 -- While genuinely pz-locked (60s after a PvP hit) a bot cannot enter depot/temple/boat PZ. It
 -- stops rolling HUNT/TRAVEL and mills around non-PZ tiles until the lock clears.

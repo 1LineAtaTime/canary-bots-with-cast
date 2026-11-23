@@ -561,7 +561,17 @@ struct ResolvedSpell {
 	const AreaMatrix* cardinalMatrix = nullptr;
 	const AreaMatrix* diagonalMatrix = nullptr;
 	std::string areaPatternName;  // diagnostic — what AREA_<name> this spell uses
+	uint32_t cooldownMs = 0;      // server spell cooldown (own id), from the Spell registry
+	// "Ultimate" AoE: an area attack spell whose own cooldown is >= ULT_AOE_MIN_COOLDOWN_MS. In PvE
+	// it is cast only on >= botUltAoeMinMonsters monsters in its real area; vs players, no limit.
+	bool isUltimateAoe = false;
 };
+
+// Data-driven "ultimate" AoE threshold (bot_data.cpp buildSpellTables). In 15.25 this selects exactly
+// exevo gran mas vis/flam (MS) and exevo gran mas frigo/tera (ED): 40 s own cooldown + 40 s "focus"
+// group, CIRCLE5X5/6X6 self-centred. The other >=40 s attack spells (utori *, exori gran pug,
+// exori gran ico at 30 s) are single-target, so isAoe already excludes them.
+inline constexpr uint32_t ULT_AOE_MIN_COOLDOWN_MS = 40000;
 
 // Resolved rune: dynamically built from Lua parsing + server rune registry
 struct ResolvedRune {
@@ -1672,6 +1682,28 @@ inline std::unordered_map<uint32_t, uint32_t> s_partyHuntDeathCount;            
 
 inline std::unordered_map<uint32_t, uint32_t> s_partyHuntKillCount;               // partyHuntId → total kills
 
+// #193 team return. When the leader's hunt ends (LEAVING / RESUPPLYING, or an abort that walks or
+// teleports home) the party is NOT dissolved: the leader leads the whole team back to the depot,
+// members keep following it as a party, and the team disbands only at the depot (leader's
+// resupply reaches its post-depot reroll), after every awake member has arrived or the straggler
+// wait has run out. One record per partyHuntId; erased by dissolvePartyHunt /
+// dissolveVirtualPartyHunt (every dissolve path, so a record can never outlive its party).
+// Telemetry: [PARTY_RETURN] start | member_arrived | disband.
+struct PartyReturnRec {
+	int64_t startMs = 0;
+	int64_t depotMs = 0;    // first tick the leader was at the depot (resupply prepareStep >= 1)
+	uint32_t leaderGuid = 0;
+	std::unordered_set<uint32_t> arrived;
+};
+inline std::unordered_map<uint32_t /*partyHuntId*/, PartyReturnRec> s_partyReturn;
+// A member within this many tiles of the leader (same floor) while the leader is at the depot
+// counts as arrived. Depot halls are ~10-14 tiles across; 7 = "in the same depot room".
+inline constexpr int32_t PARTY_RETURN_ARRIVE_DIST = 7;
+// How long the leader holds its post-depot reroll for awake members that have not arrived yet.
+// The followers' own separation teleport fires after 1.5s, so a live straggler normally closes
+// the gap well inside this; it exists for a member that is dead/temple-chilling or truly stuck.
+inline constexpr int64_t PARTY_RETURN_STRAGGLER_WAIT_MS = 60000;
+
 struct NavEvent {
 	std::string eventType;
 	uint32_t huntScriptId = 0;
@@ -2482,26 +2514,22 @@ inline int64_t botQuestHuntEndTime(int64_t huntStartTime) {
 	return huntStartTime + static_cast<int64_t>(QUEST_SAFETY_TIMEOUT - QUEST_END_MARGIN_SEC) * 1000LL;
 }
 
-// A quest bot fights back on EVERY leg — travel_to, hunt_patrol and travel_from alike — against
-// anything that attacks it, whatever the script's target list says. A hunt only engages its
-// listed targets, and only while patrolling.
+// Quest combat = BLOCKERS ONLY (user decision 2026-11-23, supersedes the 2026-08-05 "retaliation
+// only" rule). On every leg of a quest - travel_to, hunt_patrol and travel_from alike - the bot
+// fights nothing it merely sees, and nothing that merely targets or hits it: it keeps walking.
+// The single fight is tryAttackBlockingMonster (bot_waypoint.cpp): an ADJACENT monster after the
+// bot has been still for ~3 s, which is attacked in place (no chase, no waypoint pause).
 //
-// Retaliation, not aggression: the monster must currently be targeting this bot. A quest is a
-// linear one-shot walkthrough, so farming everything in reach would stall the route; walking past
-// anything that leaves the bot alone is the point.
+// Why not "retaliation": an aggressive monster targets a player the moment it sees one (~7 tiles),
+// so "targets me" was true for every wolf, snake and spider the route passed. A cast-watched
+// Inquisition run logged 178 TARGET / 177 KILL / 202 LOOT in 35 minutes, all A*-chased.
 //
-// Deliberate limits, so they are not rediscovered as bugs:
-//   - AoE splash from a monster targeting someone else does not match (its attacked-creature is
-//     the other target). Catching that needs a damage hook, which is a much larger change.
-//   - A monster that hits once and then retargets stops matching immediately. That is the same
-//     rule as "walk past anything that ignores the bot", applied consistently.
-// `botCreatureId` is the bot player's creature id (player->getID()), passed in because every
-// caller already holds the Player — resolving it per scanned creature would be pure waste.
-inline bool botIsQuestRetaliationTarget(const HuntScript* script, uint32_t botCreatureId,
-                                        const std::shared_ptr<Creature>& creature) {
-	if (!botScriptIsQuest(script) || !creature) return false;
-	auto attacked = creature->getAttackedCreature();
-	return attacked && attacked->getID() == botCreatureId;
+// Every target gate (scanAndAttackMonster, hasNearbyReachableTargets, findThreatCentroid) and the
+// corpse-loot gate asks this one helper, so they cannot drift apart. Healing and potions run in
+// the tick loop independently of all of them, so a quest bot still heals while it walks.
+// The hibernated virtual sim has no monster combat, so there is no twin to change.
+inline bool botQuestFightsBlockersOnly(const HuntScript* script) {
+	return botScriptIsQuest(script);
 }
 
 // Pack (x,y,z) into uint64_t for tile-set dedup. x uint16 bits 47-32, y uint16 bits 31-16,
@@ -2698,6 +2726,14 @@ inline constexpr int ASSEMBLY_OFFSCREEN_MARGIN = 2;
 // REJECTED rather than used. Without it a safety-vet that relocates can silently strand the
 // recruit — observed live at 873-1146 tiles, which then became a cross-world walk.
 inline constexpr int32_t ASSEMBLY_STAGE_MAX_DIST = 25;
+// #194: a staging tile must also be REACHABLE — the member walks from it to the leader with the
+// engine A* (botTraceLegPath, bot pool) in at most this many steps. Straight-line distance said
+// nothing about walls: a tile 10 tiles away across a building wall was accepted and the member
+// could never path in. ~2x the outer ring is "walks around a block", not "crosses the town".
+inline constexpr int32_t ASSEMBLY_STAGE_MAX_PATH = 50;
+// Bound on A* runs per pick (each is up to the 4096-node bot pool). Picks are rare (one per
+// recruited member), and most candidates are rejected by the cheap visibility/vet tests first.
+inline constexpr int32_t ASSEMBLY_STAGE_MAX_PATH_CHECKS = 24;
 
 enum class RvKind : uint8_t { BOT_LED_HUNT, HUMAN_LED };
 enum class RvPhase : uint8_t { FINISHING, TRAVELLING, WALKING_IN, ARRIVED, FAILED };
@@ -4746,6 +4782,17 @@ private:
 	void virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms);
 	void virtualAdvancePartyHunt(BotState &bot, int64_t elapsed_ms);
 	void virtualAdvanceAdvStone(BotState &bot, int64_t elapsed_ms);
+	// Whole-trip Adventurer's Stone backstop, shared by the live trip (doAdventurerStone) and the
+	// virtual twin. Armed at both trip starts; a trip with no entry (started before a restart's
+	// restore, or by a path that predates this) is armed lazily on its first check, so the
+	// backstop can never fire early. The budget is the longest configured dwell plus 5 s per
+	// route waypoint plus 10 min of slack (~42 min at the defaults); nothing legitimate is longer.
+	void armAdvStoneTripDeadline(uint32_t guid);
+	bool advStoneTripOverdue(uint32_t guid);
+	// The start town's temple (the forcefield's destination), for a trip that has to be ended
+	// without stepping on the forcefield. Falls back to `fallback` when the town is unknown.
+	Position advStoneHomeTemple(uint32_t startTownId, const Position& fallback) const;
+	void endAdventurerStoneTripAtHome(BotState& bot, const std::shared_ptr<Player>& player, const char* reason);
 	bool virtualTryStartHunt(BotState &bot);
 	bool virtualTryStartPartyHunt(BotState &bot, int32_t forceScriptId = 0);
 	void dissolveVirtualPartyHunt(uint32_t partyHuntId, const std::string& reason);
@@ -4813,16 +4860,43 @@ private:
 		const std::shared_ptr<Creature>& pvpTarget = nullptr);
 	// Returns false when nothing was cast (no target, mana budget, or a protected bystander in the area).
 	bool castAoeSpell(BotState& bot, const ResolvedSpell* spell, Direction bestDir, uint32_t spareId = 0);
+	// Ultimate-AoE gate (bot_combat.cpp). pvp context = the target or the bot's attacker/attacked
+	// creature is a player, PK_ATTACK, or a PvP hit in the last 10 s. Allowed: pvp, or monsters >=
+	// botUltAoeMinMonsters. A refusal logs a rate-limited [ULT_AOE] skip when logSkip.
+	bool ultAoePvpContext(BotState& bot, const std::shared_ptr<Creature>& target);
+	bool ultAoeAllowed(BotState& bot, const ResolvedSpell& spell, int32_t monsters, bool pvp,
+		const char* site, bool logSkip);
+	// PvP AoE (combat round 2026-11-23): an ENEMY player is a legitimate area-spell target. Enemy =
+	// hostile to this bot or its party: the bot's own player target (targetId; not in a human-led
+	// party, which is defence only, see humanPartyPvpBlocked), a player attacking the bot, its
+	// attackerId, or a player attacking the bot's party leader/partner. Never a partner, guild mate
+	// or gang mate, never in a PZ, never a GM/ghost. aoeClipsBystander skips enemies, so the bystander guard still protects
+	// everyone else.
+	bool isAoeEnemyPlayer(BotState& bot, const std::shared_ptr<Player>& self,
+		const std::shared_ptr<Player>& p, uint32_t targetId) const;
+	// Enemy players on the bot's floor within 8x6 tiles (candidates; spellHits/LOS per spell).
+	std::vector<std::shared_ptr<Player>> collectAoeEnemyPlayers(BotState& bot, uint32_t targetId) const;
+	// How many of `enemies` this spell hits from `me` in `dir` (area matrix + LOS).
+	static int32_t countAoeEnemyHits(const Position& me, const ResolvedSpell& spell, Direction dir,
+		const std::vector<std::shared_ptr<Player>>& enemies);
 	// #91 follow-up: a bot in a party led by a REAL player never starts PvP. It may hit a player only in
 	// defence: one that is attacking it, its leader or a partner. true = blocked ([PVP_SKIP] logged).
 	bool humanPartyPvpBlocked(BotState& bot, const std::shared_ptr<Creature>& target, const char* site);
 	// true when the bot is in (or walking in to) a party led by a real player. Works hibernated too.
 	bool inHumanLedParty(const BotState& bot) const;
-	// #91 follow-up: would this AoE (spell+dir, or a rune at runeCenter) clip a player it must spare?
-	// anyPlayer=true (PvP target): every player except self/spareId counts. false (monster target):
-	// only real players and, in a human-led party, the bot's own partners. Returns the victim's name.
+	// #91 follow-up, corrected 2026-11-23: would this AoE (spell+dir, or a rune at runeCenter) hit a
+	// player the server WOULD damage (aoeWouldDamage) who is not a hostile (isAoeEnemyPlayer, spareId
+	// as the target)? Mirrors the server: same-party players and, with the caster's secure mode on,
+	// unmarked players are spared by it, so they do not refuse. anyPlayer only feeds the log.
 	std::string aoeClipsBystander(BotState& bot, const ResolvedSpell* spell, Direction dir,
 		const Position* runeCenter, uint32_t spareId, bool anyPlayer, const char* site);
+	// Would the server's area combat damage p if self cast now? Combat::canDoCombat (protection level,
+	// PZ / no-PvP tile, GM, Lua onTargetCombat party + secure-mode rules) + the Expert-PvP area decision.
+	static bool aoeWouldDamage(const std::shared_ptr<Player>& self, const std::shared_ptr<Player>& p);
+	// Party members (and leader) inside this spell's area that the server spares ([AOE_PARTY]).
+	static int32_t countAoeSparedPartners(const std::shared_ptr<Player>& self, const ResolvedSpell& spell, Direction dir);
+	// One [AOE_FALLBACK] line per bot per 5 s: an AoE refused (bystander / pre-cast) and what ran instead.
+	void logAoeFallback(BotState& bot, const std::string& aoe, const std::string& to, bool pvp, const char* site);
 
 	// Rune system — uses real server RuneSpell::executeUse() path
 	std::shared_ptr<Item> findRuneInBackpack(const std::shared_ptr<Player>& player, uint16_t runeItemId);
@@ -4868,8 +4942,7 @@ private:
 		const std::shared_ptr<Player>& player) const;
 	// One pass over the spectator cache that answers three questions at once: how many
 	// monsters are aggroed on ME, how many on a PARTY SUPPORT, and how far the tail of
-	// my own pack has drifted. Aggro test is getAttackedCreature(), the same signal
-	// botIsQuestRetaliationTarget uses.
+	// my own pack has drifted. Aggro test is getAttackedCreature().
 	uint8_t censusLuredPack(BotState& bot, const HuntScript* script, int32_t& outMaxDist,
 		int32_t& outNearestDist, uint8_t& outSupportAggro, bool& outSupportContact);
 	LureVerdict tickLure(BotState& bot, const HuntScript* script);
@@ -5103,10 +5176,18 @@ private:
 	// #187: an attack spell may spend mana only down to botAttackManaReservePct of the pool, so a
 	// heal can still be paid while the potions catch up (a knight that spent its last mana on
 	// exori could not cast exura and died at 0 % mana, live 2026-11-22).
+	// Knights keep botKnightAttackManaReservePct (default 50) instead, so the bar averages ~60 %: a
+	// knight spending down to 20 % lived on the reserve line and died when a potion streak locked
+	// mana out (#187 follow-up, live 2026-11-23).
 	bool attackManaOk(const std::shared_ptr<Player>& p, uint32_t cost) const {
 		if (legacyManaRefill()) return true;
-		return static_cast<uint64_t>(p->getMana()) >= cost + static_cast<uint64_t>(p->getMaxMana()) * livenessCfg_.attackManaReservePct / 100;
+		int32_t pct = livenessCfg_.attackManaReservePct;
+		if (const auto v = p->getVocationId(); v == 4 || v == 8) pct = std::max(pct, livenessCfg_.knightAttackManaReservePct);
+		return static_cast<uint64_t>(p->getMana()) >= cost + static_cast<uint64_t>(p->getMaxMana()) * static_cast<uint64_t>(pct) / 100;
 	}
+	// Mana cost of the strongest routine (cd <= HEAL_LONG_CD_THRESHOLD_S) heal spell the bot's
+	// level allows -- what doHealing would cast first. 0 = none.
+	uint32_t routineHealSpellCost(const std::shared_ptr<Player>& p, uint8_t baseVoc) const;
 	// #187: credit a woken bot the mana it would have regenerated while hibernated.
 	void creditWakeMana(BotState& bot, const std::shared_ptr<Player>& player);
 	bool tryEatFood(BotState& bot, bool force, std::string* outMsg = nullptr);
@@ -5776,6 +5857,26 @@ private:
 	bool tickHouseVisit(BotState& bot);       // true = consumed the tick
 	void endHouseVisit(uint32_t guid, const char* reason);
 	void stopHouseTrainingIfActive(BotState& bot);
+	// ---- Visits survive hibernation (2026-11-23) ----
+	// A house or shrine visit in progress is NOT cancelled when the bot hibernates (88 of 117
+	// house visits and 16 of 36 shrine visits used to die that way, median walk 53 tiles). The
+	// virtual twin carries it instead: an APPROACH run "arrives" at once (currentPos = the claimed
+	// tile, DWELLING for the rolled idle window, claims held), an IDLE run keeps dwelling, and
+	// virtualTickVisitRuns ends both when the dwell runs out. A wake inside the window places the
+	// bot ON the tile (wakeBot reads currentPos), where the live tick*Visit resumes it; a wake that
+	// lands elsewhere ends it as "displaced". Sub-activities that need a body (dummy training,
+	// bed, hireling greeting) degrade to plain idle. Called from hibernateBot while the Player
+	// still exists. Returns true if a run was carried over.
+	bool hibernateHouseVisit(BotState& bot);
+	bool hibernateShrineVisit(BotState& bot);
+	void virtualTickVisitRuns(BotState& bot);
+	// Cumulative since engine load, logged with the 5-min States line as [VISIT_STATS].
+	// "cancelled" = ended before arrival (any reason); "virtual" = arrivals made by the twin.
+	struct VisitStats {
+		uint64_t houseStarted = 0, houseArrived = 0, houseArrivedVirtual = 0, houseCancelled = 0;
+		uint64_t shrineStarted = 0, shrineArrived = 0, shrineArrivedVirtual = 0, shrineCancelled = 0;
+		uint64_t houseCarried = 0, shrineCarried = 0; // hibernations a run survived
+	} visitStats_;
 	// One-shot: set by endHouseVisit, consumed by the next doActivityReroll whatever it rolls, so
 	// the walk OUT of the house gets the scoped planner (door handling) exactly once.
 	std::unordered_set<uint32_t> s_houseExitPlanner;
@@ -5801,6 +5902,7 @@ private:
 		int64_t  settleUntil = 0;                     // armed on first contact, like HouseRun's
 		int64_t  until = 0;                           // idle window end
 		int64_t  nextGlanceMs = 0;                    // next cosmetic re-face
+		uint8_t  reseats = 0;                         // walk-backs onto the stand after a wake (max 2)
 	};
 	std::unordered_map<uint32_t, ShrineRun> s_shrineRuns;
 	bool isShrineVisiting(uint32_t guid) const { return s_shrineRuns.count(guid) != 0; }
@@ -6307,7 +6409,10 @@ private:
 	RvPhase pickAssemblyEntryPhase(const BotState& bot, uint32_t anchorTownId) const;
 	// Off-screen staging tile near `anchor` for a member that is too far to walk. Returns an
 	// invalid position (x==0) when nothing off-screen and safe could be found.
-	Position chooseAssemblyStagingPos(BotState& bot, const Position& anchor);
+	// #194: the tile must also be A*-reachable from it to the anchor within ASSEMBLY_STAGE_MAX_PATH.
+	Position chooseAssemblyStagingPos(BotState& bot, const Position& anchor, const char* site = "other");
+	// #194: engine-A* path length from `from` to within 1 tile of `to` for this bot (-1 = no path).
+	int32_t assemblyPathLen(BotState& bot, const Position& from, const Position& to);
 	// Decides a member's approach and performs the staging teleport if one is warranted. Single
 	// entry point so enrolment, the FINISHING transition and the death-rejoin cannot diverge.
 	void beginAssemblyApproach(BotState& bot, const PartyAssembly& asmb, RvMember& m);
@@ -6327,6 +6432,14 @@ private:
 		const PartyRoster& roster, uint32_t initiatorGuid, int32_t forceScriptId,
 		size_t rosterBestEd, size_t rosterBestMs, size_t rosterBestRp);
 	void dissolvePartyHunt(uint32_t partyHuntId, const std::string& reason);
+	// #193 team return (see PartyReturnRec). Begin is idempotent per party.
+	void partyReturnBegin(BotState& leader, const char* via, bool isVirtual);
+	void partyReturnNoteArrivals(BotState& leader, bool isVirtual);
+	bool partyReturnMayDisband(BotState& leader);
+	void partyReturnLogDisband(uint32_t partyHuntId, const std::string& reason, bool isVirtual);
+	bool partyReturnActive(const BotState& bot) const {
+		return bot.partyHuntId > 0 && s_partyReturn.count(bot.partyHuntId) > 0;
+	}
 	void exitPartyHuntMode(BotState& bot);
 	void doPartyHunt(BotState& bot);
 	void doPartyHuntHealer(BotState& bot, BotState* leaderBot);
@@ -6335,7 +6448,8 @@ private:
 	void followPartyHuntLeader(BotState& bot, const std::shared_ptr<Player>& leader, BotState* leaderBot);
 	bool tryPartyMemberSpread(BotState& bot, const Position& leaderPos, int32_t keepDist);
 	bool tryPartyAoeReposition(BotState& bot, BotState* leaderBot);
-	void tryCastChallenge(BotState& bot);
+	// exeta res only when an adjacent monster targets someone else, within attackManaOk.
+	void tryCastChallenge(BotState& bot, const char* logTag = "PARTY_HUNT");
 	bool tryCastUtamoVita(BotState& bot);  // mana shield for ED self-protection
 	int32_t getPartyHuntKeepDistance(const BotState& bot, BotState* leaderBot) const;
 
@@ -6683,6 +6797,7 @@ private:
 	// `/cavebot claim`: every pick path already honours playerClaims_ by spawnGroup, live and
 	// virtual. The claim is released when the player leaves the area, goes idle, enters a town or
 	// logs out. Bots already hunting the group are sent out (LEAVING), not teleported.
+	// Default OFF (botSpawnAutoClaimEnable=false), and it never writes playerHuntEngaged_.
 	struct AutoClaimTrack {
 		std::string group;          // spawn group currently being dwelt in
 		uint32_t scriptId = 0;      // nearest script of that group (the claim row's key)
@@ -6692,7 +6807,6 @@ private:
 		int64_t fightMs = 0;        // accumulated time spent attacking a monster in the area
 		Position lastPos;
 		bool claimed = false;
-		bool setEngaged = false;    // we (not the command) wrote playerHuntEngaged_
 		std::string playerName;     // for the release line: the player may be offline by then
 	};
 	std::unordered_map<uint32_t, AutoClaimTrack> autoClaimTrack_;   // real player guid -> track
@@ -6764,6 +6878,7 @@ private:
 
 	// City POIs (loaded from MySQL at startup)
 	std::unordered_map<uint32_t, std::vector<BotPOI>> cityPOIs_; // townId -> POIs
+	std::unordered_map<uint32_t, int64_t> advStoneTripDeadline_; // guid -> whole-trip deadline (ms)
 
 	// City route graphs (loaded from MySQL at startup)
 	std::unordered_map<uint32_t, CityRouteGraph> cityRouteGraphs_; // townId -> graph
@@ -6858,10 +6973,14 @@ private:
 		int32_t potionChancePct = 8, potionMinIntervalMs = 20000;
 		// #187: mana comes from potions, not instant refills (bot_supply.cpp maybeCombatPotion).
 		bool manaPotionEnable = true, potionLogAll = false;
-		int32_t manaPotionPct = 70, knightManaPotionPct = 40, knightHealthPotionPct = 60;
+		int32_t manaPotionPct = 70, knightManaPotionPct = 60, knightHealthPotionPct = 60;
+		// knight mana (#187 follow-up): spell heals from 88 % HP, attacks keep 50 % of the pool, a
+		// health potion between knightHealthPotionPct and 85 % only when the heal is unaffordable.
+		int32_t knightHealSpellPct = 88, knightAttackManaReservePct = 50, knightHealthPotionNoSpellPct = 85;
 		int32_t spiritPotionHpPct = 70, potionJitterMs = 400;
 		int32_t flaskDropIntervalSec = 60, flaskDropMinCount = 3, wakeManaFullSec = 180;
 		int32_t attackManaReservePct = 20;
+		int32_t ultAoeMinMonsters = 3; // PvE gate for ultimate AoE (ResolvedSpell::isUltimateAoe)
 		int32_t foodChancePct = 6, foodMinIntervalMs = 60000;
 		int32_t runeCraftChancePct = 10;
 		int32_t runeCraftIntervalMinMs = 8000, runeCraftIntervalMaxMs = 25000;

@@ -328,6 +328,13 @@ void BotEngine::beginHuntPhase(BotState& bot, HuntPhase phase, size_t preChosenP
 				if (s.id == bot.huntScriptId) { script = &s; break; }
 			}
 			bot.huntWaypointIdx = 0;
+			// #193: a party leader's hunt is over — it now leads the whole team home (idempotent).
+			if (bot.isPartyHuntLeader && bot.partyHuntId > 0) {
+				partyReturnBegin(bot,
+					(bot.isRecoveryRoute && !bot.recoveryWaypoints.empty()) ? "recovery"
+					: (script && !script->travelFromWaypoints.empty()) ? "travel_from" : "no_route",
+					false);
+			}
 			if (bot.isRecoveryRoute && !bot.recoveryWaypoints.empty()) {
 				castLog(bot, fmt::format("LEAVING: Following {} recovery waypoints back to town",
 					bot.recoveryWaypoints.size()));
@@ -359,6 +366,10 @@ void BotEngine::beginHuntPhase(BotState& bot, HuntPhase phase, size_t preChosenP
 			// on detected==0, the Adventurer's-Stone island carve-out). The walked-completion
 			// caller is the one that needed it.
 			syncTownIdToPos(bot);
+			// #193: reached without a LEAVING leg (teleport home): the team still regroups here.
+			if (bot.isPartyHuntLeader && bot.partyHuntId > 0) {
+				partyReturnBegin(bot, "resupply", false);
+			}
 			// Initialize resupply with preparation state machine (depot + shop)
 			bot.huntResupplyStart = OTSYS_TIME();
 			bot.huntResupplyPhase = 0;
@@ -397,7 +408,12 @@ void BotEngine::doHunting(BotState& bot) {
 		const int32_t safetyTimeout = bot.isPartyHuntLeader
 			? PARTY_SAFETY_TIMEOUT
 			: (botScriptIsQuest(safetyScript) ? QUEST_SAFETY_TIMEOUT : HUNT_SAFETY_TIMEOUT);
-		if (OTSYS_TIME() - bot.huntStartTime > safetyTimeout * 1000LL) {
+		// #193: a party leader already leading its team home is exempt — the return is bounded by
+		// LEAVING_PHASE_MAX_MS + RESUPPLY_TIMEOUT, and re-aborting here every tick (huntStartTime is
+		// never reset) would restart the return forever instead of finishing it.
+		const bool teamReturning = bot.isPartyHuntLeader && partyReturnActive(bot)
+			&& (bot.huntPhase == HuntPhase::LEAVING || bot.huntPhase == HuntPhase::RESUPPLYING);
+		if (!teamReturning && OTSYS_TIME() - bot.huntStartTime > safetyTimeout * 1000LL) {
 			abortHunt(bot, "safety timeout");
 			return;
 		}
@@ -900,17 +916,10 @@ void BotEngine::doHuntTravel(BotState& bot) {
 		return;
 	}
 
-	// Quests fight back while travelling. TRAVEL_TO had no combat at all — a hunt is heading to a
-	// spawn it will camp anyway, but a quest walks long authored routes through hostile ground and
-	// must not be chewed on while it walks. Retaliation only (botIsQuestRetaliationTarget), so the
-	// bot never goes looking for a fight and the route keeps moving.
-	//
-	// Pausing waypoint advancement while a target is held mirrors doHuntLeaving. The time this
-	// costs is why quests get QUEST_TRAVEL_MAX_MS rather than the hunt's 5 minutes.
-	if (botScriptIsQuest(script)) {
-		scanAndAttackMonster(bot);
-		if (bot.huntTargetId > 0) return;
-	}
+	// TRAVEL_TO has no target scan, quests included: a quest fights only an adjacent monster that
+	// blocks it (tryAttackBlockingMonster, from the stuck detector), in place, and keeps walking.
+	// The 2026-08-05 "retaliation" scan that used to sit here A*-chased every monster that so much
+	// as targeted the bot - see botQuestFightsBlockersOnly.
 
 	// ROUND2 A1: a party leader waits for stragglers in EVERY phase, not just PATROLLING. Placed
 	// after the combat/target early-returns above, so the leader still fights and lures while it
@@ -1144,6 +1153,14 @@ void BotEngine::doHuntLeaving(BotState& bot) {
 			bot.recoveryWaypoints.clear();
 			bot.isRecoveryRoute = false;
 			bot.huntScriptId = 0;
+			// #193: a party leader must stay HUNTING — going IDLE here makes every follower's
+			// doPartyHunt read "leader's hunt ended" and dissolve the team short of the depot.
+			// RESUPPLYING walks the same depot leg and disbands the team on arrival.
+			if (bot.isPartyHuntLeader && bot.partyHuntId > 0) {
+				castLog(bot, "RECOVERY: Returned to town, leading the team to the depot");
+				beginHuntPhase(bot, HuntPhase::RESUPPLYING);
+				return;
+			}
 			bot.state = BotAIState::IDLE;
 			bot.hasWalkTarget = false;
 			bot.currentPOI = nullptr;
@@ -1241,8 +1258,8 @@ uint8_t BotEngine::censusLuredPack(BotState& bot, const HuntScript* script, int3
 		const auto cpos = creature->getPosition();
 		if (cpos.z != bot.currentPos.z) continue;
 
-		// Who is it chewing on? One resolve, three answers — the same getAttackedCreature
-		// signal botIsQuestRetaliationTarget uses. No A* reachability probe here: a
+		// Who is it chewing on? One resolve, three answers — getAttackedCreature().
+		// No A* reachability probe here: a
 		// monster that is actively chasing us is reachable by construction, and a probe
 		// per monster per tick is exactly the cost this feature cannot afford.
 		auto attacked = creature->getAttackedCreature();
@@ -2244,6 +2261,9 @@ void BotEngine::scanAndAttackMonster(BotState& bot) {
 		if (s.id == bot.huntScriptId) { script = &s; break; }
 	}
 	if (!script) return;
+	// Quest = blockers only: never pick a target, on any leg. The only quest fight is
+	// tryAttackBlockingMonster, which attacks in place without setting huntTargetId.
+	if (botQuestFightsBlockersOnly(script)) return;
 
 	uint8_t baseVoc = getBaseVocation(bot.vocationId);
 	int32_t attackRange = getAttackRange(baseVoc);
@@ -2288,11 +2308,6 @@ void BotEngine::scanAndAttackMonster(BotState& bot) {
 					break;
 				}
 			}
-		}
-		// A quest fights back on every leg against whatever is attacking it, regardless of the
-		// target list. Checked after the name match so the cheap path wins for hunts.
-		if (!nameMatch && botIsQuestRetaliationTarget(script, player->getID(), creature)) {
-			nameMatch = true;
 		}
 		if (!nameMatch) continue;
 		// #96 target choice: a monster inside a learned danger zone is left alone unless it is
@@ -2374,6 +2389,8 @@ bool BotEngine::hasNearbyReachableTargets(BotState& bot) {
 		if (s.id == bot.huntScriptId) { script = &s; break; }
 	}
 	if (!script) return false;
+	// Same rule as scanAndAttackMonster: a quest never has anything worth staying for.
+	if (botQuestFightsBlockersOnly(script)) return false;
 
 	uint8_t baseVoc = getBaseVocation(bot.vocationId);
 	int32_t attackRange = getAttackRange(baseVoc);
@@ -2402,11 +2419,6 @@ bool BotEngine::hasNearbyReachableTargets(BotState& bot) {
 			for (const auto& targetName : script->targetNames) {
 				if (monsterName == targetName) { nameMatch = true; break; }
 			}
-		}
-		// Quest retaliation — same rule as scanAndAttackMonster, so "is anything worth staying
-		// for" agrees with "is anything worth attacking".
-		if (!nameMatch && botIsQuestRetaliationTarget(script, player->getID(), creature)) {
-			nameMatch = true;
 		}
 		if (!nameMatch) continue;
 		if (dangerAvoids(bot, script->id, mpos) && creature->getAttackedCreature().get() != player.get()) continue;   // #96, as the scan
@@ -2532,8 +2544,21 @@ void BotEngine::abortHunt(BotState& bot, const std::string& reason) {
 		bot.townId, "hunt",
 		fmt::format("reason={} kills={}", reason, bot.huntKillCount));
 
+	// #193: the hunt's OWN failure reasons end it the way a finished hunt ends — the leader leads
+	// the team home and disbands at the depot. Everything else (admin, spawn claim/eviction,
+	// partyhunt force-clear: their callers set the bot IDLE right after this returns) still
+	// dissolves on the spot, exactly as before.
+	static constexpr std::array<std::string_view, 7> kTeamReturnReasons = {
+		"safety timeout", "travel route aborted", "3 cycles with 0 kills", "stuck at waypoint",
+		"fruitless", "no patrol waypoints", "pk_threat"
+	};
+	const bool teamReturn = bot.isPartyHuntLeader && bot.partyHuntId > 0
+		&& s_partyHuntMembers.count(bot.partyHuntId) > 0
+		&& std::find(kTeamReturnReasons.begin(), kTeamReturnReasons.end(), std::string_view(reason))
+			!= kTeamReturnReasons.end();
+
 	// Dissolve party hunt if this EK was leading one
-	if (bot.isPartyHuntLeader && bot.partyHuntId > 0) {
+	if (bot.isPartyHuntLeader && bot.partyHuntId > 0 && !teamReturn) {
 		dissolvePartyHunt(bot.partyHuntId, fmt::format("hunt_abort:{}", reason));
 		bot.isPartyHuntLeader = false;
 		bot.partyHuntId = 0;
@@ -2553,8 +2578,26 @@ void BotEngine::abortHunt(BotState& bot, const std::string& reason) {
 	const bool abortLoop = noteHuntAbortLoop(bot, player ? player->getPosition() : bot.currentPos, reason, false);
 	if (abortLoop || reason == "pk_threat" || !findNearestRecoveryRoute(bot)) {
 		teleportToTemple(bot);
+		if (teamReturn) {
+			// #193: home by teleport — the followers' separation teleport brings them along, and
+			// the team regroups and disbands at the depot exactly as after a walked return.
+			bot.huntCooldownUntil = OTSYS_TIME() + uniform_random(300, 600) * 1000LL;
+			bot.followingCityRoute = false;
+			bot.cityRouteWps.clear();
+			bot.cityRouteIdx = 0;
+			bot.recoveryWaypoints.clear();
+			bot.isRecoveryRoute = false;
+			bot.hasWalkTarget = false;
+			bot.currentPOI = nullptr;
+			bot.state = BotAIState::HUNTING;
+			partyReturnBegin(bot, "abort_teleport", false);
+			beginHuntPhase(bot, HuntPhase::RESUPPLYING);
+			return;
+		}
 	} else {
-		return; // navigating back via recovery route (beginHuntPhase sets s_leavingPhaseStart)
+		// navigating back via recovery route (beginHuntPhase sets s_leavingPhaseStart; for a
+		// team-return leader it also opened the [PARTY_RETURN] record)
+		return;
 	}
 
 	bot.huntCooldownUntil = OTSYS_TIME() + uniform_random(300, 600) * 1000LL;
@@ -2613,8 +2656,32 @@ void BotEngine::doHuntResupply(BotState& bot) {
 	// remains a valid backstop in the pathological repeated-relock case.
 	if (player->isPzLocked()) return;
 
-	// Run preparation state machine (depot + shop visits)
-	doHuntPrepare(bot);
+	// Run preparation state machine (depot + shop visits). Skipped while a team-return leader
+	// holds at the depot for stragglers (prepareStep==2, reroll pending): running step 2 would
+	// start the shop walk. For every other bot this state never survives a tick (the intercept
+	// below consumes it the same tick it is set), so the guard is behaviour-neutral for them.
+	if (!(bot.prepareStep == 2 && !bot.resupplyRerolled)) {
+		doHuntPrepare(bot);
+	}
+
+	// #193: team return — the leader is at the depot (step >= 1: in the depot area / at a locker).
+	// Members that have caught up are recorded, and the team disbands at the post-depot reroll
+	// once every awake follower is here or the straggler wait has run out.
+	if (bot.isPartyHuntLeader && bot.partyHuntId > 0 && bot.prepareStep >= 1) {
+		partyReturnBegin(bot, "resupply", false); // idempotent backstop
+		partyReturnNoteArrivals(bot, false);
+		if (bot.prepareStep == 2 && !bot.resupplyRerolled) {
+			if (!partyReturnMayDisband(bot)) {
+				return; // hold at the depot (bounded: PARTY_RETURN_STRAGGLER_WAIT_MS, then RESUPPLY_TIMEOUT)
+			}
+			const uint32_t phId = bot.partyHuntId;
+			dissolvePartyHunt(phId, "party_return_depot");
+			bot.isPartyHuntLeader = false;
+			bot.partyHuntId = 0;
+			bot.partyRole = 0;
+			bot.partyLeaderGuid = 0;
+		}
+	}
 
 	// Intercept after depot wait (prepareStep transitions from 1→2):
 	// Reroll BEFORE visiting shops to avoid wasted shop trips if switching cities
@@ -2776,6 +2843,14 @@ bool BotEngine::lootGatePasses(BotState& bot, const std::shared_ptr<Player>& pla
 	if (bot.huntPhase != HuntPhase::PATROLLING) return false;
 	if (!player || player->isRemoved() || player->getHealth() <= 0) return false;
 	if (bot.deathPauseUntil > OTSYS_TIME()) return false;
+	// Quest = blockers only: a quest bot keeps walking and never detours to a corpse, even one
+	// left by a blocker it had to kill (botQuestFightsBlockersOnly).
+	for (const auto& s : huntScripts_) {
+		if (s.id == bot.huntScriptId) {
+			if (botQuestFightsBlockersOnly(&s)) return false;
+			break;
+		}
+	}
 	// A human in the party is using the highlight as their own loot marker. Note this is
 	// belt-and-braces: party-hunt supports and human-led members carry BotAIState::PARTY
 	// and never reach doHuntPatrol at all.

@@ -286,6 +286,7 @@ void BotEngine::startShrineVisit(BotState& bot) {
 	const int32_t secs = uniform_random(lo, hi);
 
 	run.phase = ShrinePhase::IDLE;
+	visitStats_.shrineArrived++;
 	run.until = OTSYS_TIME() + secs * 1000LL;
 	run.nextGlanceMs = OTSYS_TIME() + uniform_random(8, 25) * 1000LL;
 
@@ -321,6 +322,31 @@ bool BotEngine::tickShrineVisit(BotState& bot) {
 	// Displacement guard. A bot moved off its tile by anything else — a GM teleport, a party
 	// conscription that raced the teardown, a push — is no longer looking at anything.
 	if (bot.currentPos != run.stand) {
+		// Life round: a wake inside the idle window places the bot with chooseWakePosition, which
+		// takes the nearest SAFE free tile -- often a step or two off the stand (the stand itself
+		// can read unsafe for a teleport placement, or be occupied). Seen live: woken 2 tiles off,
+		// visit ended as displaced on the first live tick. Within 3 tiles on the same floor the bot
+		// walks back onto the stand instead (APPROACH again, settle deadline re-armed).
+		const int32_t cheb = std::max(
+			std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(run.stand.x)),
+			std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(run.stand.y)));
+		if (run.reseats < 2 && bot.currentPos.z == run.stand.z && cheb <= 3) {
+			run.reseats++;
+			run.phase = ShrinePhase::APPROACH;
+			run.settleUntil = 0;
+			bot.walkTarget = run.stand;
+			bot.hasWalkTarget = true;
+			bot.currentPOI = nullptr;
+			bot.pendingNavDest.clear();
+			bot.pathFailCount = 0;
+			bot.followingCityRoute = false;
+			bot.state = BotAIState::IDLE;
+			s_plannerWalk[bot.guid] = run.stand;
+			g_logger().info("[SHRINE_VISIT_RESEAT] guid={} from=({},{},{}) stand=({},{},{}) dist={} n={}",
+				bot.guid, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z,
+				run.stand.x, run.stand.y, run.stand.z, cheb, run.reseats);
+			return false;
+		}
 		endShrineVisit(bot.guid, "displaced");
 		return false;
 	}
@@ -351,12 +377,51 @@ bool BotEngine::tickShrineVisit(BotState& bot) {
 	return true;
 }
 
+// Twin of hibernateHouseVisit (see its declaration): the visit is carried, not cancelled.
+bool BotEngine::hibernateShrineVisit(BotState& bot) {
+	auto it = s_shrineRuns.find(bot.guid);
+	if (it == s_shrineRuns.end()) return false;
+	auto& run = it->second;
+	if (run.stand.x == 0) {
+		endShrineVisit(bot.guid, "hibernate");
+		return false;
+	}
+	const int64_t now = OTSYS_TIME();
+	const bool approach = run.phase == ShrinePhase::APPROACH;
+	if (approach) {
+		const int32_t lo = std::max(5, livenessCfg_.shrineIdleMinSec);
+		const int32_t hi = std::max(lo, livenessCfg_.shrineIdleMaxSec);
+		const int32_t secs = uniform_random(lo, hi);
+		run.phase = ShrinePhase::IDLE;
+		run.until = now + secs * 1000LL;
+		run.settleUntil = 0;
+		bot.currentPos = run.stand;
+		bot.lastPos = run.stand;
+		bot.currentPOI = nullptr;
+		visitStats_.shrineArrived++;
+		visitStats_.shrineArrivedVirtual++;
+		g_logger().info("[SHRINE_VISIT_ARRIVE] guid={} kind={} shrine=({},{},{}) idle={}s virtual=1",
+			bot.guid, run.kind == SHRINE_KIND_REWARD ? "reward" : "imbuing",
+			run.shrine.x, run.shrine.y, run.shrine.z, secs);
+	}
+	run.nextGlanceMs = 0; // a wake mid-window faces the shrine on its first live tick
+	bot.state = BotAIState::DWELLING;
+	bot.dwellUntil = run.until + 5000;
+	for (auto& [key, c] : s_shrineTileClaims) {
+		if (c.guid == bot.guid && c.kind == run.kind) c.expiresAt = std::max(c.expiresAt, run.until + 60000);
+	}
+	visitStats_.shrineCarried++;
+	return true;
+}
+
 // Idempotent — every teardown site calls it unconditionally.
 void BotEngine::endShrineVisit(uint32_t guid, const char* reason) {
 	auto it = s_shrineRuns.find(guid);
 	if (it == s_shrineRuns.end()) return;
 	const uint8_t kind = it->second.kind;
 	const Position shrine = it->second.shrine;
+	const bool arrived = it->second.phase == ShrinePhase::IDLE;
+	if (!arrived) visitStats_.shrineCancelled++;
 	s_shrineRuns.erase(it);
 	releaseShrineClaim(guid, kind);
 	clearPlannerWalk(guid);
@@ -370,9 +435,9 @@ void BotEngine::endShrineVisit(uint32_t guid, const char* reason) {
 		break;
 	}
 
-	g_logger().info("[SHRINE_VISIT_END] guid={} kind={} shrine=({},{},{}) reason={}",
+	g_logger().info("[SHRINE_VISIT_END] guid={} kind={} shrine=({},{},{}) reason={} arrived={}",
 		guid, kind == SHRINE_KIND_REWARD ? "reward" : "imbuing",
-		shrine.x, shrine.y, shrine.z, reason);
+		shrine.x, shrine.y, shrine.z, reason, arrived ? 1 : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -506,6 +571,7 @@ std::string BotEngine::forceShrineVisit(BotState& bot, const std::string& arg) {
 	// open — the same reason the NPC/water/house targets take the scoped planner.
 	s_plannerWalk[bot.guid] = bot.walkTarget;
 
+	visitStats_.shrineStarted++;
 	g_logger().info("[SHRINE_VISIT_START] guid={} kind={} shrine=({},{},{}) stand=({},{},{}) forced",
 		bot.guid, kind == SHRINE_KIND_REWARD ? "reward" : "imbuing",
 		spot.shrine.x, spot.shrine.y, spot.shrine.z, spot.stand.x, spot.stand.y, spot.stand.z);

@@ -2599,6 +2599,9 @@ void BotEngine::buildSpellTables() {
 					}
 				}
 			}
+			// Ultimate AoE: data-driven from the spell's own cooldown (see ULT_AOE_MIN_COOLDOWN_MS).
+			rs.cooldownMs = spell->getCooldown();
+			rs.isUltimateAoe = meta.isAoe && rs.cooldownMs >= ULT_AOE_MIN_COOLDOWN_MS;
 
 			if (meta.isAoe) {
 				resolvedAoeSpells_[baseVoc].push_back(rs);
@@ -2606,8 +2609,15 @@ void BotEngine::buildSpellTables() {
 				resolvedSingleSpells_[baseVoc].push_back(rs);
 			}
 		}
-		g_logger().info("[BotEngine] Voc {}: {} single-target + {} AoE attack spells",
-			baseVoc, resolvedSingleSpells_[baseVoc].size(), resolvedAoeSpells_[baseVoc].size());
+		std::string ultList;
+		for (const auto& s : resolvedAoeSpells_[baseVoc]) {
+			if (!s.isUltimateAoe) continue;
+			ultList += fmt::format("{}'{}'(cd={}s area={})", ultList.empty() ? "" : " ", s.words,
+				s.cooldownMs / 1000, s.areaPatternName.empty() ? "?" : s.areaPatternName);
+		}
+		g_logger().info("[BotEngine] Voc {}: {} single-target + {} AoE attack spells; ultimate AoE: {}",
+			baseVoc, resolvedSingleSpells_[baseVoc].size(), resolvedAoeSpells_[baseVoc].size(),
+			ultList.empty() ? "none" : ultList);
 	}
 
 	// Build resolved rune lists from parsed Lua data

@@ -680,6 +680,9 @@ void BotEngine::virtualTick(int64_t budget_ms) {
 		// #27: a bot asleep in a bed is frozen where it lies -- no virtual hunt, walk or travel.
 		if (!bedSleepers_.empty() && bedSleepers_.count(bot.guid) > 0) continue;
 
+		// A house / shrine visit carried into hibernation (hibernateHouseVisit) ends here.
+		if (!s_houseRuns.empty() || !s_shrineRuns.empty()) virtualTickVisitRuns(bot);
+
 		switch (bot.state) {
 			case BotAIState::IDLE:
 				virtualAdvanceIdle(bot, per_bot_elapsed);
@@ -789,6 +792,7 @@ void BotEngine::virtualAdvanceIdle(BotState &bot, int64_t elapsed_ms) {
 				bot.advStoneIdleAt = pickAdventurerStoneIdleIdx();
 				bot.advStoneDwellUntil = 0;
 				bot.advStoneDeadline = 0;
+				armAdvStoneTripDeadline(bot.guid);
 				// Pre-roll the 3-way sub-activity (waypoint / chest / dummy) here so a
 				// player who later wakes this hibernated bot inherits a pre-picked mode
 				// + target. selectAdvStoneSubActivity is Player-free (pure map queries:
@@ -890,6 +894,31 @@ void BotEngine::virtualAdvanceIdle(BotState &bot, int64_t elapsed_ms) {
 	// POI branch uses read-only g_game().map.getTile calls which are safe without a Player).
 	if (OTSYS_TIME() >= bot.nextRerollTime) {
 		doActivityReroll(bot);
+	}
+}
+
+// Virtual twin of tickHouseVisit / tickShrineVisit for a visit hibernateHouseVisit carried over.
+// The dwell itself is virtualAdvanceDwelling's pure dwellUntil timer (held at run.until + 5 s);
+// this only ends the run on time, so its claims and the occupancy slot are handed back, and tears
+// it down if anything moved the bot out of DWELLING (the live "interrupted"/"displaced" guards).
+void BotEngine::virtualTickVisitRuns(BotState &bot) {
+	const int64_t now = OTSYS_TIME();
+	if (auto it = s_houseRuns.find(bot.guid); it != s_houseRuns.end()) {
+		if (bot.state != BotAIState::DWELLING || it->second.phase != HousePhase::IDLE) {
+			endHouseVisit(bot.guid, "virtual_interrupted");
+		} else if (now >= it->second.until) {
+			endHouseVisit(bot.guid, "dwell_end");
+		}
+		// endHouseVisit arms the door-aware planner for the LIVE walk out. The twin's walk is
+		// index-based and ignores doors, and a planner entry on a hibernated bot would outlive it.
+		if (!s_houseRuns.count(bot.guid)) s_houseExitPlanner.erase(bot.guid);
+	}
+	if (auto it = s_shrineRuns.find(bot.guid); it != s_shrineRuns.end()) {
+		if (bot.state != BotAIState::DWELLING || it->second.phase != ShrinePhase::IDLE) {
+			endShrineVisit(bot.guid, "virtual_interrupted");
+		} else if (now >= it->second.until) {
+			endShrineVisit(bot.guid, "dwell_end");
+		}
 	}
 }
 
@@ -1391,8 +1420,10 @@ void BotEngine::virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms) {
 			}
 			if (script->patrolWaypoints.empty()) {
 				// Nothing to walk; immediately go to LEAVING
+				// #193 virtual twin: the team rides home with the leader (followers mirror its
+				// position) and disbands at the depot in RESUPPLYING — no dissolve here any more.
 				if (bot.isPartyHuntLeader && bot.partyHuntId > 0) {
-					dissolveVirtualPartyHunt(bot.partyHuntId, "virtual_leaving_empty_wps");
+					partyReturnBegin(bot, "virtual_empty_wps", true);
 				}
 				bot.huntWaypointIdx = 0;
 				bot.huntPhase = HuntPhase::LEAVING;
@@ -1420,8 +1451,9 @@ void BotEngine::virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms) {
 				// starts from the patrol's terminal waypoint rather than wherever the timer happened
 				// to fall. Mirrors live doHuntPatrol's lapComplete branch.
 				if (bot.huntEndTime > 0 && OTSYS_TIME() >= bot.huntEndTime) {
+					// #193 virtual twin of the live LEAVING: keep the party, lead it home.
 					if (bot.isPartyHuntLeader && bot.partyHuntId > 0) {
-						dissolveVirtualPartyHunt(bot.partyHuntId, "virtual_leaving_timer");
+						partyReturnBegin(bot, "virtual_timer", true);
 					}
 					// advanceWaypointIdx can step from size-2 straight to size, in which case the
 					// snap above was skipped and currentPos still holds an earlier waypoint. Land
@@ -1506,6 +1538,21 @@ void BotEngine::virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms) {
 					// Skip live's conditional exit walk (step 4) — virtual has no A* check
 					bot.prepareStep = 5;
 					bot.prepareWaitUntil = 0;
+				}
+			}
+
+			// #193 virtual twin of doHuntResupply's depot disband: the team rode home on the
+			// leader's position, so at the end of the depot dwell (step 1 -> 2, the live reroll
+			// point) every follower is here — record them and disband. The resupply timeout is the
+			// backstop, so a party can never be carried into the leader's IDLE reroll below.
+			if (bot.isPartyHuntLeader && bot.partyHuntId > 0) {
+				partyReturnBegin(bot, "virtual_resupply", true); // idempotent (e.g. hibernated mid-return)
+				const bool vtResupplyTimedOut = bot.huntResupplyStart > 0
+					&& OTSYS_TIME() - bot.huntResupplyStart > RESUPPLY_TIMEOUT * 1000LL * 2;
+				if (bot.prepareStep >= 2 || vtResupplyTimedOut) {
+					partyReturnNoteArrivals(bot, true);
+					dissolveVirtualPartyHunt(bot.partyHuntId,
+						bot.prepareStep >= 2 ? "party_return_depot" : "virtual_resupply_timeout");
 				}
 			}
 
@@ -1629,6 +1676,14 @@ void BotEngine::virtualAdvancePartyHunt(BotState &bot, int64_t elapsed_ms) {
 // Phase 3: virtualAdvanceAdvStone — overlay phase machine for the dungeon trip.
 // Uses kAdventurerStoneForcefield/kAdventurerStoneDest from the top-of-file anon namespace.
 void BotEngine::virtualAdvanceAdvStone(BotState &bot, int64_t elapsed_ms) {
+	// Whole-trip backstop (shared with the live doAdventurerStone). Before the 2026-11-23 dwell
+	// fix below, a hibernated bot needed ~a day to leave the island; this caps any future
+	// regression of the same shape at one trip budget.
+	bool deadlineExit = false;
+	if (bot.advStonePhase != 2 && advStoneTripOverdue(bot.guid)) {
+		bot.advStonePhase = 2;
+		deadlineExit = true;
+	}
 	if (bot.advStonePhase == 0) {
 		// Phase 6: index-based, 1 waypoint per 5s along the dungeon route.
 		size_t newIdx = advanceWaypointIdx(bot.guid,
@@ -1650,7 +1705,14 @@ void BotEngine::virtualAdvanceAdvStone(BotState &bot, int64_t elapsed_ms) {
 		// Reached chosen idle waypoint? transition to dwelling.
 		// Phase 5b: dwell shortened from 5-30 min to 1-3 min so bots visibly cycle
 		// through the dungeon rather than appearing "stuck" at one waypoint.
-		if (bot.advStoneIdleAt > 0 && bot.advStoneRouteIdx >= bot.advStoneIdleAt
+		//
+		// ONCE per visit, exactly like the live trip (doAdventurerStone tests `==` and its dwell
+		// expiry bumps advStoneRouteIdx past idleAt). This used to test `>=`: the dwell expiry
+		// left the index ON idleAt, the next ~100 ms tick moved it 2 % of a 5 s waypoint, the
+		// test was still true and the bot dwelt again for 60-300 s. One waypoint per ~50 dwells:
+		// leaving the island took about a day, and the idle population climbed 145 -> 455 of 500
+		// over 16 h. The dwell expiry below now also steps past idleAt, mirroring live.
+		if (bot.advStoneIdleAt > 0 && bot.advStoneRouteIdx == bot.advStoneIdleAt
 		    && bot.advStoneDwellUntil == 0) {
 			bot.advStonePhase = 1;
 			// Mirror live durations exactly (advStoneDwellSecs handles test-mode clamp +
@@ -1674,6 +1736,11 @@ void BotEngine::virtualAdvanceAdvStone(BotState &bot, int64_t elapsed_ms) {
 		if (OTSYS_TIME() >= bot.advStoneDwellUntil) {
 			bot.advStonePhase = 0; // resume route to forcefield
 			bot.advStoneDwellUntil = 0;
+			// Mirror live's `advStoneRouteIdx++` at dwell expiry: the walk-out resumes from the
+			// waypoint AFTER idleAt, so the once-per-visit dwell test above cannot re-fire.
+			// Drop the walker's leftover too, so the walk-out starts on a whole waypoint.
+			bot.advStoneRouteIdx = static_cast<uint16_t>(bot.advStoneIdleAt + 1);
+			waypointLeftoverMs_.erase(bot.guid);
 			// Resume from the idle route waypoint position (so the route walker picks
 			// up cleanly from idleAt rather than from the chest/dummy tile, which is
 			// off-route). chooseWakePosition + the route walker handle the geometry.
@@ -1696,14 +1763,11 @@ void BotEngine::virtualAdvanceAdvStone(BotState &bot, int64_t elapsed_ms) {
 	} else if (bot.advStonePhase == 2) {
 		// Snap to forcefield then back to start-town temple (mimics MoveEvent teleport)
 		bot.currentPos = kAdventurerStoneForcefield;
-		Position homeTemple = bot.currentPos; // fallback
-		auto poiIt = cityPOIs_.find(bot.advStoneStartTownId);
-		if (poiIt != cityPOIs_.end()) {
-			for (const auto &poi : poiIt->second) {
-				if (poi.type == POIType::TEMPLE) { homeTemple = poi.pos; break; }
-			}
-		}
-		bot.currentPos = homeTemple;
+		bot.currentPos = advStoneHomeTemple(bot.advStoneStartTownId, bot.currentPos);
+		g_logger().info("[ADVSTONE] exit reason={} bot={} virtual=1 town={}",
+			deadlineExit ? "deadline" : "done", bot.name, bot.advStoneStartTownId);
+		syncTownIdToPos(bot); // the temple, not the island (findNearestTown reads that as Rookgaard)
+		advStoneTripDeadline_.erase(bot.guid);
 		bot.advStoneActive = false;
 		bot.advStonePhase = 0;
 		bot.advStoneRouteIdx = 0;
@@ -2031,6 +2095,7 @@ bool BotEngine::virtualTryStartPartyHunt(BotState &bot, int32_t forceScriptId) {
 			clearAdvStoneState(supportBot);
 			clearFishingRun(supportBot.guid); // closes the same selection->setup race
 			endHouseVisit(supportBot.guid, "party_conscripted"); // same race, same reason
+			endShrineVisit(supportBot.guid, "party_conscripted"); // a carried visit (hibernateShrineVisit)
 
 			supportBot.state = BotAIState::PARTY;
 			supportBot.partyHuntId = partyHuntId;
@@ -2084,6 +2149,7 @@ bool BotEngine::virtualTryStartPartyHunt(BotState &bot, int32_t forceScriptId) {
 // touching Canary engine ops (no exitPartyMode, no Party::disband). Used when the
 // virtual leader transitions to LEAVING/RESUPPLYING.
 void BotEngine::dissolveVirtualPartyHunt(uint32_t partyHuntId, const std::string& reason) {
+	partyReturnLogDisband(partyHuntId, reason, true); // #193: closes the team-return record, if any
 	auto membersIt = s_partyHuntMembers.find(partyHuntId);
 	if (membersIt == s_partyHuntMembers.end()) return;
 
@@ -3995,9 +4061,11 @@ void BotEngine::tick() {
 		s_lastStateSummary = OTSYS_TIME();
 		int idle = 0, dwell = 0, hunt = 0, travel = 0, combat = 0, party = 0, other = 0;
 		int wrongZ = 0;
+		int advStone = 0; // on an Adventurer's Stone trip (they show as IDLE above)
 		auto& walkZ = getCityWalkZ();
 		for (auto& b : bots_) {
 			if (!b.active) continue;
+			if (b.advStoneActive) advStone++;
 			switch (b.state) {
 				case BotAIState::IDLE: idle++; break;
 				case BotAIState::DWELLING: dwell++; break;
@@ -4010,8 +4078,14 @@ void BotEngine::tick() {
 			auto wzIt = walkZ.find(b.townId);
 			if (wzIt != walkZ.end() && b.currentPos.z != wzIt->second) wrongZ++;
 		}
-		g_logger().info("[BotEngine] States: idle={} dwell={} hunt={} travel={} combat={} party={} | wrongZ={} | active={}",
-			idle, dwell, hunt, travel, combat, party, wrongZ, countActiveBots());
+		g_logger().info("[BotEngine] States: idle={} dwell={} hunt={} travel={} combat={} party={} | wrongZ={} | active={} advStone={}",
+			idle, dwell, hunt, travel, combat, party, wrongZ, countActiveBots(), advStone);
+		g_logger().info("[VISIT_STATS] house started={} arrived={} virtual={} cancelled={} carried={} | "
+			"shrine started={} arrived={} virtual={} cancelled={} carried={}",
+			visitStats_.houseStarted, visitStats_.houseArrived, visitStats_.houseArrivedVirtual,
+			visitStats_.houseCancelled, visitStats_.houseCarried,
+			visitStats_.shrineStarted, visitStats_.shrineArrived, visitStats_.shrineArrivedVirtual,
+			visitStats_.shrineCancelled, visitStats_.shrineCarried);
 
 		// BOT_NAV_REALISM Phase 1: tick-phase distribution (acceptance signal). Steady-state home
 		// for the histogram — guaranteed to have active bots here, unlike loadHuntData.

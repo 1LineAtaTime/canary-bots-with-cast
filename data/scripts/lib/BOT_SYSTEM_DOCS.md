@@ -191,12 +191,27 @@ slot, ahead of `doHealing`, a sorcerer/druid/paladin below `botManaPotionPct` (7
 strongest mana potion its level allows (mana / strong 50 / great 80 / ultimate 130, ultimate for
 mages only); a paladin whose HP is also below `botSpiritPotionHpPct` (70) drinks great (80) or
 ultimate (130) spirit instead. A knight drinks its health tier below `botKnightHealthPotionPct`
-(60) — or below 85 % when its mana is under `botKnightManaPotionPct` (40), since exura ico is then
-unpayable — else mana / strong mana below that line. `[BOT_MANA_DEATH]` logs the last mana % of every death. The drink goes through the
+(60) — or below `botKnightHealthPotionNoSpellPct` (85) ONLY when its heal spell is unaffordable (mana
+< 2x the cost of what `doHealing` casts first) — else mana / strong mana below `botKnightManaPotionPct`
+(60). Knights are tuned so mana averages ~60 %: they cast exura ico / med ico from `botKnightHealSpellPct`
+(88) HP (others 75), their attack spells and exeta res keep `botKnightAttackManaReservePct` (50) of the
+pool, and exeta res fires only when an adjacent monster targets someone else. `[BOT_POTION]` carries
+`manaPct= hpPct= why=hp_below_line|heal_unaffordable|mana_below_line`. `[BOT_MANA_DEATH]` logs the last mana % of every death. The drink goes through the
 stock `potions.lua` action (real amount, blue sparkle, "Aaaah...", sound, empty flask) and the
 server's potion exhaust, plus 0-`botPotionJitterMs`; the seeded potion is never consumed. A spell,
 rune or heal the bot cannot pay for is skipped, not refilled, and an attack spell never spends the
-pool below `botAttackManaReservePct` (20) so heals stay payable. Every ~`botFlaskDropIntervalSec`
+pool below `botAttackManaReservePct` (20) so heals stay payable. An "ultimate" AoE (an area attack spell
+with own cooldown >= 40 s: exevo gran mas vis/flam/frigo/tera) is cast in PvE only on >= `botUltAoeMinMonsters`
+(3) non-resistant monsters in its real area matrix, at selection and again pre-cast; a PvP fight (player target
+or attacker, PK_ATTACK, PvP hit < 10 s) has no limit. `[ULT_AOE] cast` always (`players=N`), `skip` for watched bots (5 s). In PvP every area spell
+counts ENEMY players in its area (the bot's player target, or a player attacking the bot / its leader /
+a partner; never a partner, PZ or GM; in a human-led party defence only), so a lone player with no
+monster near is a valid AoE target (`[PVP_AOE] cast ... players=N`); enemies are never "bystanders"
+to `aoeClipsBystander`. A bystander refuses an AoE only if the server WOULD damage it: the guard asks
+`Combat::canDoCombat` per player in the area (protection level, PZ/no-PvP, GM, Lua `onTargetCombat`: same
+party never hit, secure-mode caster never hits an unmarked player; Expert-PvP area rule on expert-pvp), so a
+bot-only party keeps full AoE with partners in the area (`[AOE_PARTY] cast ... partners=N`) and `[AOE_SPARE]`
+(`secure=0|1`) names only a player who would really be hit. A refused AoE falls back to the single-target spell. Every ~`botFlaskDropIntervalSec`
 (60, 0.75-1.25x) a bot carrying `botFlaskDropMinCount` (3) empties drops them at its feet (or an
 adjacent sqm; litter guards: no house, no trash/mailbox/teleport/FC tile, one drop per sqm, i.e. never
 onto empties already lying there; a corpse underfoot is allowed; `[BOT_FLASK_DROP] skip` when no tile fits). A woken

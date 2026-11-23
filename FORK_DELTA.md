@@ -110,7 +110,7 @@ Rebuilt for the 15.25 port (#128, #157) from `implementation_plans/upstream_1525
 | `data-otservbr-global/scripts/globalevents/others/check_mount.lua` | O6 bot-data | +4/-0 | Skip bots in the mount check. |
 | `data-otservbr-global/scripts/movements/teleport/shrine_entrance.lua` | O6 bot-data | +1/-1 | Bots ignore the shrine level gate. |
 | `data/XML/groups.xml` | O6 bot-data | +44/-0 | Group 7 `bot`. |
-| `data/global.lua` | O6 bot-data | +3/-0 | `BotPlayers` global. |
+| `data/global.lua` | O6 bot-data + O4 gameplay | +12/-2 | `BotPlayers` global. `PARTY_PROTECTION` / `ADVANCED_SECURE_MODE` off only for an explicit `retro-pvp` world: upstream #4033 made `"pvp"` a retro alias, which dropped party protection + secure-mode area protection on our `"pvp"` world (2026-11-23; the bot AoE bystander guard mirrors these rules via `Combat::canDoCombat`). Re-apply after any upstream edit of the two lines. |
 | `data/scripts/actions/doors/key_door.lua` | O6 bot-data | +26/-2 | Bots open doors without keys / level / quest checks. |
 | `data/scripts/actions/doors/level_door.lua` | O6 bot-data | +5/-2 | Bots open doors without keys / level / quest checks. |
 | `data/scripts/actions/doors/quest_door.lua` | O6 bot-data | +5/-2 | Bots open doors without keys / level / quest checks. |

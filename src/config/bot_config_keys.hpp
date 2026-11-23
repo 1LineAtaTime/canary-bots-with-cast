@@ -799,8 +799,8 @@
 // ordinal moves. Read by the .so (bot_learning.cpp). Needs a FULL rebuild.
 // ============================================================================
 #define BOT_LEARNING_CONFIG_KEYS(INT, BOOL, STR)                                     \
-	/* #30: a real player dwelling in a spawn group's area claims it implicitly */      \
-	BOOL(BOT_SPAWN_AUTOCLAIM_ENABLE,       "botSpawnAutoClaimEnable",       true)       \
+	/* #30: OFF since 2026-11-23: claims are explicit-only (/cavebot claim) */          \
+	BOOL(BOT_SPAWN_AUTOCLAIM_ENABLE,       "botSpawnAutoClaimEnable",       false)      \
 	/* #30: seconds inside the area before the claim (fighting there: 20 s) */          \
 	INT (BOT_SPAWN_AUTOCLAIM_DWELL_SEC,    "botSpawnAutoClaimDwellSec",     60)         \
 	/* #30: no move and no attack for this long releases the claim */                   \
@@ -816,7 +816,7 @@
 	/* #187: sorcerers/druids/paladins drink a mana potion below this mana % */      \
 	INT (BOT_MANA_POTION_PCT,              "botManaPotionPct",              70)      \
 	/* #187: knights drink a mana potion below this mana % */                        \
-	INT (BOT_KNIGHT_MANA_POTION_PCT,       "botKnightManaPotionPct",        40)      \
+	INT (BOT_KNIGHT_MANA_POTION_PCT,       "botKnightManaPotionPct",        60)      \
 	/* #187: knights drink a health potion below this HP % (before mana) */          \
 	INT (BOT_KNIGHT_HEALTH_POTION_PCT,     "botKnightHealthPotionPct",      60)      \
 	/* #187: paladins drink a spirit potion (not mana) when HP is also below this % */ \
@@ -832,7 +832,16 @@
 	/* #187: log [BOT_POTION] for every bot (default: only cast-watched / verbose) */ \
 	BOOL(BOT_POTION_LOG_ALL,               "botPotionLogAll",               false)   \
 	/* #187: attack spells keep this % of the mana pool for heals */                 \
-	INT (BOT_ATTACK_MANA_RESERVE_PCT,     "botAttackManaReservePct",       20)
+	INT (BOT_ATTACK_MANA_RESERVE_PCT,     "botAttackManaReservePct",       20)      \
+	/* ultimate AoE (cooldown >= 40 s): PvE cast needs this many monsters in its area */ \
+	INT (BOT_ULT_AOE_MIN_MONSTERS,         "botUltAoeMinMonsters",          3)       \
+	/* knight mana (#187 follow-up): exura ico/med ico from this HP % (others: 75) */ \
+	INT (BOT_KNIGHT_HEAL_SPELL_PCT,        "botKnightHealSpellPct",         88)      \
+	/* knights: attack spells and exeta res keep this % of the mana pool */         \
+	INT (BOT_KNIGHT_ATTACK_MANA_RESERVE_PCT, "botKnightAttackManaReservePct", 50)    \
+	/* knights: between botKnightHealthPotionPct and this HP %, a health potion only */ \
+	/* when the heal spell is unaffordable (mana < 2x its cost) */                   \
+	INT (BOT_KNIGHT_HEALTH_POTION_NO_SPELL_PCT, "botKnightHealthPotionNoSpellPct", 85)
 
 // ============================================================================
 // Every BOT_* table above, for code that must visit ALL bot keys regardless of where each table

@@ -17,6 +17,7 @@
 // ============================================================================
 
 #include "creatures/players/bot/bot_engine_impl.hpp"
+#include "creatures/players/components/pvp/expert_pvp.hpp"
 
 // ============================================================================
 // Gang-PK alpha-strike (Feature 1) — file-scope shared state (no ABI change).
@@ -90,6 +91,9 @@ bool BotEngine::findThreatCentroid(BotState& bot, int32_t keepDist, Position& ou
 		if (s.id == bot.huntScriptId) { script = &s; break; }
 	}
 	if (!script) return false;
+	// Quest = blockers only (botQuestFightsBlockersOnly): nothing is a keep-distance threat, or a
+	// mage would back away from every wolf that merely chases it instead of walking the route.
+	if (botQuestFightsBlockersOnly(script)) return false;
 
 	// Uses cached spectators (target selection cadence, 600ms TTL).
 	refreshSpectatorCacheIfStale(bot);
@@ -118,11 +122,6 @@ bool BotEngine::findThreatCentroid(BotState& bot, int32_t keepDist, Position& ou
 			for (const auto& t : script->targetNames) {
 				if (monsterName == t) { match = true; break; }
 			}
-		}
-		// Quest retaliation — a monster attacking the bot counts as a threat for keep-distance
-		// purposes too, otherwise a mage would hold position against something actively hitting it.
-		if (!match && botIsQuestRetaliationTarget(script, player->getID(), creature)) {
-			match = true;
 		}
 		if (!match) continue;
 
@@ -1795,14 +1794,14 @@ void BotEngine::castSpell(BotState& bot, const std::shared_ptr<Creature>& target
 		}
 	}
 
-	// AoE bystander safety. PvP target: no other player/bot may be in the area. Monster target
-	// (#91 follow-up): no real player and no partner of a human-led party — an ED's UE on a rat
-	// beside its level-8 leader killed the leader AND a stranger, disconnecting both and
-	// dissolving the party (b7_control_verbs a4). Fall back to single-target / SD / auto-attack.
+	// AoE bystander safety: no player the server WOULD damage (aoeWouldDamage) who is not a hostile
+	// may be in the area (#91 follow-up: an ED's UE on a rat beside its level-8 leader killed the
+	// leader AND a stranger, b7_control_verbs a4). Fall back to single-target / SD / auto-attack.
 	if (bestType == AOE_SPELL || bestType == AOE_RUNE) {
 		const bool clips = !aoeClipsBystander(bot, bestType == AOE_SPELL ? winnerAoeSpell : nullptr, winnerAoeDir,
 			bestType == AOE_RUNE ? &winnerRunePos : nullptr, target->getID(), targetIsPlayer, "castSpell").empty();
 		if (clips) {
+			const std::string aoeWords = bestType == AOE_SPELL && winnerAoeSpell ? winnerAoeSpell->words : std::string("rune");
 			if (winnerSingleSpell) {
 				bestType = SINGLE_SPELL;
 			} else if (resolvedSdRune_.runeId > 0 && (baseVoc == 1 || baseVoc == 2) && findRuneInBackpack(player, resolvedSdRune_.runeId)) {
@@ -1810,6 +1809,8 @@ void BotEngine::castSpell(BotState& bot, const std::shared_ptr<Creature>& target
 			} else {
 				bestType = NONE;
 			}
+			logAoeFallback(bot, aoeWords, bestType == SINGLE_SPELL ? winnerSingleSpell->words
+				: bestType == SD_RUNE ? std::string("sd") : std::string("none"), targetIsPlayer, "castSpell");
 		}
 	}
 
@@ -1829,7 +1830,24 @@ void BotEngine::castSpell(BotState& bot, const std::shared_ptr<Creature>& target
 					winnerAoeSpell->areaPatternName.empty() ? "?" : winnerAoeSpell->areaPatternName,
 					bestScore), tiles);
 			}
-			castAoeSpell(bot, winnerAoeSpell, winnerAoeDir, target->getID());
+			if (castAoeSpell(bot, winnerAoeSpell, winnerAoeDir, target->getID())) break;
+			// The pre-cast recount refused it (bystander, ultimate gate, mana reserve, nothing in the
+			// area at the real position): fall back to the single-target spell instead of a dead tick.
+			if (auto* dcfg = getDebugCfg(bot.guid); dcfg) dcfg->pending.active = false;
+			{
+				const std::string aoeWords = winnerAoeSpell ? winnerAoeSpell->words : std::string("?");
+				if (winnerSingleSpell) {
+					logAoeFallback(bot, aoeWords, winnerSingleSpell->words, targetIsPlayer, "castAoe");
+					bestType = SINGLE_SPELL;
+					goto castSingleSpell;
+				}
+				if (resolvedSdRune_.runeId > 0 && (baseVoc == 1 || baseVoc == 2) && findRuneInBackpack(player, resolvedSdRune_.runeId)) {
+					logAoeFallback(bot, aoeWords, "sd", targetIsPlayer, "castAoe");
+					bestType = SD_RUNE;
+					goto castSdRune;
+				}
+				logAoeFallback(bot, aoeWords, "none", targetIsPlayer, "castAoe");
+			}
 			break;
 		}
 		case AOE_RUNE: {
@@ -1869,7 +1887,8 @@ void BotEngine::castSpell(BotState& bot, const std::shared_ptr<Creature>& target
 			}
 			break;
 		}
-		case SINGLE_SPELL: {
+		case SINGLE_SPELL:
+		castSingleSpell: {
 			// Mana restore — PvP is budgeted, PvE is unlimited
 			const auto& instantSpellCheck = g_spells().getInstantSpell(winnerSingleSpell->words);
 			uint32_t manaCost = 0;
@@ -1962,7 +1981,8 @@ void BotEngine::castSpell(BotState& bot, const std::shared_ptr<Creature>& target
 			}
 			break;
 		}
-		case SD_RUNE: {
+		case SD_RUNE:
+		castSdRune: {
 			auto sdItem = findRuneInBackpack(player, resolvedSdRune_.runeId);
 			if (sdItem) {
 				// Debug: SD rune is single-target at tpos
@@ -2426,6 +2446,14 @@ const ResolvedSpell* BotEngine::selectAoeSpell(BotState& bot, Direction& outBest
 	Direction bestDir = DIRECTION_NORTH;
 
 	std::vector<std::shared_ptr<Creature>> targets;
+	int8_t pvpCtx = -1; // ultimate-AoE PvP context, resolved lazily (only when an ultimate is a candidate)
+	// PvP: enemy players count as AoE targets (the pvpTarget is one of them when it is hostile; a
+	// lone player with no monster near is a valid AoE target). Bystanders stay with aoeClipsBystander.
+	uint32_t enemyTargetId = pvpTarget ? pvpTarget->getID() : 0;
+	if (enemyTargetId == 0) {
+		if (const auto at = player->getAttackedCreature(); at && at->getPlayer()) enemyTargetId = at->getID();
+	}
+	const auto enemies = collectAoeEnemyPlayers(bot, enemyTargetId);
 
 	for (const auto& spell : aoeSpells) {
 		if (static_cast<int32_t>(spell.level) > level) continue;
@@ -2439,6 +2467,7 @@ const ResolvedSpell* BotEngine::selectAoeSpell(BotState& bot, Direction& outBest
 			player->hasCondition(CONDITION_SPELLGROUPCOOLDOWN, spell.secondaryGroup)) continue;
 
 		int32_t count = 0;
+		int32_t monsterCount = 0; // monsters only, for the ultimate-AoE gate
 		Direction spellDir = DIRECTION_NORTH;
 		double weightedCount = 0;
 
@@ -2459,29 +2488,29 @@ const ResolvedSpell* BotEngine::selectAoeSpell(BotState& bot, Direction& outBest
 				nearby.push_back(creature);
 			}
 
-			// Include PvP target in wave direction evaluation
-			if (pvpTarget && pvpTarget->getHealth() > 0) {
-				auto tpos = pvpTarget->getPosition();
-				if (tpos.z == bot.currentPos.z) {
-					nearby.push_back(pvpTarget);
-				}
-			}
+			const size_t monstersInNearby = nearby.size();
+			// Include enemy players (the PvP target among them) in wave direction evaluation
+			for (const auto& e : enemies) nearby.push_back(e);
 			spellDir = findBestWaveDirection(bot, &spell, nearby, count, &weightedCount);
+			// waves: count holds enemy players too; ultimates are self-centred circles, and a
+			// player in the wave means PvP, where the gate passes anyway.
+			monsterCount = monstersInNearby > 0 ? count : 0;
 		} else {
 			count = countAoeTargets(bot, &spell, DIRECTION_NORTH, targets, &weightedCount);
-			// Include PvP target in non-wave AOE scoring
-			if (pvpTarget && pvpTarget->getHealth() > 0) {
-				auto tpos = pvpTarget->getPosition();
-				if (tpos.z == bot.currentPos.z &&
-					spellHits(bot.currentPos, tpos, spell, DIRECTION_NORTH) &&
-					g_game().map.isSightClear(bot.currentPos, tpos, true)) {
-					count++;
-					weightedCount += 1.0;
-				}
-			}
+			monsterCount = count; // countAoeTargets scans monsters only, through the spell's real area matrix
+			// Enemy players in the real area count as targets (PvP)
+			const int32_t playersHit = countAoeEnemyHits(bot.currentPos, spell, DIRECTION_NORTH, enemies);
+			count += playersHit;
+			weightedCount += static_cast<double>(playersHit);
 		}
 
 		if (count < spell.minTargets) continue;
+
+		// Ultimate AoE (40 s cooldown): never burned on one or two monsters in PvE.
+		if (spell.isUltimateAoe) {
+			if (pvpCtx < 0) pvpCtx = (ultAoePvpContext(bot, pvpTarget) || !enemies.empty()) ? 1 : 0;
+			if (!ultAoeAllowed(bot, spell, monsterCount, pvpCtx == 1, "select", true)) continue;
+		}
 
 		// Score: estimated damage per target * resistance-weighted count
 		double dmgPerTarget;
@@ -2514,23 +2543,40 @@ const ResolvedSpell* BotEngine::selectAoeSpell(BotState& bot, Direction& outBest
 // #91 follow-up: rate-limited [AOE_SPARE] journal line, one per bot per 5 s (castSpell is 2 s-gated,
 // the party AoE path runs every tick). Only this TU touches it.
 static std::unordered_map<uint32_t, int64_t> s_aoeSpareLogMs;
+static std::unordered_map<uint32_t, int64_t> s_aoeFallbackLogMs;
+static std::unordered_map<uint32_t, int64_t> s_aoePartyLogMs;
+
+void BotEngine::logAoeFallback(BotState& bot, const std::string& aoe, const std::string& to, bool pvp, const char* site) {
+	const int64_t now = OTSYS_TIME();
+	auto& last = s_aoeFallbackLogMs[bot.guid];
+	if (now - last < 5000) return;
+	last = now;
+	g_logger().info("[AOE_FALLBACK] bot='{}' site={} aoe='{}' to={} pvp={} state={}", bot.name, site, aoe, to,
+		pvp ? 1 : 0, botStateName(bot.state));
+}
 
 std::string BotEngine::aoeClipsBystander(BotState& bot, const ResolvedSpell* spell, Direction dir,
 	const Position* runeCenter, uint32_t spareId, bool anyPlayer, const char* site) {
 	auto self = bot.getPlayer();
 	if (!self || (!spell && !runeCenter)) return {};
 	const Position me = self->getPosition();
-	const auto party = self->getParty();
-	const auto pLeader = party ? party->getLeader() : nullptr;
-	const bool humanLedParty = pLeader && !pLeader->isBotPlayer();
+	// Combat round 2026-11-23, corrected: MIRROR the server. An area spell refuses only when a player
+	// it WOULD actually damage, and who is not a legitimate hostile (isAoeEnemyPlayer), stands in the
+	// area. "Would damage" is asked of the server itself, per player in the area: Combat::canDoCombat
+	// (the call Combat::doAreaCombat makes per creature, combat.cpp ~1610): protection level, PZ /
+	// no-PvP tile, GM flag, and the Lua onTargetCombat (data/events/scripts/creature.lua: same-party
+	// players are never hit; a caster in secure mode never hits an unmarked player), plus the
+	// Expert-PvP area-spell decision on an expert-pvp world. So bot-only party hunts keep full AoE
+	// (partners are party-protected), and a bot in secure mode does not refuse over an unmarked
+	// passer-by it cannot hurt.
+	if (g_game().getWorldType() == WORLD_TYPE_NO_PVP) return {}; // no player takes area damage there
 	for (const auto& spec : Spectators().find<Player>(me, false, 8, 8, 6, 6)) {
 		const auto p = spec ? spec->getPlayer() : nullptr;
-		if (!p || p.get() == self.get() || p->getID() == spareId) continue;
+		// The target itself (spareId) is NOT exempt: it must pass isAoeEnemyPlayer like everyone else.
+		if (!p || p.get() == self.get()) continue;
 		if (p->isRemoved() || p->getHealth() <= 0 || p->isInGhostMode()) continue;
-		if (p->hasFlag(PlayerFlags_t::CannotBeAttacked)) continue; // GMs take no damage
 		const Position pp = p->getPosition();
 		if (pp.z != me.z) continue;
-		if (!anyPlayer && p->isBotPlayer() && !(humanLedParty && self->isPartner(p))) continue;
 		bool in = false;
 		if (spell) {
 			in = spellHits(me, pp, *spell, dir);
@@ -2539,17 +2585,134 @@ std::string BotEngine::aoeClipsBystander(BotState& bot, const ResolvedSpell* spe
 				std::abs(static_cast<int32_t>(pp.y) - static_cast<int32_t>(runeCenter->y))) <= 3;
 		}
 		if (!in) continue;
+		// An enemy (hostile to the bot or its party; never a partner) is a target, not a bystander.
+		if (isAoeEnemyPlayer(bot, self, p, spareId)) continue;
+		if (!aoeWouldDamage(self, p)) continue; // the server spares this player: no reason to refuse
 		const int64_t now = OTSYS_TIME();
 		auto& last = s_aoeSpareLogMs[bot.guid];
 		if (now - last >= 5000) {
 			last = now;
-			g_logger().info("[AOE_SPARE] bot='{}' site={} aoe='{}' bystander='{}' human={} partner={} pvpTarget={}",
+			g_logger().info("[AOE_SPARE] bot='{}' reason=bystander site={} aoe='{}' bystander='{}' human={} partner={} pvpTarget={} secure={}",
 				bot.name, site, spell ? spell->words : std::string("rune"), p->getName(), p->isBotPlayer() ? 0 : 1,
-				self->isPartner(p) ? 1 : 0, anyPlayer ? 1 : 0);
+				self->isPartner(p) ? 1 : 0, anyPlayer ? 1 : 0, self->hasSecureMode() ? 1 : 0);
 		}
 		return p->getName();
 	}
 	return {};
+}
+
+bool BotEngine::aoeWouldDamage(const std::shared_ptr<Player>& self, const std::shared_ptr<Player>& p) {
+	if (!self || !p || p.get() == self.get()) return false;
+	if (Combat::canDoCombat(self, p, true) != RETURNVALUE_NOERROR) return false;
+	if (ExpertPvp::isEnabled() && Combat::isPlayerCombat(p)) {
+		const auto relation = ExpertPvp::classifyRelation(self, p);
+		const auto decision = ExpertPvp::evaluateCombatAction(ExpertPvpActionKind::AreaSpell, relation.facts);
+		if (decision.handled && !decision.allowed) return false;
+	}
+	return true;
+}
+
+int32_t BotEngine::countAoeSparedPartners(const std::shared_ptr<Player>& self, const ResolvedSpell& spell, Direction dir) {
+	const auto party = self ? self->getParty() : nullptr;
+	if (!party) return 0;
+	const Position me = self->getPosition();
+	int32_t n = 0;
+	auto count = [&](const std::shared_ptr<Player>& m) {
+		if (!m || m.get() == self.get() || m->isRemoved()) return;
+		const Position mp = m->getPosition();
+		if (mp.z != me.z || !spellHits(me, mp, spell, dir)) return;
+		if (!aoeWouldDamage(self, m)) ++n;
+	};
+	for (const auto& m : party->getMembers()) count(m);
+	count(party->getLeader());
+	return n;
+}
+
+bool BotEngine::isAoeEnemyPlayer(BotState& bot, const std::shared_ptr<Player>& self,
+	const std::shared_ptr<Player>& p, uint32_t targetId) const {
+	if (!self || !p || p.get() == self.get()) return false;
+	if (p->isRemoved() || p->getHealth() <= 0 || p->isInGhostMode()) return false;
+	if (p->hasFlag(PlayerFlags_t::CannotBeAttacked)) return false;
+	if (self->isPartner(p)) return false; // never a party member (human-led or not)
+	const auto party = self->getParty();
+	const auto leader = party ? party->getLeader() : nullptr;
+	if (leader && leader.get() == p.get()) return false;
+	if (const auto g = self->getGuild(); g && p->getGuild() == g) return false; // guild mate
+	if (const auto mi = s_gangByGuid.find(bot.guid); mi != s_gangByGuid.end()) { // gang mate
+		if (const auto pi = s_gangByGuid.find(p->getGUID()); pi != s_gangByGuid.end() && pi->second == mi->second) return false;
+	}
+	if (const auto tile = p->getTile(); tile && tile->hasFlag(TILESTATE_PROTECTIONZONE)) return false;
+	// Defence: p attacks the bot, its leader or a partner, or is the bot's recorded attacker.
+	if (const auto at = p->getAttackedCreature()) {
+		if (at.get() == self.get() || (leader && at.get() == leader.get())) return true;
+		if (const auto ap = at->getPlayer(); ap && self->isPartner(ap)) return true;
+	}
+	if (bot.attackerId != 0 && bot.attackerId == p->getID()) return true;
+	// Offence: the bot's own player target, except in a human-led party (defence only, #91).
+	if (targetId != 0 && p->getID() == targetId && !inHumanLedParty(bot)) return true;
+	return false;
+}
+
+std::vector<std::shared_ptr<Player>> BotEngine::collectAoeEnemyPlayers(BotState& bot, uint32_t targetId) const {
+	std::vector<std::shared_ptr<Player>> out;
+	const auto self = bot.getPlayer();
+	if (!self) return out;
+	const Position me = self->getPosition();
+	for (const auto& spec : Spectators().find<Player>(me, false, 8, 8, 6, 6)) {
+		const auto p = spec ? spec->getPlayer() : nullptr;
+		if (!p || p->getPosition().z != me.z) continue;
+		if (isAoeEnemyPlayer(bot, self, p, targetId)) out.push_back(p);
+	}
+	return out;
+}
+
+int32_t BotEngine::countAoeEnemyHits(const Position& me, const ResolvedSpell& spell, Direction dir,
+	const std::vector<std::shared_ptr<Player>>& enemies) {
+	int32_t n = 0;
+	for (const auto& e : enemies) {
+		if (!e || e->isRemoved() || e->getHealth() <= 0) continue;
+		const Position ep = e->getPosition();
+		if (ep.z != me.z) continue;
+		if (!spellHits(me, ep, spell, dir)) continue;
+		if (!g_game().map.isSightClear(me, ep, true)) continue;
+		++n;
+	}
+	return n;
+}
+
+// Ultimate AoE gate. A PvP fight = the target (or what the bot attacks) is a player, a player is
+// attacking the bot, the bot is in PK_ATTACK, or it hit a player in the last 10 s. There the ultimate
+// stays unlimited (combo material). Otherwise it needs botUltAoeMinMonsters monsters in its area.
+static std::unordered_map<uint32_t, int64_t> s_ultAoeSkipLogMs; // per bot, 5 s; selection runs per tick
+
+bool BotEngine::ultAoePvpContext(BotState& bot, const std::shared_ptr<Creature>& target) {
+	if (target && target->getPlayer()) return true;
+	if (bot.state == BotAIState::PK_ATTACK) return true;
+	if (bot.attackerId != 0 && g_game().getPlayerByID(bot.attackerId) != nullptr) return true;
+	if (bot.lastPvpAttackTime > 0 && OTSYS_TIME() - bot.lastPvpAttackTime < 10000) return true;
+	if (const auto p = bot.getPlayer()) {
+		if (const auto at = p->getAttackedCreature(); at && at->getPlayer()) return true;
+	}
+	return false;
+}
+
+bool BotEngine::ultAoeAllowed(BotState& bot, const ResolvedSpell& spell, int32_t monsters, bool pvp,
+	const char* site, bool logSkip) {
+	if (!spell.isUltimateAoe || pvp) return true;
+	const int32_t need = livenessCfg_.ultAoeMinMonsters;
+	if (monsters >= need) return true;
+	if (logSkip) {
+		const auto p = bot.getPlayer();
+		const bool watched = bot.verboseLog || getDebugCfg(bot.guid) != nullptr || (p && p->getCastViewerCount() > 0);
+		const int64_t now = OTSYS_TIME();
+		auto& last = s_ultAoeSkipLogMs[bot.guid];
+		if (watched && now - last >= 5000) {
+			last = now;
+			g_logger().info("[ULT_AOE] skip bot='{}' spell='{}' monsters={} need={} pvp=0 site={} state={}",
+				bot.name, spell.words, monsters, need, site, botStateName(bot.state));
+		}
+	}
+	return false;
 }
 
 bool BotEngine::castAoeSpell(BotState& bot, const ResolvedSpell* spell, Direction bestDir, uint32_t spareId) {
@@ -2592,22 +2755,34 @@ bool BotEngine::castAoeSpell(BotState& bot, const ResolvedSpell* spell, Directio
 	bot.currentPos = player->getPosition();
 
 	// Final safety net for every AoE caster (castSpell AND the party reposition path, which never
-	// went through castSpell's bystander check): never clip a real player or a human-led partner.
+	// went through castSpell's bystander check): never clip a player the server would damage.
 	if (const auto atk = player->getAttackedCreature(); spareId == 0 && atk) spareId = atk->getID();
 	if (!aoeClipsBystander(bot, spell, bestDir, nullptr, spareId, false, "castAoe").empty()) return false;
 
 	// Count targets BEFORE casting (spell may kill some — post-cast count would underreport)
 	std::vector<std::shared_ptr<Creature>> preCastTargets;
 	countAoeTargets(bot, spell, bestDir, preCastTargets);
-	int32_t preCastCount = static_cast<int32_t>(preCastTargets.size());
+	const int32_t preCastMonsters = static_cast<int32_t>(preCastTargets.size());
+	// PvP: enemy players in the real area are targets too (a lone player with no monster near used
+	// to be refused here, so the bot cast nothing that tick). Bystanders were refused above.
+	const auto enemies = collectAoeEnemyPlayers(bot, spareId);
+	const int32_t preCastPlayers = countAoeEnemyHits(bot.currentPos, *spell, bestDir, enemies);
+	const int32_t preCastCount = preCastMonsters + preCastPlayers;
 
 	// Skip cast if no targets at actual position (prevents wasted spells)
 	if (preCastCount == 0) return false;
 
-	bool hitPlayer = false;
-	for (const auto& t : preCastTargets) {
-		if (t->getPlayer()) { hitPlayer = true; break; }
+	// Ultimate-AoE gate, final say for BOTH callers (castSpell and the party reposition path), on the
+	// MONSTER count at the bot's real position; an enemy player in the area makes it PvP (no limit).
+	bool ultPvp = false;
+	if (spell->isUltimateAoe) {
+		std::shared_ptr<Creature> ctxTarget = player->getAttackedCreature();
+		if (!ctxTarget && spareId != 0) ctxTarget = g_game().getCreatureByID(spareId);
+		ultPvp = preCastPlayers > 0 || ultAoePvpContext(bot, ctxTarget);
+		if (!ultAoeAllowed(bot, *spell, preCastMonsters, ultPvp, "cast", true)) return false;
 	}
+
+	const bool hitPlayer = preCastPlayers > 0;
 
 	// Cast via server spell system — handles area damage, effects, cooldowns, mana, everything
 	std::string words = spell->words;
@@ -2623,8 +2798,26 @@ bool BotEngine::castAoeSpell(BotState& bot, const ResolvedSpell* spell, Directio
 		player->saySpell(TALKTYPE_SAY, words, false);
 		auto serverPos = player->getPosition();
 		auto spellTargetPos = getNextPosition(bestDir, serverPos);
-		castLog(bot, fmt::format("AOE: {} -> {} targets (bot={},{},{} dir={} spellHit={},{},{})",
-			words, preCastCount,
+		if (spell->isUltimateAoe) {
+			g_logger().info("[ULT_AOE] cast bot='{}' spell='{}' monsters={} need={} pvp={} players={} state={}",
+				bot.name, words, preCastMonsters, livenessCfg_.ultAoeMinMonsters, ultPvp ? 1 : 0, preCastPlayers,
+				botStateName(bot.state));
+		} else if (preCastPlayers > 0) {
+			// PvP AoE acceptance signal (unconditional: rare, one line per cast).
+			g_logger().info("[PVP_AOE] cast bot='{}' spell='{}' monsters={} players={} state={}",
+				bot.name, words, preCastMonsters, preCastPlayers, botStateName(bot.state));
+		}
+		// Party AoE acceptance signal: partners inside the area that the server spares (5 s/bot).
+		if (const int32_t partners = countAoeSparedPartners(player, *spell, bestDir); partners > 0) {
+			auto& lastP = s_aoePartyLogMs[bot.guid];
+			if (now - lastP >= 5000) {
+				lastP = now;
+				g_logger().info("[AOE_PARTY] cast bot='{}' spell='{}' partners={} monsters={} humanLed={} state={}",
+					bot.name, words, partners, preCastMonsters, inHumanLedParty(bot) ? 1 : 0, botStateName(bot.state));
+			}
+		}
+		castLog(bot, fmt::format("AOE: {} -> {} targets (monsters={} players={}) (bot={},{},{} dir={} spellHit={},{},{})",
+			words, preCastCount, preCastMonsters, preCastPlayers,
 			serverPos.x, serverPos.y, serverPos.z,
 			dirToStr(bestDir),
 			spellTargetPos.x, spellTargetPos.y, spellTargetPos.z));
@@ -4098,14 +4291,17 @@ void BotEngine::doHealing(BotState& bot) {
 	bool paralyzed = player->hasCondition(CONDITION_PARALYZE) &&
 		bot.state != BotAIState::COMBAT && bot.state != BotAIState::PK_ATTACK;
 	int32_t hpPct = hp * 100 / maxHp;
-	bool needHeal  = hpPct <= HEAL_THRESHOLD_PCT;
+	uint8_t baseVoc = getBaseVocation(bot.vocationId);
+	// Knights heal by spell from botKnightHealSpellPct (88): exura med ico is ~20 HP per mana on its
+	// own 1 s cooldown, a health potion ~7 and it costs the mana potion that slot (#187 follow-up).
+	const int32_t healLine = baseVoc == 4 ? livenessCfg_.knightHealSpellPct : HEAL_THRESHOLD_PCT;
+	bool needHeal  = hpPct <= healLine;
 	bool emergency = hpPct <= HEAL_EMERGENCY_PCT;
 	if (!needHeal && !paralyzed) return;
 
 	int64_t now = OTSYS_TIME();
 	if (now - bot.lastHealTime < HEAL_COOLDOWN * 1000) return;
 
-	uint8_t baseVoc = getBaseVocation(bot.vocationId);
 	auto& healSpells = getHealSpells(baseVoc);
 
 	if (healSpells.empty()) {

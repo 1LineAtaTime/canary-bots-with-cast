@@ -52,6 +52,8 @@ std::vector<uint32_t> BotEngine::findBotsForParty(uint8_t baseVocId, uint32_t pl
 		// And the same for a house visit: it owns the dwell timer, holds three claims, and may
 		// have a Lua training loop running against a dummy. Conscripting one strands all of it.
 		if (isHouseVisiting(bot.guid)) { continue; }
+		// And a shrine visit, which a hibernated bot can now carry (hibernateShrineVisit).
+		if (isShrineVisiting(bot.guid)) { continue; }
 		// A pinned bot must not be conscripted either. `pin on` promises "no auto tasks", but
 		// until now only doActivityReroll honoured it, so a pinned IDLE bot was not merely
 		// eligible here -- it was a PREFERRED (tier-2) recruit, and party follow would then
@@ -554,12 +556,33 @@ RvPhase BotEngine::pickAssemblyEntryPhase(const BotState& bot, uint32_t anchorTo
 // ProtocolGame::canSee over every anchor (so a cast-watched leader counts as a camera), while
 // chooseWakePosition applies isUnsafeWakeTile — floor-change/teleport/depot/magic-field tiles,
 // registered MoveEvents, house tiles — plus occupancy.
-Position BotEngine::chooseAssemblyStagingPos(BotState& bot, const Position& anchor) {
+// #194: path length (steps) the member's own walker would need from `from` to within 1 tile of
+// `to`, or -1. Uses the engine A* with the member's tile permissions and the wide (4096-node bot
+// pool) profile goTo escalates to — the same search the walk-in will actually run.
+int32_t BotEngine::assemblyPathLen(BotState& bot, const Position& from, const Position& to) {
+	if (from.z != to.z) return -1;
+	auto player = bot.getPlayer();
+	if (!player) return -1;
+	std::vector<Position> tiles;
+	if (!botTraceLegPath(player, from, to, 1, tiles, true)) return -1;
+	return static_cast<int32_t>(tiles.size());
+}
+
+Position BotEngine::chooseAssemblyStagingPos(BotState& bot, const Position& anchor, const char* site) {
 	refreshAnchorsIfStale(100);
-	static constexpr int32_t kRings[] = { 10, 13, 16, 19 };
-	// Eight compass directions per ring; first safe + unseen candidate wins.
+	// #194: the two outer rings are the "widen the ring" fallback when walls make every inner
+	// candidate unreachable. Still inside ASSEMBLY_STAGE_MAX_DIST.
+	static constexpr int32_t kRings[] = { 10, 13, 16, 19, 22, 25 };
+	// Eight compass directions per ring; first safe + unseen + REACHABLE candidate wins.
 	static constexpr int32_t kDx[] = { 1, -1, 0, 0, 1, 1, -1, -1 };
 	static constexpr int32_t kDy[] = { 0, 0, 1, -1, 1, -1, 1, -1 };
+	int32_t pathChecks = 0;
+	int32_t unreachable = 0;
+	// Best candidate that is reachable but longer than ASSEMBLY_STAGE_MAX_PATH: the "nearest
+	// reachable tile" fallback, used only if no candidate meets the bound.
+	Position longBest;
+	int32_t longBestLen = INT32_MAX;
+	int32_t longBestRing = 0;
 	for (int32_t r : kRings) {
 		for (int i = 0; i < 8; i++) {
 			Position cand = anchor;
@@ -583,13 +606,38 @@ Position BotEngine::chooseAssemblyStagingPos(BotState& bot, const Position& anch
 			if (wouldBeSeenByAnchor(vetted, ASSEMBLY_OFFSCREEN_MARGIN)) continue;
 			if (vetted.z != anchor.z) continue;
 			if (trailCheb(vetted, anchor) > ASSEMBLY_STAGE_MAX_DIST) continue;
+			// #194: third post-condition — the member must be able to WALK from here to the
+			// leader. Off-screen + safe + near said nothing about walls; a tile across a building
+			// wall passed all three and the member could never path in.
+			if (pathChecks >= ASSEMBLY_STAGE_MAX_PATH_CHECKS) break;
+			pathChecks++;
+			const int32_t pathLen = assemblyPathLen(bot, vetted, anchor);
+			if (pathLen < 0) { unreachable++; continue; }
+			if (pathLen > ASSEMBLY_STAGE_MAX_PATH) {
+				if (pathLen < longBestLen) { longBest = vetted; longBestLen = pathLen; longBestRing = r; }
+				continue;
+			}
+			g_logger().info("[PARTY_WALKIN] pick member='{}' site={} anchor=({},{},{}) start=({},{},{}) ring={} "
+				"pathLen={} reachable=1 checks={} unreachable={}",
+				bot.name, site, anchor.x, anchor.y, anchor.z, vetted.x, vetted.y, vetted.z, r,
+				pathLen, pathChecks, unreachable);
 			return vetted;
 		}
+		if (pathChecks >= ASSEMBLY_STAGE_MAX_PATH_CHECKS) break;
 	}
-	// Nothing off-screen, safe AND near the leader — the caller must NOT teleport. Logged because
+	if (longBest.x != 0) {
+		// Nearest reachable off-screen tile, just over the length bound: still a guaranteed walk.
+		g_logger().info("[PARTY_WALKIN] pick member='{}' site={} anchor=({},{},{}) start=({},{},{}) ring={} "
+			"pathLen={} reachable=1 checks={} unreachable={} fallback=nearest_reachable",
+			bot.name, site, anchor.x, anchor.y, anchor.z, longBest.x, longBest.y, longBest.z, longBestRing,
+			longBestLen, pathChecks, unreachable);
+		return longBest;
+	}
+	// Nothing off-screen, safe, near AND reachable — the caller must NOT teleport. Logged because
 	// the alternative is a silent multi-minute journey that looks like the feature is broken.
-	g_logger().info("[BotEngine] [PARTYRV] no staging tile for '{}' near ({},{},{}) — falling back "
-		"to a real approach", bot.name, anchor.x, anchor.y, anchor.z);
+	g_logger().info("[PARTY_WALKIN] pick member='{}' site={} anchor=({},{},{}) start=none pathLen=-1 reachable=0 "
+		"checks={} unreachable={} fallback=real_approach",
+		bot.name, site, anchor.x, anchor.y, anchor.z, pathChecks, unreachable);
 	return Position();
 }
 
@@ -604,8 +652,21 @@ void BotEngine::beginAssemblyApproach(BotState& bot, const PartyAssembly& asmb, 
 	const bool sameFloorNear = (bot.currentPos.z == asmb.anchor.z)
 		&& trailCheb(bot.currentPos, asmb.anchor) <= ASSEMBLY_WALK_FROM_DIST;
 	if (sameFloorNear) {
-		m.phase = RvPhase::WALKING_IN;
-		return;
+		// #194: "near" is straight-line; the walk is not. A member 30 tiles away inside another
+		// building is near and unreachable. Only a member whose own walker can actually path in
+		// walks from where it stands; otherwise it is staged like a distant one.
+		const int32_t ownLen = assemblyPathLen(bot, bot.currentPos, asmb.anchor);
+		if (ownLen >= 0) {
+			g_logger().info("[PARTY_WALKIN] pick member='{}' site=party anchor=({},{},{}) start=({},{},{}) ring=own "
+				"pathLen={} reachable=1 mode=walk_from_here",
+				bot.name, asmb.anchor.x, asmb.anchor.y, asmb.anchor.z,
+				bot.currentPos.x, bot.currentPos.y, bot.currentPos.z, ownLen);
+			m.phase = RvPhase::WALKING_IN;
+			return;
+		}
+		g_logger().info("[PARTY_WALKIN] own position of '{}' ({},{},{}) is {} tiles from the leader but has no "
+			"path — staging instead", bot.name, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z,
+			trailCheb(bot.currentPos, asmb.anchor));
 	}
 
 	// Teleport ONLY off-screen -> off-screen. If an observer can currently see the member, moving it
@@ -613,7 +674,7 @@ void BotEngine::beginAssemblyApproach(BotState& bot, const PartyAssembly& asmb, 
 	// travels for real instead.
 	const bool memberVisibleNow = wouldBeSeenByAnchor(bot.currentPos, 0);
 	if (!memberVisibleNow) {
-		if (const Position staging = chooseAssemblyStagingPos(bot, asmb.anchor); staging.x != 0) {
+		if (const Position staging = chooseAssemblyStagingPos(bot, asmb.anchor, "party"); staging.x != 0) {
 			if (auto player = bot.getPlayer()) {
 				BOT_TELEPORT(player, staging, true);
 				bot.currentPos = staging;
@@ -1262,25 +1323,8 @@ void BotEngine::doPartyFollow(BotState& bot) {
 
 	if (thisIsFirstEk) {
 		// ===== A1: EK TANK — exeta res + obey human target / fallback to nearest, follow human =====
-		const auto& challengeSpell = g_spells().getInstantSpell("exeta res");
-		if (challengeSpell
-			&& player->getLevel() >= 20
-			&& !player->hasCondition(CONDITION_SPELLCOOLDOWN, challengeSpell->getSpellId())
-			&& !player->hasCondition(CONDITION_SPELLGROUPCOOLDOWN, challengeSpell->getGroup())
-			&& player->getMana() >= 30) {
-			bool monstersNearby = false;
-			auto spectators = Spectators().find<Monster>(bot.currentPos, false, 1, 1, 1, 1);
-			for (const auto& spec : spectators) {
-				if (spec->getMonster() && spec->getHealth() > 0) { monstersNearby = true; break; }
-			}
-			if (monstersNearby) {
-				std::string words = "exeta res";
-				if (g_spells().playerSaySpell(player, words) == TALKACTION_BREAK) {
-					player->saySpell(TALKTYPE_SAY, "exeta res", false);
-					castLog(bot, "PARTY: exeta res (challenge)");
-				}
-			}
-		}
+		// exeta res: same rule as the bot-led party (a monster on someone else, above the reserve)
+		tryCastChallenge(bot, "PARTY");
 
 		auto ekTarget = pickEkTankTarget(player, leader);
 		syncPvpSecureMode(ekTarget);
@@ -1586,8 +1630,11 @@ int32_t BotEngine::getPartyHuntKeepDistance(const BotState& bot, BotState* leade
 	return 3;
 }
 
-// Try to cast exeta res (challenge) — shared between doPartyFollow and party hunt EK
-void BotEngine::tryCastChallenge(BotState& bot) {
+// Try to cast exeta res (challenge) — shared between doPartyFollow and party hunt EK.
+// Spending discipline (#187 follow-up): it was cast every 2 s with ANY monster adjacent (687 casts,
+// ~711 mana/min = a fifth of all refill on a Prison EK). Now only when an adjacent monster is
+// targeting someone else (the point of a taunt), and only above the knight attack reserve.
+void BotEngine::tryCastChallenge(BotState& bot, const char* logTag) {
 	auto player = bot.getPlayer();
 	if (!player) return;
 
@@ -1599,29 +1646,33 @@ void BotEngine::tryCastChallenge(BotState& bot) {
 	if (player->getLevel() < 20) return;
 	if (player->hasCondition(CONDITION_SPELLCOOLDOWN, challengeSpell->getSpellId())) return;
 	if (player->hasCondition(CONDITION_SPELLGROUPCOOLDOWN, challengeSpell->getGroup())) return;
-	if (player->getMana() < 30) {
+
+	// Only cast if an adjacent monster (SQUARE1X1 area) is targeting someone other than this EK
+	auto spectators = Spectators().find<Monster>(bot.currentPos, false, 1, 1, 1, 1);
+	std::shared_ptr<Creature> loose;
+	for (const auto& spec : spectators) {
+		if (!spec->getMonster() || spec->getHealth() <= 0) continue;
+		const auto at = spec->getAttackedCreature();
+		if (at && at.get() != player.get()) {
+			loose = at;
+			break;
+		}
+	}
+	if (!loose) return;
+
+	const uint32_t cost = challengeSpell->getManaCost(player);
+	if (!attackManaOk(player, cost)) return; // knight reserve (botKnightAttackManaReservePct)
+	if (player->getMana() < cost) {
 		if (!legacyManaRefill()) return; // #187: no instant refill
 		player->mana = player->getMaxMana();
 		g_game().addPlayerMana(player);
 	}
 
-	// Only cast if monsters within 1 tile (SQUARE1X1 area)
-	auto spectators = Spectators().find<Monster>(bot.currentPos, false, 1, 1, 1, 1);
-	bool monstersNearby = false;
-	for (const auto& spec : spectators) {
-		if (spec->getMonster() && spec->getHealth() > 0) {
-			monstersNearby = true;
-			break;
-		}
-	}
-
-	if (monstersNearby) {
-		std::string words = "exeta res";
-		auto result = g_spells().playerSaySpell(player, words);
-		if (result == TALKACTION_BREAK) {
-			player->saySpell(TALKTYPE_SAY, "exeta res", false);
-			castLog(bot, "PARTY_HUNT: exeta res (challenge)");
-		}
+	std::string words = "exeta res";
+	auto result = g_spells().playerSaySpell(player, words);
+	if (result == TALKACTION_BREAK) {
+		player->saySpell(TALKTYPE_SAY, "exeta res", false);
+		castLog(bot, fmt::format("{}: exeta res (challenge, monster on {})", logTag, loose->getName()));
 	}
 }
 
@@ -2278,6 +2329,112 @@ bool BotEngine::formPartyWithLeader(BotState& leader, const std::shared_ptr<Play
 	return false; // couldn't form party for any script
 }
 
+// ============================================================================
+// #193 — team return to the depot
+//
+// Before: the moment the leader entered LEAVING, every member's next doPartyHunt tick dissolved
+// the party (and the virtual twin dissolved it at the LEAVING transition), so the leader walked
+// home alone and the members rerolled from inside the spawn. Now the party survives the whole
+// return: members keep running doPartyHunt (roles + followPartyHuntLeader, whose trail walk and
+// separation teleport already handle floor changes, stragglers and teleporting leaders), and the
+// leader disbands the team from its resupply once it is at the depot — see doHuntResupply and the
+// virtual RESUPPLYING case.
+// ============================================================================
+
+void BotEngine::partyReturnBegin(BotState& leader, const char* via, bool isVirtual) {
+	if (!leader.isPartyHuntLeader || leader.partyHuntId == 0) return;
+	auto mIt = s_partyHuntMembers.find(leader.partyHuntId);
+	if (mIt == s_partyHuntMembers.end()) return;
+	auto [it, inserted] = s_partyReturn.try_emplace(leader.partyHuntId);
+	if (!inserted) return; // idempotent: LEAVING -> RESUPPLYING, wake/hibernate, member backstop
+	it->second.startMs = OTSYS_TIME();
+	it->second.leaderGuid = leader.guid;
+	const size_t followers = mIt->second.empty() ? 0 : mIt->second.size() - 1;
+	g_logger().info("[PARTY_RETURN] start party=#{} leader='{}' followers={} via={} phase={} at=({},{},{}) virtual={}",
+		leader.partyHuntId, leader.name, followers, via, static_cast<int>(leader.huntPhase),
+		leader.currentPos.x, leader.currentPos.y, leader.currentPos.z, isVirtual ? 1 : 0);
+	castLog(leader, fmt::format("PARTY_RETURN: hunt over, leading the team back to the depot ({})", via));
+}
+
+void BotEngine::partyReturnNoteArrivals(BotState& leader, bool isVirtual) {
+	auto rIt = s_partyReturn.find(leader.partyHuntId);
+	if (rIt == s_partyReturn.end()) return;
+	auto mIt = s_partyHuntMembers.find(leader.partyHuntId);
+	if (mIt == s_partyHuntMembers.end()) return;
+	auto& rec = rIt->second;
+	const int64_t nowMs = OTSYS_TIME();
+	if (rec.depotMs == 0) rec.depotMs = nowMs;
+	for (uint32_t guid : mIt->second) {
+		if (guid == leader.guid || rec.arrived.count(guid)) continue;
+		auto idxIt = guidToIndex_.find(guid);
+		if (idxIt == guidToIndex_.end()) continue;
+		const BotState& m = bots_[idxIt->second];
+		// Virtual followers mirror the leader's position (virtualAdvancePartyHunt), so a
+		// hibernated team is by construction where its leader is.
+		const bool here = isVirtual || m.hibernated
+			|| (m.currentPos.z == leader.currentPos.z
+			    && trailCheb(m.currentPos, leader.currentPos) <= PARTY_RETURN_ARRIVE_DIST);
+		if (!here) continue;
+		rec.arrived.insert(guid);
+		g_logger().info("[PARTY_RETURN] member_arrived party=#{} member='{}' dist={} elapsedMs={} virtual={}",
+			leader.partyHuntId, m.name,
+			m.currentPos.z == leader.currentPos.z ? trailCheb(m.currentPos, leader.currentPos) : -1,
+			nowMs - rec.startMs, (isVirtual || m.hibernated) ? 1 : 0);
+	}
+}
+
+// True once the team may disband: every AWAKE follower has arrived, or the straggler wait ran out.
+// A dead member (temple-chilling) or one that is not a live PARTY-state follower never blocks:
+// it is listed as a straggler in the disband line and rerolls from wherever it is.
+bool BotEngine::partyReturnMayDisband(BotState& leader) {
+	auto rIt = s_partyReturn.find(leader.partyHuntId);
+	if (rIt == s_partyReturn.end()) return true;
+	auto mIt = s_partyHuntMembers.find(leader.partyHuntId);
+	if (mIt == s_partyHuntMembers.end()) return true;
+	const auto& rec = rIt->second;
+	const int64_t nowMs = OTSYS_TIME();
+	if (rec.depotMs > 0 && nowMs - rec.depotMs >= PARTY_RETURN_STRAGGLER_WAIT_MS) return true;
+	for (uint32_t guid : mIt->second) {
+		if (guid == leader.guid || rec.arrived.count(guid)) continue;
+		auto idxIt = guidToIndex_.find(guid);
+		if (idxIt == guidToIndex_.end()) continue;
+		const BotState& m = bots_[idxIt->second];
+		if (!m.active || m.hibernated || m.state != BotAIState::PARTY) continue;
+		if (m.deathPauseUntil > nowMs) continue;
+		return false; // an awake follower is still on its way
+	}
+	return true;
+}
+
+void BotEngine::partyReturnLogDisband(uint32_t partyHuntId, const std::string& reason, bool isVirtual) {
+	auto rIt = s_partyReturn.find(partyHuntId);
+	if (rIt == s_partyReturn.end()) return;
+	const auto& rec = rIt->second;
+	const BotState* leader = nullptr;
+	if (auto lIt = guidToIndex_.find(rec.leaderGuid); lIt != guidToIndex_.end()) leader = &bots_[lIt->second];
+	uint32_t total = 0;
+	std::string stragglers;
+	if (auto mIt = s_partyHuntMembers.find(partyHuntId); mIt != s_partyHuntMembers.end()) {
+		for (uint32_t guid : mIt->second) {
+			if (guid == rec.leaderGuid) continue;
+			total++;
+			if (rec.arrived.count(guid)) continue;
+			auto idxIt = guidToIndex_.find(guid);
+			if (idxIt == guidToIndex_.end()) continue;
+			const BotState& m = bots_[idxIt->second];
+			if (!stragglers.empty()) stragglers += ';';
+			const int32_t d = (leader && m.currentPos.z == leader->currentPos.z) ? trailCheb(m.currentPos, leader->currentPos) : -1;
+			stragglers += fmt::format("{}@{}", m.name, d);
+		}
+	}
+	g_logger().info("[PARTY_RETURN] disband party=#{} leader='{}' reason={} arrived={}/{} stragglers={} at=({},{},{}) elapsedMs={} virtual={}",
+		partyHuntId, leader ? leader->name : std::string("?"), reason, rec.arrived.size(), total,
+		stragglers.empty() ? std::string("none") : stragglers,
+		leader ? leader->currentPos.x : 0, leader ? leader->currentPos.y : 0, leader ? leader->currentPos.z : 0,
+		OTSYS_TIME() - rec.startMs, isVirtual ? 1 : 0);
+	s_partyReturn.erase(rIt);
+}
+
 // --- Party Dissolution ---
 void BotEngine::dissolvePartyHunt(uint32_t partyHuntId, const std::string& reason) {
 	// BOT_PARTY_INVITE_RENDEZVOUS: drop any assembly record for this party FIRST and
@@ -2293,6 +2450,11 @@ void BotEngine::dissolvePartyHunt(uint32_t partyHuntId, const std::string& reaso
 			++it;
 		}
 	}
+
+	// #193: closes (and logs) a team-return record on EVERY dissolve path — the depot disband and
+	// any early teardown (leader death, admin stop, resupply timeout) alike. Before the members
+	// guard for the same reason as the assembly drop above.
+	partyReturnLogDisband(partyHuntId, reason, false);
 
 	auto membersIt = s_partyHuntMembers.find(partyHuntId);
 	if (membersIt == s_partyHuntMembers.end()) return;
@@ -2470,7 +2632,9 @@ void BotEngine::doPartyHunt(BotState& bot) {
 		return;
 	}
 
-	// If EK is in LEAVING or RESUPPLYING phase, dissolve.
+	// If EK is in LEAVING or RESUPPLYING phase, the hunt is over and the team RETURNS (#193):
+	// the party is no longer dissolved here — that stranded every member at the spawn while the
+	// leader walked home alone. The member keeps following; the leader disbands at the depot.
 	// Guard: skip if the party was just formed in the last 5 seconds — hibernated EKs
 	// can carry stale huntPhase from their virtualSim hunt. The reset in tryStartPartyHunt
 	// covers most paths; this is a belt-and-suspenders safety net.
@@ -2487,8 +2651,10 @@ void BotEngine::doPartyHunt(BotState& bot) {
 			clearLureKiteState(leaderBot->guid);
 			return;
 		}
-		dissolvePartyHunt(partyHuntId, "hunt_leaving/resupply");
-		return;
+		// Backstop only — the leader's beginHuntPhase normally opened the record already. This
+		// catches a leader that reached LEAVING without passing through it (woken from the
+		// virtual sim mid-leg). Idempotent.
+		partyReturnBegin(*leaderBot, "member_backstop", false);
 	}
 
 	// 2. Self-heal
@@ -2823,6 +2989,8 @@ bool BotEngine::tryPartyAoeReposition(BotState& bot, BotState* leaderBot) {
 		const ResolvedSpell* bestSpell = nullptr;
 	};
 	std::vector<CandidateTile> candidates;
+	// Ultimate AoE (40 s cooldown) PvE gate, resolved once per call: see ultAoeAllowed (bot_combat.cpp).
+	const bool ultPvp = ultAoePvpContext(bot, player->getAttackedCreature());
 
 	auto evaluateTile = [&](const Position& tilePos) -> CandidateTile {
 		CandidateTile result;
@@ -2876,6 +3044,7 @@ bool BotEngine::tryPartyAoeReposition(BotState& bot, BotState* leaderBot) {
 					auto dir = static_cast<Direction>(d);
 					double weighted = 0;
 					int32_t count = 0;
+					int32_t effCount = 0; // resist < 50, as castAoeSpell's pre-cast recount
 					auto combatType = spell.combatType;
 
 					for (const auto& mon : nearbyMonsters) {
@@ -2886,12 +3055,14 @@ bool BotEngine::tryPartyAoeReposition(BotState& bot, BotState* leaderBot) {
 								int32_t resist = getElementResistance(mon, combatType);
 								if (resist < 50) {
 									weighted += (100.0 - static_cast<double>(resist)) / 100.0;
+									effCount++;
 								}
 							}
 						}
 					}
 
-					if (count >= spell.minTargets) {
+					if (count >= spell.minTargets
+						&& ultAoeAllowed(bot, spell, effCount, ultPvp, "party", tilePos == bot.currentPos)) {
 						double dmgPerTarget = (spell.avgMlCoef > 0)
 							? estimateDamage(level, mlevel, spell.avgMlCoef, spell.avgConst)
 							: static_cast<double>(level) / 5.0;
@@ -2906,6 +3077,7 @@ bool BotEngine::tryPartyAoeReposition(BotState& bot, BotState* leaderBot) {
 			} else {
 				double weighted = 0;
 				int32_t count = 0;
+				int32_t effCount = 0; // resist < 50, as castAoeSpell's pre-cast recount
 				auto combatType = spell.combatType;
 
 				for (const auto& mon : nearbyMonsters) {
@@ -2916,12 +3088,15 @@ bool BotEngine::tryPartyAoeReposition(BotState& bot, BotState* leaderBot) {
 							int32_t resist = getElementResistance(mon, combatType);
 							if (resist < 50) {
 								weighted += (100.0 - static_cast<double>(resist)) / 100.0;
+								effCount++;
 							}
 						}
 					}
 				}
 
-				if (count >= spell.minTargets) {
+				// Ultimate AoE: the skip line is logged for the current tile only (not ~20 candidates).
+				if (count >= spell.minTargets
+					&& ultAoeAllowed(bot, spell, effCount, ultPvp, "party", tilePos == bot.currentPos)) {
 					double dmgPerTarget = (spell.avgMlCoef > 0)
 						? estimateDamage(level, mlevel, spell.avgMlCoef, spell.avgConst)
 						: static_cast<double>(level) / 5.0;

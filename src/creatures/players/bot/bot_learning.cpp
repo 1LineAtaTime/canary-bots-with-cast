@@ -15,6 +15,9 @@
 // Holders already inside are sent out through their normal LEAVING leg, not teleported. The
 // detector also owns the release: leaving the area, going idle, entering a town, logging out.
 // Journal: [SPAWN_CLAIM] auto claim|release|evict.
+// OFF by default since 2026-11-23 (botSpawnAutoClaimEnable=false, user decision: claims are
+// explicit-only). When enabled it protects only the group itself: it never sets the
+// playerHuntEngaged_ roam keep-out / hunt repel, which stays tied to the explicit command.
 //
 // #96 LEARNED HUNT-DANGER ZONES. A bot death (radius 14, +45) or near-death (radius 12, +20)
 // while working a hunt records a zone keyed by script; the score caps at 100 and a zone lives
@@ -152,13 +155,6 @@ void BotEngine::autoClaimRelease(uint32_t guid, AutoClaimTrack& t, const char* r
 				++it;
 			}
 		}
-		if (t.setEngaged) {
-			// Only the flag WE wrote: a command-set flag runs an hour and is left to its own expiry.
-			auto e = playerHuntEngaged_.find(guid);
-			if (e != playerHuntEngaged_.end() && e->second <= OTSYS_TIME() + AUTOCLAIM_ROW_TTL_MS) {
-				playerHuntEngaged_.erase(e);
-			}
-		}
 		// The owner-offline sweep (player spawn-claims, ~15 s) may have erased the row first.
 		if (owner.empty()) {
 			owner = t.playerName;
@@ -167,7 +163,6 @@ void BotEngine::autoClaimRelease(uint32_t guid, AutoClaimTrack& t, const char* r
 			owner, guid, t.group, reason, (OTSYS_TIME() - t.enteredAt) / 1000);
 	}
 	t.claimed = false;
-	t.setEngaged = false;
 	t.group.clear();
 	t.scriptId = 0;
 	t.enteredAt = 0;
@@ -276,10 +271,6 @@ void BotEngine::tickSpawnAutoClaim(int64_t nowMs) {
 				continue;
 			}
 			row->second.expiresAt = std::max(row->second.expiresAt, nowMs + AUTOCLAIM_ROW_TTL_MS);
-			if (t.setEngaged) {
-				auto& e = playerHuntEngaged_[guid];
-				e = std::max(e, nowMs + AUTOCLAIM_ROW_TTL_MS);
-			}
 			autoClaimEvictGroup(group, player->getName());   // a holder that slipped in (restore, force)
 			continue;
 		}
@@ -313,10 +304,10 @@ void BotEngine::tickSpawnAutoClaim(int64_t nowMs) {
 		claim.autoClaim = true;
 		playerClaims_[scriptId] = claim;   // recorded BEFORE evicting, so abortHunt's recovery honours it
 		t.claimed = true;
-		if (!isPlayerHuntEngaged(guid)) {
-			playerHuntEngaged_[guid] = nowMs + AUTOCLAIM_ROW_TTL_MS;
-			t.setEngaged = true;
-		}
+		// Deliberately NOT playerHuntEngaged_ (user decision 2026-11-23). That flag is what keeps
+		// roamers 30 tiles out (ROAM_SUPPRESS_KEEPOUT) and repels every hunt within 50 tiles
+		// (HUNT_REPEL_TILES); only an explicit `/cavebot claim` may ask for that much quiet. An
+		// auto-claim protects the spawn group (the playerClaims_ row) and nothing around it.
 		const uint32_t evicted = autoClaimEvictGroup(group, claim.ownerName);
 		std::string scriptName;
 		for (const auto& s : huntScripts_) {

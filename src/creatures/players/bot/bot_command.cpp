@@ -24,6 +24,25 @@
 // ============================================================================
 
 std::string BotEngine::executeCommand(const std::string& botName, const std::string& command) {
+	// #193/#194 test hook: `partyhunt` replies name the elected leader and the other members
+	// (`;`-separated, the initiator excluded) so a scenario can put cameras on them without a journal scan.
+	auto partyHuntMemberNames = [this](uint32_t phId, uint32_t selfGuid) -> std::string {
+		std::string out;
+		if (auto mIt = s_partyHuntMembers.find(phId); mIt != s_partyHuntMembers.end()) {
+			for (uint32_t g : mIt->second) {
+				if (g == selfGuid) continue;
+				auto idx = guidToIndex_.find(g);
+				if (idx == guidToIndex_.end()) continue;
+				if (!out.empty()) out += ';';
+				out += bots_[idx->second].name;
+			}
+		}
+		std::string leader = "?";
+		if (auto lIt = s_partyHuntLeaderGuid.find(phId); lIt != s_partyHuntLeaderGuid.end()) {
+			if (auto idx = guidToIndex_.find(lIt->second); idx != guidToIndex_.end()) leader = bots_[idx->second].name;
+		}
+		return fmt::format("leader={} members={}", leader, out.empty() ? std::string("none") : out);
+	};
 	// ---- BOT_TEST_HARNESS Phase 2: `/cavebot audit ...` (global; any botName, incl. "_global") ----
 	// Registered in the Lua talkaction's navGlobals allowlist in the SAME commit (bot_cavebot.lua),
 	// for the reason recorded there: route/fishspots shipped engine-only and answered "not found".
@@ -2185,7 +2204,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				// The party forms virtually (no wake). For admin/spectator use we then call
 				// wakeBot to trigger the cascade and make the team visible.
 				if (bot.partyHuntId > 0) {
-					return fmt::format("Bot '{}' already in party hunt #{}.", botName, bot.partyHuntId);
+					return fmt::format("Bot '{}' already in party hunt #{} {}.", botName, bot.partyHuntId, partyHuntMemberNames(bot.partyHuntId, bot.guid));
 				}
 				int32_t forceScriptId = -1; // BOT_PARTY_CAP: -1 = "admin, no script" so the cap bypass can tell an
 				                     // operator command from an autonomous roll (which passes 0).
@@ -2207,9 +2226,10 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 						s_proximityWake = false;  // EXPLICIT spectate wake — operator wants the EK now, not walking in
 						spectateWoken = wakeBot(bot.guid);
 					}
-					return fmt::format("Bot '{}' started party hunt #{} (script={}{}).",
+					return fmt::format("Bot '{}' started party hunt #{} (script={}{}) {}.",
 						botName, partyId, scriptId,
-						spectateWoken ? ", woken for spectating" : ", WAKE FAILED — use '/cavebot <name> wake'");
+						spectateWoken ? ", woken for spectating" : ", WAKE FAILED — use '/cavebot <name> wake'",
+						partyHuntMemberNames(partyId, bot.guid));
 				}
 				return fmt::format("Bot '{}' failed to start party hunt (no ED available or no eligible scripts).", botName);
 			}
@@ -2475,6 +2495,20 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// Deliberately NOT jumping the cursor to the lap end here: that would enter travel_from with
 		// the bot standing somewhere else, which is precisely the bug the lap-boundary change fixes,
 		// reintroduced inside the debug path. Quests still transition on the next tick.
+		// `endhunt now` (#193 test hook): enter LEAVING on this tick, wherever the bot stands. The
+		// lap-boundary deferral above exists for realism; a team-return test needs a deterministic
+		// hunt end, and LEAVING from mid-patrol is a legitimate (if less pretty) return start.
+		if (command == "endhunt now") {
+			if (bot.huntScriptId == 0 || bot.hibernated || bot.state != BotAIState::HUNTING) {
+				return fmt::format("Bot '{}' is not hunting awake (state={} hibernated={}).", botName,
+					botStateName(bot.state), bot.hibernated ? 1 : 0);
+			}
+			bot.huntEndTime = OTSYS_TIME() - 1;
+			bot.huntTargetId = 0;
+			beginHuntPhase(bot, HuntPhase::LEAVING);
+			return fmt::format("Bot '{}' entered LEAVING now (party leader={} partyHuntId={}).", botName,
+				bot.isPartyHuntLeader ? 1 : 0, bot.partyHuntId);
+		}
 		if (command == "endhunt") {
 			if (bot.huntScriptId == 0) return fmt::format("Bot '{}' is not hunting.", botName);
 			bot.huntEndTime = OTSYS_TIME() - 1;
@@ -3150,6 +3184,13 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		// click-invite is covered by this command. Only the UX/feel needs a human.
 		if (command.size() > 10 && command.substr(0, 10) == "invitebot ") {
 			std::string otherName = command.substr(10);
+			// `invitebot <name> now` (test harness, ult_aoe_gate e): join at once, skipping the
+			// human-like accept flow, which pinned bots decline by design.
+			bool joinNow = false;
+			if (otherName.size() > 4 && otherName.substr(otherName.size() - 4) == " now") {
+				joinNow = true;
+				otherName.resize(otherName.size() - 4);
+			}
 			// Same exact-name linear scan the rest of this handler uses — there is no name index.
 			BotState* otherPtr = nullptr;
 			for (auto& b : bots_) {
@@ -3183,6 +3224,14 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			const int64_t ttl = OTSYS_TIME() + 15 * 60 * 1000;
 			s_inviteDebugKeepAlive[bot.guid] = ttl;
 			s_inviteDebugKeepAlive[otherBot.guid] = ttl;
+			if (joinNow) {
+				if (!party->joinParty(inviteePlayer) || !inviterPlayer->isPartner(inviteePlayer)) {
+					return fmt::format("joinParty refused for '{}'.", otherBot.name);
+				}
+				g_logger().info("[BotEngine] [PINVITE] invitebot-now: '{}' joined '{}' (bot-only party)",
+					otherBot.name, bot.name);
+				return fmt::format("'{}' joined '{}' (bot-only party).", otherBot.name, bot.name);
+			}
 			g_logger().info("[BotEngine] [PINVITE] invitebot: '{}' invited '{}' (real Party::invitePlayer)",
 				bot.name, otherBot.name);
 			return fmt::format("'{}' invited '{}'. Watch [PINVITE]; inviteEnable={}.",
@@ -3235,7 +3284,7 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		if (command == "partyhunt" || (command.size() > 10 && command.substr(0, 10) == "partyhunt ")) {
 			if (!bot.active) return fmt::format("Bot '{}' is not active.", botName);
 			if (bot.partyHuntId > 0) {
-				return fmt::format("Bot '{}' already in party hunt #{}.", botName, bot.partyHuntId);
+				return fmt::format("Bot '{}' already in party hunt #{} {}.", botName, bot.partyHuntId, partyHuntMemberNames(bot.partyHuntId, bot.guid));
 			}
 			int32_t forceScriptId = -1; // BOT_PARTY_CAP: see the hibernated handler above — -1 = admin, no script.
 			if (command.size() > 10) {
@@ -3252,8 +3301,8 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				bot.stopCooldownUntil = 0;
 			}
 			if (tryStartPartyHunt(bot, forceScriptId)) {
-				return fmt::format("Bot '{}' started party hunt #{} (script={}).",
-					botName, bot.partyHuntId, bot.huntScriptId);
+				return fmt::format("Bot '{}' started party hunt #{} (script={}) {}.",
+					botName, bot.partyHuntId, bot.huntScriptId, partyHuntMemberNames(bot.partyHuntId, bot.guid));
 			}
 			return fmt::format("Bot '{}' failed to start party hunt (no ED available or no eligible scripts).", botName);
 		}
