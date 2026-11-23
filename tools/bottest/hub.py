@@ -66,7 +66,7 @@ DEFAULTS = {
 # The config load_config() returned last: load_db_secrets() takes the profile's db_name from it.
 ACTIVE: dict = {}
 
-LOCAL_OVERRIDE_KEYS = ("server_host", "ssh_target", "game_port", "world", "audit_path", "client_dir")
+LOCAL_OVERRIDE_KEYS = ("server_host", "ssh_target", "game_port", "world", "audit_path", "client_dir", "show_clients")
 
 
 def load_config(path: Path | None = None, profile: str | None = None) -> dict:
@@ -519,6 +519,57 @@ def launch_client(cfg: dict, name: str, run_dir: Path) -> subprocess.Popen:
     exe = str(Path(cfg["client_dir"]) / cfg["client_exe"])
     # GUI-subsystem exe (no console of its own); no-window flags + DEVNULL stdin keep it that way
     return subprocess.Popen([exe], cwd=cfg["client_dir"], env=env, stdout=out, stderr=subprocess.STDOUT, **popen_kw())
+
+
+def show_noactivate(pid: int, slot: int | None = None) -> dict:
+    """Show a hidden client's window on screen WITHOUT taking focus (watch mode).
+
+    The client still starts hidden (OTC_HARNESS_HIDDEN=1) so OTClient's own g_window.show() at
+    startup never activates it; this reveals it from outside with SW_SHOWNOACTIVATE and a
+    SWP_NOACTIVATE move. OTClient's minimum window (~1036x683) leaves no room for a grid on a
+    1080p screen, so clients cascade on the primary monitor, one 64x48 step per slot. Keyboard
+    focus stays wherever the user has it (verified: GetForegroundWindow unchanged)."""
+    if os.name != "nt":
+        return {"ok": False, "why": "not-windows"}
+    from ctypes import wintypes
+    u32 = ctypes.windll.user32
+    proto = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    mine, title = [], [None]
+
+    def own(hwnd, _):
+        p = wintypes.DWORD()
+        u32.GetWindowThreadProcessId(hwnd, ctypes.byref(p))
+        if p.value == pid and not u32.GetWindow(hwnd, 4):
+            buf = ctypes.create_unicode_buffer(256)
+            u32.GetWindowTextW(hwnd, buf, 256)
+            if buf.value:
+                mine.append(hwnd)
+                title[0] = buf.value
+        return True
+    u32.EnumWindows(proto(own), 0)
+    if not mine:
+        return {"ok": False, "why": "no-window"}
+    if slot is None:   # one past the other harness clients already on screen (any runner)
+        n = [0]
+
+        def other(hwnd, _):
+            if hwnd not in mine and u32.IsWindowVisible(hwnd):
+                buf = ctypes.create_unicode_buffer(256)
+                u32.GetWindowTextW(hwnd, buf, 256)
+                if buf.value == title[0]:
+                    n[0] += 1
+            return True
+        u32.EnumWindows(proto(other), 0)
+        slot = n[0]
+    sw, sh = u32.GetSystemMetrics(0), u32.GetSystemMetrics(1)
+    steps = max(1, min((sw - 1040) // 64, (sh - 730) // 48))
+    k = slot % steps
+    x, y = k * 64, k * 48
+    SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOSIZE, SWP_SHOWWINDOW = 4, 0x0010, 0x0001, 0x0040
+    for hwnd in mine:
+        u32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+        u32.SetWindowPos(hwnd, 0, x, y, 0, 0, SWP_NOACTIVATE | SWP_NOSIZE | SWP_SHOWWINDOW)
+    return {"ok": True, "slot": slot, "xy": [x, y]}
 
 
 def png_stats(path: Path) -> dict:

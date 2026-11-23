@@ -59,7 +59,7 @@ python tools/bottest/runner.py tools/bottest/scenarios/example_smoke.steps [--ru
 ```
 Exit codes: **0** all verbs OK and expects pass, **3** a verb returned `STUCK verb=<v> reason=<r> pos=x,y,z`
 (the run stops there), **4** an expect failed (`FAIL check=... got=... want...`), **2** infrastructure.
-Clients run **hidden** (no window; `--visible` or `# VISIBLE: true` to debug). The runner always logs
+Clients run **hidden** (no window; `--visible` or `# VISIBLE: true` to debug). **Watch mode** (`--show`, or `"show_clients": true` in `harness.local.json`; `--hidden` overrides) still launches them hidden, then shows each one in game with `SW_SHOWNOACTIVATE`, cascaded on the primary monitor, so the user can watch without the clients ever taking keyboard focus. `window-state expect=hidden` fails in watch mode; run such scenarios with `--hidden`. The runner always logs
 everything out and terminates only the OTClient PIDs it launched.
 
 ### From Claude Code: background run + Monitor on `.watch`

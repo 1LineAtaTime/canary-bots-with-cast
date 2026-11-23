@@ -286,7 +286,24 @@ local function audioOff()
             o.setOption('enableAudio', false, true)
             o.setOption('enableMusicSound', false, true)
             o.setOption('musicSoundVolume', 0, true)
+            -- Graphics > Effects > Lights off: dark areas (caves, night) stay readable in shots
+            o.setOption('enableLights', false, true)
+            -- Graphics > Effects > Floor Fading 100 ms (default 500): floor changes redraw quickly
+            o.setOption('floorFading', 100, true)
+            -- Graphics > Effects > Shadow Floor Intensity 100 % (default 30)
+            o.setOption('shadowFloorIntensity', 100, true)
+            -- Interface > Console > Show loot messages on screen: off (no loot text over the map)
+            o.setOption('showLootMessagesOnScreen', false, true)
         end
+    end)
+    pcall(function()
+        g_settings.set('enableLights', false)
+        g_settings.set('floorFading', 100)
+        g_settings.set('shadowFloorIntensity', 100)
+        g_settings.set('showLootMessagesOnScreen', false)
+        g_settings.save()
+        local m = modules.game_interface and modules.game_interface.getMapPanel and modules.game_interface.getMapPanel()
+        if m then m:setDrawLights(false); m:setFloorFading(100); m:setShadowFloorIntensity(0) end
     end)
     if g_sounds then
         pcall(function()
@@ -317,7 +334,10 @@ local function audioState()
         local o = modules.client_options
         if o and o.getOption then
             st.options = { enableAudio = o.getOption('enableAudio'), enableMusicSound = o.getOption('enableMusicSound'),
-                musicSoundVolume = o.getOption('musicSoundVolume') }
+                musicSoundVolume = o.getOption('musicSoundVolume'), enableLights = o.getOption('enableLights'),
+                floorFading = o.getOption('floorFading'),
+                shadowFloorIntensity = o.getOption('shadowFloorIntensity'),
+                showLootMessagesOnScreen = o.getOption('showLootMessagesOnScreen') }
         end
     end)
     return st

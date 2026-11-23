@@ -181,6 +181,11 @@ class Runner:
             self.cfg["client_dir"] = os.path.abspath(os.path.expanduser(args.client_dir))
         # headless by default: clients run hidden unless --visible or "# VISIBLE: true"
         self.cfg["visible"] = bool(args.visible or self.hdr.get("VISIBLE", "").lower() in ("1", "true", "yes"))
+        # watch mode: clients still launch hidden (so they never grab focus at startup), then are
+        # shown with SW_SHOWNOACTIVATE once in game. Default from harness.local.json "show_clients".
+        self.show = bool(not self.cfg["visible"] and not args.hidden and
+                         (args.show or self.cfg.get("show_clients")))
+        self.show_slot = {}
         name = self.hdr.get("SCENARIO") or steps_path.stem
         self.run_id = args.run_id or time.strftime(f"{re.sub(r'[^A-Za-z0-9_]+', '_', name)}_%Y%m%d_%H%M%S")
         self.run_dir = REPO / "runs" / self.run_id
@@ -436,6 +441,8 @@ class Runner:
         self.cmeta[name]["audio_enabled"] = au.get("audio_enabled")
         self.write_clients()
         extra += f" audio_enabled={au.get('audio_enabled')}"
+        if self.show:
+            await self.reveal_client(name)
         self.vars[f"{actor.replace(':', '_').replace(' ', '_')}_cid"] = ev.get("cid")
         return {"ok": True, "text": f"OK login char={char} cid={ev.get('cid')} pos={p.get('x')},{p.get('y')},{p.get('z')}{extra}"}
 
@@ -580,6 +587,16 @@ class Runner:
             r = dict(r, text=r["text"] + f" file={f.name}")
         return r
 
+    async def reveal_client(self, name: str):
+        """Watch mode: show a hidden client without activating it (after harness_ctl's own hide)."""
+        await asyncio.sleep(0.4)   # onGameStart hides 50 ms after login; a reveal shot hides again
+        try:
+            r = H.show_noactivate(self.procs[name].pid, self.show_slot.get(name))
+            if r.get("ok"):
+                self.show_slot[name] = r["slot"]
+        except Exception as e:  # never fail a scenario over a window
+            self.say(f"NOTE reveal {name} failed: {e}")
+
     async def v_shot(self, actor, pos, kw):
         self.counter += 1
         fname = f"harness_{self.counter}_{int(time.time())}.png"
@@ -601,6 +618,8 @@ class Runner:
                 except Exception as e:
                     ps = {"err": str(e)}
                 black = ps.get("nonzero_rgb", 1) < 0.01
+                if self.show and args.get("reveal"):
+                    await self.reveal_client(self.client_of(actor))
                 return {"ok": True, "text": f"OK shot file=shots/{dst.name} bytes={dst.stat().st_size} "
                                             f"{ps.get('w')}x{ps.get('h')} nonzero_rgb={ps.get('nonzero_rgb')}"
                                             f"{' BLACK' if black else ''} mode={args['mode']}"
@@ -1365,6 +1384,9 @@ def main():
     ap.add_argument("--no-botcfg", action="store_true")
     ap.add_argument("--watch-max-min", type=float)
     ap.add_argument("--visible", action="store_true", help="show the OTClient windows (debug); default hidden")
+    ap.add_argument("--show", action="store_true",
+                    help="watch mode: show clients without taking focus (default from harness.local.json show_clients)")
+    ap.add_argument("--hidden", action="store_true", help="force hidden clients even if show_clients is set")
     ap.add_argument("--client-dir", help="harness client copy to launch (default: harness.json client_dir)")
     ap.add_argument("--var", action="append", default=[], metavar="NAME=VALUE",
                     help="pre-set a scenario variable ($NAME), repeatable")
