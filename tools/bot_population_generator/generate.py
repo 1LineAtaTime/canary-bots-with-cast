@@ -215,13 +215,25 @@ def level_for_index(i: int) -> int:
     raise ValueError(f"No tier covers index {i}; check LEVEL_TIERS")
 
 
+# Base vocations a bot can have (#197: monk = 9, the server's getBaseId()).
+BASE_VOCS = (1, 2, 3, 4, 9)
+
+
+def base_vocation(voc: int) -> int:
+    """Base vocation of a live `vocation` value: 5-8 -> 1-4, monk 9/10 -> 9."""
+    if voc in (9, 10):
+        return 9
+    return ((voc - 1) % 4) + 1
+
+
 def build_voc_assignment(total: int, rng: random.Random) -> list[int]:
-    """Pre-shuffled vocation list — exactly ceil(total/4) of each, then
-    Fisher-Yates shuffled. Stratified picking at any stride samples roughly
-    uniformly because the underlying sequence has no period."""
-    per_voc = (total + 3) // 4  # ceil — at total=997 -> 250/249/249/249
+    """Pre-shuffled vocation list — exactly ceil(total/5) of each base
+    vocation (#197: monks included), then Fisher-Yates shuffled. Stratified
+    picking at any stride samples roughly uniformly because the underlying
+    sequence has no period."""
+    per_voc = (total + len(BASE_VOCS) - 1) // len(BASE_VOCS)  # ceil — at total=997 -> 200x4 + 197
     seq = []
-    for voc in (1, 2, 3, 4):
+    for voc in BASE_VOCS:
         seq.extend([voc] * per_voc)
     seq = seq[:total]
     rng.shuffle(seq)
@@ -240,11 +252,15 @@ def build_town_assignment(total: int, rng: random.Random) -> list[int]:
 
 
 def vocation_id(base_voc: int, level: int) -> int:
-    """Apply promotion at level >= 20."""
+    """Apply promotion at level >= 20 (monk 9 -> exalted monk 10, not 13)."""
+    if base_voc == 9:
+        return 10 if level >= 20 else 9
     return base_voc + 4 if level >= 20 else base_voc
 
 
 def health_mana_cap(base_voc: int, level: int) -> tuple[int, int, int]:
+    if base_voc == 9:  # Monk (vocations.xml: gainhp 10, gainmana 10, gaincap 25)
+        return 185 + (level - 1) * 10, 90 + (level - 1) * 10, 470 + (level - 1) * 25
     if base_voc == 4:  # Knight
         return 185 + (level - 1) * 15, 90 + (level - 1) * 5, 470 + (level - 1) * 25
     if base_voc == 3:  # Paladin
@@ -566,7 +582,7 @@ def emit_level_update_sql(id_voc_rows: list[tuple[int, int]], out_path: Path) ->
 
     for i, (pid, cur_voc) in enumerate(id_voc_rows):
         level = level_for_index(i)
-        base_voc = ((cur_voc - 1) % 4) + 1  # recover base from promoted/base voc
+        base_voc = base_vocation(cur_voc)  # recover base from promoted/base voc (monk 9/10 -> 9)
         voc = vocation_id(base_voc, level)
         hp, mana, cap = health_mana_cap(base_voc, level)
         exp = experience_for_level(level)
@@ -597,6 +613,184 @@ def emit_level_update_sql(id_voc_rows: list[tuple[int, int]], out_path: Path) ->
 
 
 # ---------------------------------------------------------------------------
+# #197 monk conversion (in place; never a reseed — a reseed undoes the 964-bot rename)
+# ---------------------------------------------------------------------------
+
+MONK_LEVEL_BANDS = [(0, 99), (100, 249), (250, 499), (500, 699), (700, 899), (900, 10**6)]
+MONK_OUTFIT = {0: 1825, 1: 1824}  # sex -> looktype (outfits.xml type 0 = female, 1 = male)
+
+
+def _band_of(level: int) -> int:
+    for i, (lo, hi) in enumerate(MONK_LEVEL_BANDS):
+        if lo <= level <= hi:
+            return i
+    return len(MONK_LEVEL_BANDS) - 1
+
+
+def _picked_indices(total: int, target: int) -> set[int]:
+    """0-based indices the bot_manager.lua stratified picker loads
+    (`floor(i*total/target)+1`, 1-based) over the id-ASC roster."""
+    if target >= total:
+        return set(range(total))
+    return {(i * total) // target for i in range(target)}
+
+
+def read_roster_tsv(path: Path) -> list[dict]:
+    rows = []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    hdr = lines[0].split("\t")
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        f = line.split("\t")
+        r = dict(zip(hdr, f))
+        for k in ("id", "vocation", "level", "sex", "looktype", "lookaddons", "health",
+                  "healthmax", "mana", "manamax", "cap"):
+            r[k] = int(r[k])
+        rows.append(r)
+    rows.sort(key=lambda r: r["id"])
+    return rows
+
+
+def emit_monk_conversion(roster_path: Path, out_path: Path, seed: int, pct: int,
+                         loaded_target: int, outfit_pct: int) -> int:
+    rows = read_roster_tsv(roster_path)
+    if not rows:
+        print(f"[!] empty roster {roster_path}", file=sys.stderr)
+        return 1
+    if any(r["vocation"] in (9, 10) for r in rows):
+        print("[!] roster already has monks — the conversion is meant to run once", file=sys.stderr)
+        return 1
+    total = len(rows)
+    loaded = _picked_indices(total, loaded_target)
+    # Stratum = (in the loaded set at --loaded-target?, base vocation, level band). Picking the
+    # same share of EVERY stratum keeps the level shape, the vocation balance and the loaded
+    # share all at ~pct, whatever the picker's target.
+    strata: dict[tuple[int, int, int], list[int]] = {}
+    for i, r in enumerate(rows):
+        key = (1 if i in loaded else 0, base_vocation(r["vocation"]), _band_of(r["level"]))
+        strata.setdefault(key, []).append(i)
+    rng = random.Random(seed ^ 0x197)
+    # Quotas: exact per loaded/unloaded group (round(n*pct)), split over that group's
+    # (vocation, band) cells by largest remainder, so no rounding drifts the total or the
+    # loaded share (per-cell rounding alone lost 1-2 bots and 4 points of loaded share).
+    quota: dict[tuple[int, int, int], int] = {}
+    for grp in (0, 1):
+        keys = sorted(k for k in strata if k[0] == grp)
+        n = sum(len(strata[k]) for k in keys)
+        want = int(round(n * pct / 100.0))
+        exact = {k: len(strata[k]) * pct / 100.0 for k in keys}
+        for k in keys:
+            quota[k] = int(exact[k])
+        rest = want - sum(quota[k] for k in keys)
+        for k in sorted(keys, key=lambda k: (-(exact[k] - int(exact[k])), k))[:max(0, rest)]:
+            quota[k] += 1
+    chosen: list[int] = []
+    for key in sorted(strata):
+        idxs = strata[key][:]
+        rng.shuffle(idxs)
+        chosen.extend(idxs[:quota[key]])
+    chosen.sort()
+    outfit_rng = random.Random(seed ^ 0x1971)
+    conv = []
+    for i in chosen:
+        r = rows[i]
+        lvl = r["level"]
+        hp, mana, cap = health_mana_cap(9, lvl)
+        look = r["looktype"]
+        if outfit_rng.randrange(100) < outfit_pct:
+            look = MONK_OUTFIT.get(r["sex"], look)
+        conv.append({"i": i, "id": r["id"], "name": r.get("name", ""), "old": r, "level": lvl,
+                     "voc": vocation_id(9, lvl), "hp": hp, "mana": mana, "cap": cap, "look": look})
+
+    # ---- report ----
+    by_voc: dict[int, int] = {}
+    by_band: dict[int, int] = {}
+    for c in conv:
+        bv = base_vocation(c["old"]["vocation"])
+        by_voc[bv] = by_voc.get(bv, 0) + 1
+        by_band[_band_of(c["level"])] = by_band.get(_band_of(c["level"]), 0) + 1
+    after = {v: 0 for v in BASE_VOCS}
+    chosen_set = set(chosen)
+    for i, r in enumerate(rows):
+        after[9 if i in chosen_set else base_vocation(r["vocation"])] += 1
+    print(f"[*] monk conversion: {len(conv)} of {total} bots ({100 * len(conv) / total:.1f}%)")
+    print(f"    taken from base voc: {dict(sorted(by_voc.items()))}")
+    print(f"    per level band {[f'{lo}-{hi if hi < 10**6 else chr(43)}' for lo, hi in MONK_LEVEL_BANDS]}: "
+          f"{[by_band.get(b, 0) for b in range(len(MONK_LEVEL_BANDS))]}")
+    print(f"    roster after (base voc): {after}")
+    for t in (50, 100, 150, 200, 250, 300, 400, 500, 750):
+        picked = _picked_indices(total, t)
+        m = sum(1 for i in picked if i in chosen_set)
+        print(f"    loaded monks at botPlayersOnline={t:>3}: {m:>3}/{len(picked)} = {100 * m / len(picked):.1f}%")
+    print(f"    monk outfit: {sum(1 for c in conv if c['look'] != c['old']['looktype'])} of {len(conv)}")
+
+    ids = ",".join(str(c["id"]) for c in conv)
+    hdr = [
+        "-- ============================================================================",
+        "-- #197 monk conversion — in-place UPDATE (generate.py --emit-monk-conversion)",
+        f"-- {len(conv)} of {total} bots (account_id={BOT_ACCOUNT_ID}) become monks: {pct}% of every",
+        f"-- (loaded@{loaded_target}, base vocation, level band) stratum, seed {seed}.",
+        "-- Touches ONLY vocation, health(max), mana(max), cap and, for some, looktype.",
+        "-- Names, ids, levels, experience, skills (all 100), houses, storage: unchanged.",
+        "--",
+        "-- RUN WITH CANARY STOPPED: a save rewrites the whole players row from memory, so a",
+        "-- running server reverts this silently (project_bot_rename_997). Rollback:",
+        "-- the matching .before.sql (regenerate it from the live rows right before applying;",
+        "-- tools/bot_population_generator/apply_monk_conversion.sh does both).",
+        "-- Idempotent: values are computed from `level`, keyed by id.",
+        "-- ============================================================================",
+        "",
+    ]
+    body = ["START TRANSACTION;", ""]
+    body.append(
+        "UPDATE `players` SET `vocation` = IF(`level` >= 20, 10, 9), "
+        "`health` = 185 + (`level` - 1) * 10, `healthmax` = 185 + (`level` - 1) * 10, "
+        "`mana` = 90 + (`level` - 1) * 10, `manamax` = 90 + (`level` - 1) * 10, "
+        "`cap` = 470 + (`level` - 1) * 25"
+        f" WHERE `account_id` = {BOT_ACCOUNT_ID} AND `id` IN ({ids});")
+    by_look: dict[int, list[int]] = {}
+    for c in conv:
+        if c["look"] != c["old"]["looktype"]:
+            by_look.setdefault(c["look"], []).append(c["id"])
+    for look, lids in sorted(by_look.items()):
+        body.append(f"UPDATE `players` SET `looktype` = {look} WHERE `account_id` = {BOT_ACCOUNT_ID} "
+                    f"AND `id` IN ({','.join(map(str, lids))});")
+    body += ["", "COMMIT;", "",
+             "-- Verification (expect ~200 per base vocation; every monk on the 10/10/25 formula):",
+             f"SELECT `vocation`, COUNT(*) FROM `players` WHERE `account_id` = {BOT_ACCOUNT_ID} GROUP BY `vocation` ORDER BY `vocation`;",
+             f"SELECT COUNT(*) AS bad_monk_rows FROM `players` WHERE `account_id` = {BOT_ACCOUNT_ID} AND `vocation` IN (9, 10) "
+             "AND (`healthmax` <> 185 + (`level` - 1) * 10 OR `manamax` <> 90 + (`level` - 1) * 10 "
+             "OR `cap` <> 470 + (`level` - 1) * 25 OR `vocation` <> IF(`level` >= 20, 10, 9));"]
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text("\n".join(hdr + body) + "\n", encoding="utf-8")
+
+    before = out_path.with_name(out_path.stem + ".before.sql")
+    bl = [
+        "-- ============================================================================",
+        "-- #197 monk conversion ROLLBACK — the pre-conversion values of the converted rows",
+        f"-- (snapshot: {roster_path.name}). Regenerate from the live rows right before the",
+        "-- apply (apply_monk_conversion.sh does) so health/mana of a row changed since the",
+        "-- snapshot are restored exactly. Run with canary STOPPED.",
+        "-- ============================================================================",
+        "", "START TRANSACTION;", "",
+    ]
+    for c in conv:
+        o = c["old"]
+        bl.append(f"UPDATE `players` SET `vocation`={o['vocation']}, `health`={o['health']}, "
+                  f"`healthmax`={o['healthmax']}, `mana`={o['mana']}, `manamax`={o['manamax']}, "
+                  f"`cap`={o['cap']}, `looktype`={o['looktype']} "
+                  f"WHERE `id`={c['id']} AND `account_id`={BOT_ACCOUNT_ID};")
+    bl += ["", "COMMIT;"]
+    before.write_text("\n".join(bl) + "\n", encoding="utf-8")
+    ids_path = out_path.with_name(out_path.stem + ".ids.txt")
+    ids_path.write_text("\n".join(f"{c['id']}\t{c['level']}\t{c['old']['vocation']}\t{c['voc']}\t{c['name']}"
+                                   for c in conv) + "\n", encoding="utf-8")
+    print(f"[*] wrote {out_path}, {before.name}, {ids_path.name}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -614,12 +808,29 @@ def main() -> int:
                    help="Where to write the migration SQL")
     p.add_argument("--seed", type=int, default=20260523,
                    help="RNG seed for deterministic name + look generation")
+    p.add_argument("--emit-monk-conversion", type=Path, metavar="ROSTER_TSV",
+                   help="#197 monk conversion mode: read a roster TSV exported read-only "
+                        "(SELECT id, vocation, level, sex, looktype, lookaddons, health, "
+                        "healthmax, mana, manamax, cap, skill_fist, name ... ORDER BY id) and "
+                        "write --out (the conversion) plus <out>.before.sql (the rollback).")
+    p.add_argument("--monk-pct", type=int, default=20,
+                   help="monk conversion: percent of every stratum to convert (default 20)")
+    p.add_argument("--loaded-target", type=int, default=200,
+                   help="monk conversion: botPlayersOnline the picker uses; the loaded set is "
+                        "its own stratum so it gets exactly --monk-pct monks (default 200)")
+    p.add_argument("--monk-outfit-pct", type=int, default=50,
+                   help="monk conversion: percent of converted bots that switch to the Monk "
+                        "outfit (1824 male / 1825 female, unlocked for everyone; default 50)")
     p.add_argument("--emit-update", type=Path, metavar="ID_VOC_CSV",
                    help="Level-only in-place UPDATE mode: read an `id,vocation` CSV "
                         "(ORDER BY id ASC, one row per existing bot) and emit a "
                         "migration that rewrites only level-derived columns. Skips "
                         "the full INSERT regen entirely.")
     args = p.parse_args()
+
+    if args.emit_monk_conversion:
+        return emit_monk_conversion(args.emit_monk_conversion, args.out, args.seed,
+                                    args.monk_pct, args.loaded_target, args.monk_outfit_pct)
 
     # Level-only UPDATE migration: recompute level/derived columns for existing
     # bots from LEVEL_TIERS, keyed by id, base_voc from the live vocation column.
@@ -749,10 +960,10 @@ def main() -> int:
         })
 
     # Sanity check distribution
-    voc_counts = {1: 0, 2: 0, 3: 0, 4: 0}
+    voc_counts = {v: 0 for v in BASE_VOCS}
     town_counts = {t: 0 for t in TOWN_IDS}
     for b in bots:
-        voc_counts[((b["vocation"] - 1) % 4) + 1] += 1
+        voc_counts[base_vocation(b["vocation"])] += 1
         town_counts[b["town_id"]] += 1
     print(f"    Vocation distribution: {voc_counts}")
     print(f"    Town distribution:     {town_counts}")

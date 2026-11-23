@@ -302,12 +302,13 @@ std::string BotEngine::renderChatTemplate(const BotState& bot, const std::shared
 
 	substitute("%city", bot.townName);
 	substitute("%town", bot.townName);
-	// Vocation names — index by vocationId (0-12 in canary; baseVoc 1-4 + promotions).
+	// Vocation names — index by vocationId (0-10 in canary: baseVoc 1-4 + promotions 5-8, monk 9 /
+	// exalted monk 10). #197: 9/10 used to print "ms"/"ed".
 	{
 		static const std::array<std::string, 13> kVocNames = {
 			"none", "sorc", "druid", "pala", "knight",
 			"ms", "ed", "rp", "ek",
-			"ms", "ed", "rp", "ek",
+			"monk", "monk", "rp", "ek",
 		};
 		const std::string& voc = (bot.vocationId < kVocNames.size())
 			? kVocNames[bot.vocationId] : kVocNames[4];

@@ -8741,6 +8741,17 @@ void Player::onThink(uint32_t interval) {
 
 	// Bot players: skip all client/wheel/idle systems — AI runs via BotEngine::tick()
 	if (botPlayer) {
+		// #197: Serene is per-think state with no client dependency. Without this a monk bot was
+		// never Serene (sustain heal, auto-attack, harmony and Justice bonuses all halved).
+		// Returns at once for every non-monk.
+		updateSerenityState();
+		// #197: the forge Momentum (helmet) / Transcendence (legs) procs are per-think too, so the
+		// tiers applyBotForgeTiers puts on HEAD and LEGS never fired for any bot. botForgeProcs=false
+		// restores the old behaviour.
+		if (g_configManager().getBoolean(BOT_FORGE_PROCS)) {
+			triggerTranscendence();
+			triggerMomentum();
+		}
 		return;
 	}
 

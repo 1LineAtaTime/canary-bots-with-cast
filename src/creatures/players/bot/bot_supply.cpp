@@ -114,26 +114,27 @@ struct PotionDef {
 	uint32_t vocMask; // bit per base vocation id; 0 = any
 };
 constexpr uint32_t VOC_SORC = 1u << 1, VOC_DRUID = 1u << 2, VOC_PAL = 1u << 3, VOC_KNIGHT = 1u << 4;
+constexpr uint32_t VOC_MONK = 1u << 9; // #197: bit = base vocation id, like the others
 constexpr uint32_t VOC_ANY = 0;
 
 // Ordered weakest -> strongest so the picker can walk it backwards.
 constexpr PotionDef kPotions[] = {
 	{ 266,   0,  true,  false, VOC_ANY },                                  // health potion
 	{ 268,   0,  false, true,  VOC_ANY },                                  // mana potion
-	{ 236,  50,  true,  false, VOC_PAL | VOC_KNIGHT },                     // strong health
+	{ 236,  50,  true,  false, VOC_PAL | VOC_KNIGHT | VOC_MONK },          // strong health
 	{ 237,  50,  false, true,  VOC_ANY },                                  // strong mana
-	{ 238,  80,  false, true,  VOC_SORC | VOC_DRUID | VOC_PAL },           // great mana
+	{ 238,  80,  false, true,  VOC_SORC | VOC_DRUID | VOC_PAL | VOC_MONK }, // great mana
 	{ 239,  80,  true,  false, VOC_KNIGHT },                               // great health
-	{ 7642, 80,  true,  true,  VOC_PAL },                                  // great spirit
+	{ 7642, 80,  true,  true,  VOC_PAL | VOC_MONK },                       // great spirit
 	{ 7643, 130, true,  false, VOC_KNIGHT },                               // ultimate health
-	{ 23373, 130, false, true, VOC_SORC | VOC_DRUID },                     // ultimate mana
-	{ 23374, 130, true,  true, VOC_PAL },                                  // ultimate spirit
+	{ 23373, 130, false, true, VOC_SORC | VOC_DRUID },                     // ultimate mana (never a monk)
+	{ 23374, 130, true,  true, VOC_PAL | VOC_MONK },                       // ultimate spirit
 	{ 23375, 200, true,  false, VOC_KNIGHT },                              // supreme health
 };
 
 
 uint32_t vocBit(uint8_t baseVoc) {
-	return baseVoc >= 1 && baseVoc <= 4 ? (1u << baseVoc) : 0u;
+	return isBotBaseVoc(baseVoc) ? (1u << baseVoc) : 0u; // #197: monk = bit 9
 }
 
 } // namespace
@@ -203,11 +204,11 @@ void BotEngine::buildConjureTables() {
 		cs.conjureId = conjureId;
 		cs.reagentId = reagentId;
 		cs.level = spell->getLevel();
-		// Promoted vocation ids are base+4; the registry keys on the promoted id (see
+		// The registry keys on the promoted id (promotedVocId: base+4, monk 9 -> 10; see
 		// pvpResolveHasteSpells, which reads the same map).
 		const auto& vocMap = spell->getVocMap();
-		for (uint8_t baseVoc = 1; baseVoc <= 4; ++baseVoc) {
-			if (vocMap.find(static_cast<uint16_t>(baseVoc + 4)) != vocMap.end()) {
+		for (const uint8_t baseVoc : kBotBaseVocs) {
+			if (vocMap.find(promotedVocId(baseVoc)) != vocMap.end()) {
 				cs.vocMask |= vocBit(baseVoc);
 			}
 		}
@@ -519,6 +520,18 @@ bool BotEngine::maybeNeedPotion(BotState& bot) {
 			kind = NeedPotion::Mana;
 			why = "mana_below_line";
 		}
+	} else if (baseVoc == BOT_BASE_VOC_MONK) {
+		// #197 monk: the paladin spirit branch plus an explicit HP line. Below level 80 a monk has
+		// no spirit potion and no exura gran tio, so a health potion (266/236) covers HP below
+		// botKnightHealthPotionPct; from 80 a great/ultimate SPIRIT covers both bars. Never 239,
+		// 7643, 23375 (knight-only) or 23373 (sorcerer/druid): the kPotions masks enforce it.
+		if (!noHeal && hpPct < cfg.knightHealthPotionPct) {
+			kind = NeedPotion::Spirit; // falls back to Health below level 80 (no spirit tier yet)
+			why = "hp_below_line";
+		} else if (maxMana > 0 && manaPct < cfg.manaPotionPct) {
+			kind = (!noHeal && hpPct < cfg.spiritPotionHpPct) ? NeedPotion::Spirit : NeedPotion::Mana;
+			why = kind == NeedPotion::Spirit ? "mana_and_hp_below_line" : "mana_below_line";
+		}
 	} else if (baseVoc >= 1 && baseVoc <= 3) {
 		if (maxMana > 0 && manaPct < cfg.manaPotionPct) {
 			kind = (baseVoc == 3 && !noHeal && hpPct < cfg.spiritPotionHpPct) ? NeedPotion::Spirit : NeedPotion::Mana;
@@ -533,8 +546,11 @@ bool BotEngine::maybeNeedPotion(BotState& bot) {
 	const uint32_t level = player->getLevel();
 	const PotionDef* pick = pickNeedPotion(kind, bit, level);
 	if (!pick && kind == NeedPotion::Spirit) {
-		kind = NeedPotion::Mana; // paladin below level 80: no spirit potion exists yet
-		why = "mana_below_line";
+		// Below level 80 no spirit potion exists yet: a paladin falls back to mana; a monk whose
+		// HP is the problem to a health potion, otherwise to mana (#197).
+		const bool monkHp = baseVoc == BOT_BASE_VOC_MONK && !noHeal && hpPct < cfg.knightHealthPotionPct;
+		kind = monkHp ? NeedPotion::Health : NeedPotion::Mana;
+		if (!monkHp) why = "mana_below_line";
 		pick = pickNeedPotion(kind, bit, level);
 	}
 	if (!pick) {
@@ -981,7 +997,7 @@ void BotEngine::buildSupportSpellTables() {
 	}
 
 	std::unordered_set<std::string> ladderLongCd;
-	for (uint8_t baseVoc = 1; baseVoc <= 4; ++baseVoc) {
+	for (const uint8_t baseVoc : kBotBaseVocs) {
 		for (const auto& hs : getHealSpells(baseVoc)) {
 			// Read the cooldown from the LIVE registry, not from hs.cd: the hardcoded table can
 			// drift from the Lua, and the live value is the one the condition is built from.
@@ -1029,11 +1045,12 @@ void BotEngine::buildSupportSpellTables() {
 		SupportSpell ss;
 		ss.words = words;
 		ss.level = spell->getLevel();
-		// Promoted vocation ids are base+4; the registry keys on the promoted id. This also
-		// excludes the monk-only spells (monk 9 / exalted monk 10) for free.
+		// The registry keys on the promoted id (promotedVocId: base+4, monk 9 -> exalted monk 10).
+		// #197: monks now get their own pool (utani gran hur, utevo lux, exura gran tio...); the
+		// virtues and focus spells stay out through the secondary-group / self-target filters.
 		const auto& vocMap = spell->getVocMap();
-		for (uint8_t baseVoc = 1; baseVoc <= 4; ++baseVoc) {
-			if (vocMap.find(static_cast<uint16_t>(baseVoc + 4)) != vocMap.end()) {
+		for (const uint8_t baseVoc : kBotBaseVocs) {
+			if (vocMap.find(promotedVocId(baseVoc)) != vocMap.end()) {
 				ss.vocMask |= vocBit(baseVoc);
 			}
 		}
@@ -1045,7 +1062,7 @@ void BotEngine::buildSupportSpellTables() {
 			continue;
 		}
 
-		for (uint8_t baseVoc = 1; baseVoc <= 4; ++baseVoc) {
+		for (const uint8_t baseVoc : kBotBaseVocs) {
 			if ((ss.vocMask & vocBit(baseVoc)) != 0) {
 				resolvedSupport_[baseVoc].push_back(ss);
 			}
@@ -1058,9 +1075,10 @@ void BotEngine::buildSupportSpellTables() {
 			[](const SupportSpell& a, const SupportSpell& b) { return a.words < b.words; });
 	}
 
-	g_logger().info("[BotSupply] support spells discovered: sorc={} druid={} pal={} knight={}",
+	g_logger().info("[BotSupply] support spells discovered: sorc={} druid={} pal={} knight={} monk={}",
 	                resolvedSupport_[1].size(), resolvedSupport_[2].size(),
-	                resolvedSupport_[3].size(), resolvedSupport_[4].size());
+	                resolvedSupport_[3].size(), resolvedSupport_[4].size(),
+	                resolvedSupport_[BOT_BASE_VOC_MONK].size());
 }
 
 bool BotEngine::trySupportSpell(BotState& bot, bool force, std::string* outMsg) {
@@ -1113,7 +1131,7 @@ bool BotEngine::trySupportSpell(BotState& bot, bool force, std::string* outMsg) 
 	}
 
 	const uint8_t baseVoc = getBaseVocation(bot.vocationId);
-	if (baseVoc < 1 || baseVoc > 4) {
+	if (!isBotBaseVoc(baseVoc)) {
 		if (outMsg) *outMsg = fmt::format("no support pool for vocation {}", bot.vocationId);
 		return false;
 	}
@@ -1183,7 +1201,7 @@ std::string BotEngine::describeSupportPool(const BotState& bot) const {
 		return "bot has no player object — wake it first";
 	}
 	const uint8_t baseVoc = getBaseVocation(bot.vocationId);
-	if (baseVoc < 1 || baseVoc > 4) {
+	if (!isBotBaseVoc(baseVoc)) {
 		return fmt::format("no support pool for vocation {}", bot.vocationId);
 	}
 	const auto& pool = resolvedSupport_[baseVoc];

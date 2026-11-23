@@ -114,7 +114,7 @@ target_include_directories(${CORE_TARGET_NAME} PRIVATE "${BOT_ABI_DIR}")
 # ===========================================================================
 # Bot Engine shared library (hot-reloadable via dlopen)
 # ===========================================================================
-# The engine's 22 translation units. Shared by both platform branches below so the
+# The engine's 23 translation units. Shared by both platform branches below so the
 # Windows and Linux builds can never drift to different source sets.
 set(BOT_ENGINE_SOURCES
     players/bot/bot_engine.cpp   # lifecycle: registration, hibernation, persistence
@@ -144,6 +144,7 @@ set(BOT_ENGINE_SOURCES
     players/bot/bot_learning.cpp # #30 passive spawn auto-claim, #96 learned danger zones
     players/bot/bot_verb.cpp     # #91 player command verbs: PM/party/panel, security ladder
     players/bot/bot_movement.cpp # #198 movement realism: path shape, U-turn hesitation, facing, place pauses
+    players/bot/bot_monk.cpp     # #197 monk: harmony rotation, virtues, Serene telemetry, party monk
 )
 
 if(UNIX)

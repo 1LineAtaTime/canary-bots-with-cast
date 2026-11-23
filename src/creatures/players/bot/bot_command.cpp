@@ -1464,8 +1464,8 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				if (midx != guidToIndex_.end()) {
 					auto& mb = bots_[midx->second];
 					auto mp = mb.getPlayer();
-					static const char* roleNames[] = {"none","TANK","HEALER","DPS_MAGE","DPS_RANGED"};
-					const char* role = mb.partyRole < 5 ? roleNames[mb.partyRole] : "?";
+					static const char* roleNames[] = {"none","TANK","HEALER","DPS_MAGE","DPS_RANGED","MONK"};
+					const char* role = mb.partyRole < 6 ? roleNames[mb.partyRole] : "?";
 					result += fmt::format("    {} (guid={}) role={} state={} pos=({},{},{})\n",
 						mp ? mp->getName() : "?", mguid, role, botStateName(mb.state),
 						mb.currentPos.x, mb.currentPos.y, mb.currentPos.z);
@@ -1893,13 +1893,13 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 			token = token.substr(s, e - s + 1);
 			uint8_t voc = parseVocShorthand(token);
 			if (voc == 0) {
-				return fmt::format("Unknown vocation '{}'. Use: ek, ed, ms, rp.", token);
+				return fmt::format("Unknown vocation '{}'. Use: ek, ed, ms, rp, mk.", token);
 			}
 			requestedVocs.push_back(voc);
 		}
 
 		if (requestedVocs.empty()) {
-			return "No vocations specified. Use: ek, ed, ms, rp (comma-separated).";
+			return "No vocations specified. Use: ek, ed, ms, rp, mk (comma-separated).";
 		}
 		// BOT_PARTY_INVITE_RENDEZVOUS: no size cap. Some quests need a full team, so the only
 		// bound is how many eligible bots actually exist in the requested level range — the
@@ -2441,6 +2441,26 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		if (command == "supportlist") {
 			const std::string out = describeSupportPool(bot);
 			g_logger().info("{}", out);
+			return out;
+		}
+		// #197 test hooks: `gear` = what the bot wears (id:tier per slot, imbuements, potions in the
+		// bag), `gear refresh` re-runs equipBot first; `monk` = harmony / Serene / virtue.
+		if (command == "gear" || command == "gear refresh") {
+			if (command == "gear refresh" && bot.getPlayer()) {
+				equipBot(bot, /*preserveBackpack=*/true);
+			}
+			const std::string out = describeBotGear(bot);
+			g_logger().info("{}", out);
+			return out;
+		}
+		if (command == "monk") {
+			const std::string out = describeMonk(bot);
+			g_logger().info("{}", out);
+			return out;
+		}
+		if (command.rfind("monkdrill ", 0) == 0) {
+			const std::string out = monkDrillCommand(bot, command.substr(10));
+			g_logger().info("[MONK] {}", out);
 			return out;
 		}
 		// Reports the idle clock the rune gate reads. `rune` bypasses that gate, so without this

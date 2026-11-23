@@ -340,7 +340,8 @@ bool BotEngine::handleVerb(const std::string& src, const std::shared_ptr<Player>
 			if ((a == "ed" || a == "druid" || a == "druids" || a == "heal" || a == "healer" || a == "healers") && base == 2) return true;
 			if ((a == "ms" || a == "sorc" || a == "sorcerer" || a == "sorcerers") && base == 1) return true;
 			if ((a == "rp" || a == "pally" || a == "paladin" || a == "paladins") && base == 3) return true;
-			if (a == "dps" && (base == 1 || base == 3)) return true;
+			if ((a == "mk" || a == "em" || a == "monk" || a == "monks") && base == BOT_BASE_VOC_MONK) return true;
+			if (a == "dps" && (base == 1 || base == 3 || base == BOT_BASE_VOC_MONK)) return true;
 			if (!a.empty() && std::isdigit(static_cast<unsigned char>(a[0]))) {
 				uint32_t lo = 0, hi = UINT32_MAX;
 				const auto dash = a.find('-');

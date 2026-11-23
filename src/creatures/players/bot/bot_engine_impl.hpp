@@ -573,6 +573,13 @@ struct ResolvedSpell {
 // exori gran ico at 30 s) are single-target, so isAoe already excludes them.
 inline constexpr uint32_t ULT_AOE_MIN_COOLDOWN_MS = 40000;
 
+// #197: ultimates the cooldown/area predicate cannot see. Spiritual Outburst (the monk's WoD
+// revelation spell, 425 mana, 24 s) is a 6-target chain, so it parses as single-target with a
+// sub-40 s cooldown. Same PvE gate (botUltAoeMinMonsters monsters in reach), same [ULT_AOE] lines.
+inline bool isExplicitUltimateAoe(const std::string& words) {
+	return words == "exori gran mas nia";
+}
+
 // Resolved rune: dynamically built from Lua parsing + server rune registry
 struct ResolvedRune {
 	uint16_t runeId = 0;
@@ -688,6 +695,21 @@ struct BotEquipment {
 	uint16_t shield = 0; // DB slot_left → CONST_SLOT_RIGHT (shield hand)
 	uint16_t backpack = 0; // DB slot_backpack → CONST_SLOT_BACKPACK
 };
+
+// #197: the harmony amulet every monk bot wears from level 8 (no charges, no decay).
+inline constexpr uint16_t ITEM_BOT_MONK_AMULET = 50195;
+
+// #197: monk band rows name ONE item of a same-band family; the bot's guid picks its member, so a
+// crowd of monks does not wear the identical robe. Families: the four level-200 element robes
+// (leaf/magma/energy/ice 50277-50280) and the level-300 claws (falcon sai 50161 / inferniarch 50250).
+inline void applyMonkGearVariants(BotEquipment& eq, uint32_t guid) {
+	if (eq.armor >= 50277 && eq.armor <= 50280) {
+		eq.armor = static_cast<uint16_t>(50277 + guid % 4);
+	}
+	if (eq.weapon == 50161 || eq.weapon == 50250) {
+		eq.weapon = (guid % 2) == 0 ? 50161 : 50250;
+	}
+}
 
 // BotEngine — concrete implementation of IBotEngine, compiled into libbot_engine.so
 // ---- BOT_NAV_REALISM Phase 5: named cache instrumentation (types) ----
@@ -1896,8 +1918,23 @@ inline bool botJitterPath(const std::shared_ptr<Player>& player, const Position&
 	return !dirList.empty();
 }
 
+// #197: the base vocations a bot can have. Monk is 9 (the server's getBaseId(), which
+// equipment.csv and equipBot already key on), NOT a compact 5. Per-voc tables are sized
+// BOT_VOC_SLOTS and indexed by base vocation; iterate kBotBaseVocs, never 1..4.
+inline constexpr uint8_t BOT_BASE_VOC_MONK = 9;
+inline constexpr size_t BOT_VOC_SLOTS = 10;
+inline constexpr uint8_t kBotBaseVocs[] = { 1, 2, 3, 4, BOT_BASE_VOC_MONK };
+inline constexpr bool isBotBaseVoc(uint8_t b) {
+	return (b >= 1 && b <= 4) || b == BOT_BASE_VOC_MONK;
+}
+// Promoted vocation id of a base vocation: 1-4 -> 5-8, monk 9 -> exalted monk 10.
+inline constexpr uint16_t promotedVocId(uint8_t baseVoc) {
+	return baseVoc == BOT_BASE_VOC_MONK ? 10 : static_cast<uint16_t>(baseVoc + 4);
+}
+
 inline uint8_t parseVocShorthand(const std::string& s) {
 	if (s == "ek" || s == "knight" || s == "elite knight") return 4;
+	if (s == "mk" || s == "em" || s == "monk" || s == "exalted monk") return BOT_BASE_VOC_MONK;
 	if (s == "ed" || s == "druid" || s == "elder druid") return 2;
 	if (s == "ms" || s == "sorcerer" || s == "master sorcerer") return 1;
 	if (s == "rp" || s == "paladin" || s == "royal paladin") return 3;
@@ -1910,6 +1947,7 @@ inline const char* vocShortName(uint8_t baseVoc) {
 		case 2: return "ED";
 		case 3: return "RP";
 		case 4: return "EK";
+		case BOT_BASE_VOC_MONK: return "MK";
 		default: return "??";
 	}
 }
@@ -2723,6 +2761,8 @@ inline constexpr uint8_t PARTY_ROLE_DPS_MAGE   = 3;  // MS — AoE damage, SD ru
 
 inline constexpr uint8_t PARTY_ROLE_DPS_RANGED = 4;  // RP — ranged DPS, holy AoE
 
+inline constexpr uint8_t PARTY_ROLE_MONK       = 5;  // MK — melee DPS on the leader's target, harmony heals, party buffs (#197)
+
 inline std::unordered_map<uint32_t, uint32_t> s_botToPartyHunt;                   // guid → partyHuntId (reverse)
 
 inline uint32_t s_nextPartyHuntId = 1;
@@ -2740,6 +2780,7 @@ inline constexpr PartyLevelTolerance partyLevelToleranceFor(uint8_t leaderBaseVo
 	switch (leaderBaseVoc) {
 		case 4: return { 3, 1 };   // EK leads: tank + full support, the calibrated value
 		case 3: return { 2, 1 };   // RP leads: can hold a front line, but no exeta and no EK HP pool
+		case BOT_BASE_VOC_MONK: return { 2, 1 }; // #197 MK leads: 1.28 mitigation + harmony heals, no exeta
 		default: return { 3, 2 };  // MS/ED leads: no tank in the party at all
 	}
 }
@@ -4923,6 +4964,27 @@ private:
 	static constexpr int64_t SPECTATOR_CACHE_TTL_MS = 600;
 	void refreshSpectatorCacheIfStale(BotState& bot);
 	void castSpell(BotState& bot, const std::shared_ptr<Creature>& target);
+	// ---- #197 monk (bot_monk.cpp) ----
+	// The monk rotation: harmony build-and-spend as a rule ladder (the damage maximiser cannot
+	// express "build to 5, then spend"), area/chain counting, the monk ultimate through
+	// ultAoeAllowed, and the PvP kill window. castSpell hands base vocation 9 here after its PZ /
+	// 2 s interval / z-grace / sight gates. singleTargetOnly = gang / fishing-defence latch.
+	// Returns true when an attack (or a focus spell) went out.
+	bool castMonkSpell(BotState& bot, const std::shared_ptr<Creature>& target, bool singleTargetOnly);
+	// Heal-slot upkeep for monks (no-op otherwise): [BOT_SERENE] telemetry, the virtue
+	// maintainer, the gang squad heal and the periodic [MONK_STATS] line.
+	void maybeMonkUpkeep(BotState& bot);
+	// Casts `want` when it differs from the current virtue. urgent skips the 60 s pacing (PvP).
+	bool monkEnsureVirtue(BotState& bot, Virtue_t want, const char* why, bool urgent);
+	// Solo emergency (<= 30 % HP, harmony >= 3, never in PvP): exura mas nia before the ladder.
+	bool monkEmergencyHeal(BotState& bot, int32_t hpPct, bool pvp);
+	// exura tio sio on another player. True when cast.
+	bool monkHealOther(BotState& bot, const std::shared_ptr<Player>& who, const char* why);
+	// Server-faithful chain simulation (Combat::pickChainTargets: nearest valid creature within
+	// `hop` sqm of the previous link, starting at the caster). Counts monsters (and enemy players
+	// when pvp); outUnsafe = a player the server WOULD damage, who is not a hostile, would be picked.
+	int32_t monkChainCount(BotState& bot, int32_t hop, int32_t maxTargets, uint32_t targetId, bool pvp,
+		bool& outUnsafe, int32_t* outPlayers = nullptr);
 	const ResolvedSpell* selectAttackSpell(BotState& bot, const std::shared_ptr<Creature>& target,
 		double* outBestScore = nullptr);
 	void doHealing(BotState& bot);
@@ -4930,8 +4992,8 @@ private:
 	// AoE spell system
 	// Dynamic spell tables (built at init from server registry + Lua files)
 	void buildSpellTables();
-	std::vector<ResolvedSpell> resolvedSingleSpells_[5]; // index by baseVoc 1-4
-	std::vector<ResolvedSpell> resolvedAoeSpells_[5];
+	std::vector<ResolvedSpell> resolvedSingleSpells_[BOT_VOC_SLOTS]; // index by baseVoc (kBotBaseVocs)
+	std::vector<ResolvedSpell> resolvedAoeSpells_[BOT_VOC_SLOTS];
 	std::vector<ResolvedRune> resolvedAoeRunes_;
 	ResolvedRune resolvedSdRune_;
 	static bool isInAoeArea(const Position& botPos, const Position& targetPos,
@@ -5359,7 +5421,7 @@ private:
 		uint32_t level = 0;
 		uint32_t vocMask = 0;  // bit per base vocation id
 	};
-	std::vector<SupportSpell> resolvedSupport_[5];  // indexed by base vocation 1-4
+	std::vector<SupportSpell> resolvedSupport_[BOT_VOC_SLOTS];  // indexed by base vocation (kBotBaseVocs)
 	void buildSupportSpellTables();                 // walks the live registry; called from loadHuntData
 	bool trySupportSpell(BotState& bot, bool force, std::string* outMsg = nullptr);
 	bool maybeSupportSpell(BotState& bot);
@@ -6468,14 +6530,14 @@ private:
 	// once so the live and virtual twins cannot drift — a divergence there ships a feature that
 	// looks implemented while being inert for the ~95% of parties that form hibernated.
 	struct PartyRoster {
-		uint32_t ek = 0, ed = 0, ms = 0, rp = 0;
+		uint32_t ek = 0, ed = 0, ms = 0, rp = 0, mk = 0; // #197: mk = the optional 5th (monk) slot
 		uint32_t slotFor(uint8_t baseVoc) const {
-			switch (baseVoc) { case 4: return ek; case 2: return ed; case 1: return ms; case 3: return rp; }
+			switch (baseVoc) { case 4: return ek; case 2: return ed; case 1: return ms; case 3: return rp; case BOT_BASE_VOC_MONK: return mk; }
 			return 0;
 		}
 		size_t supportCount(uint32_t leaderGuid) const {
 			size_t n = 0;
-			for (uint32_t g : { ek, ed, ms, rp }) { if (g != 0 && g != leaderGuid) n++; }
+			for (uint32_t g : { ek, ed, ms, rp, mk }) { if (g != 0 && g != leaderGuid) n++; }
 			return n;
 		}
 	};
@@ -6484,8 +6546,8 @@ private:
 	// the only level known before the leader is elected, and it keeps the whole roster mutually
 	// level-compatible whoever wins.
 	PartyRoster recruitPartyRoster(const BotState& initiator, int32_t initLevel,
-		size_t* bestEd = nullptr, size_t* bestMs = nullptr, size_t* bestRp = nullptr);
-	// EK > RP > initiator. Returns a guid that is always present in the roster or the initiator.
+		size_t* bestEd = nullptr, size_t* bestMs = nullptr, size_t* bestRp = nullptr, size_t* bestMk = nullptr);
+	// EK > MK > RP > initiator (#197). Returns a guid that is always present in the roster or the initiator.
 	uint32_t electPartyLeader(const PartyRoster& roster, uint32_t initiatorGuid);
 	bool activateBotForParty(uint32_t guid, uint32_t leaderCreatureId, const Position& summonPos);
 	void exitPartyMode(BotState& bot);
@@ -6570,6 +6632,15 @@ private:
 	void doPartyHuntHealer(BotState& bot, BotState* leaderBot);
 	void doPartyHuntDpsMage(BotState& bot, BotState* leaderBot);
 	void doPartyHuntDpsRanged(BotState& bot, BotState* leaderBot);
+	// #197: monk support — melee on the leader's target, utevo mas sio, exura tio sio when no
+	// healer is near, uteta tio on the leader, Focus Serenity on a big pull (bot_monk.cpp).
+	void doPartyHuntMonk(BotState& bot, BotState* leaderBot);
+	// #197 `/cavebot <bot> gear|monk` (bot_monk.cpp): one machine-checkable line each.
+	std::string describeBotGear(BotState& bot);
+	std::string describeMonk(BotState& bot);
+	// #197 test verb `monkdrill <n> [secs]|stop` + its heal-slot driver (bot_monk.cpp).
+	std::string monkDrillCommand(BotState& bot, const std::string& args);
+	void tickMonkDrill(BotState& bot);
 	void followPartyHuntLeader(BotState& bot, const std::shared_ptr<Player>& leader, BotState* leaderBot);
 	bool tryPartyMemberSpread(BotState& bot, const Position& leaderPos, int32_t keepDist);
 	bool tryPartyAoeReposition(BotState& bot, BotState* leaderBot);
@@ -7106,6 +7177,8 @@ private:
 		int32_t flaskDropIntervalSec = 60, flaskDropMinCount = 3, wakeManaFullSec = 180;
 		int32_t attackManaReservePct = 20;
 		int32_t ultAoeMinMonsters = 3; // PvE gate for ultimate AoE (ResolvedSpell::isUltimateAoe)
+		bool partyMonkEnable = true;   // #197: botPartyMonkEnable (5th party slot)
+		bool monkLogAll = false;       // #197: botMonkLogAll ([MONK] lines for every monk)
 		int32_t foodChancePct = 6, foodMinIntervalMs = 60000;
 		int32_t runeCraftChancePct = 10;
 		int32_t runeCraftIntervalMinMs = 8000, runeCraftIntervalMaxMs = 25000;
@@ -7275,8 +7348,8 @@ private:
 
 	// BOT_PVP_REALISM: per-baseVoc haste spell words, strongest-castable first.
 	// Resolved at init from the server spell registry (vocation gating). Index by
-	// baseVoc 1-4; entry 0 unused.
-	std::vector<std::string> resolvedHaste_[5];
+	// baseVoc (kBotBaseVocs); unused entries stay empty.
+	std::vector<std::string> resolvedHaste_[BOT_VOC_SLOTS];
 
 	// Lexicon for %creature/%spawn level-gated substitution (fallback when the
 	// bot has no active hunt). level_min/max of 0 = unknown bracket.

@@ -2,6 +2,7 @@
 -- Usage:
 --   /party ek,ed      — summon a knight and druid bot
 --   /party ms,rp,ed   — summon a sorcerer, paladin, druid bot
+--   /party ek,mk      — summon a knight and a monk bot (#197)
 --   /party leave       — dismiss all party bots
 --   /party             — show help
 --
@@ -12,7 +13,7 @@ local botParty = TalkAction("/party")
 function botParty.onSay(player, words, param)
 	if not param or param == "" then
 		player:sendTextMessage(MESSAGE_STATUS,
-			"Usage: /party ek,ed,ms  |  /party leave")
+			"Usage: /party ek,ed,ms,rp,mk  |  /party leave")
 		return true
 	end
 

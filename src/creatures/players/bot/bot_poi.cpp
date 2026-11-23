@@ -577,6 +577,8 @@ void BotEngine::refreshLivenessCfgIfStale(int64_t maxAgeMs) {
 	c.flaskDropMinCount        = std::max(1, static_cast<int32_t>(cm.getNumber(BOT_FLASK_DROP_MIN_COUNT)));
 	c.attackManaReservePct     = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_ATTACK_MANA_RESERVE_PCT)), 0, 90);
 	c.ultAoeMinMonsters        = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_ULT_AOE_MIN_MONSTERS)), 0, 30);
+	c.partyMonkEnable          = cm.getBoolean(BOT_PARTY_MONK_ENABLE);
+	c.monkLogAll               = cm.getBoolean(BOT_MONK_LOG_ALL);
 	c.knightHealSpellPct       = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_KNIGHT_HEAL_SPELL_PCT)), 0, 100);
 	c.knightAttackManaReservePct = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_KNIGHT_ATTACK_MANA_RESERVE_PCT)), 0, 90);
 	c.knightHealthPotionNoSpellPct = std::clamp(static_cast<int32_t>(cm.getNumber(BOT_KNIGHT_HEALTH_POTION_NO_SPELL_PCT)), 0, 100);

@@ -48,6 +48,7 @@ Run the files in this exact order (foreign-key / dependency order):
 | 23 | `23_bot_onlinetime_reset.sql` | zeroes the bot account's garbage `onlinetime`. Run with canary stopped. |
 | 24 | `24_bot_state_persistence_saved_at.sql` | adds `bot_state_persistence.saved_at`; the engine restores only tasks saved within 24 h. Idempotent. **Must run before** an engine built with it starts. |
 | 25 | `25_bot_hunt_danger.sql` | creates `bot_hunt_danger` (learned hunt-danger zones; also in `00_bot_schema.sql`). Idempotent; safe with canary up. Without it zones are memory-only. |
+| 26 | `26_monk_conversion.sql` | turns 199 bots (20 % of every loaded/vocation/level-band stratum) into monks / exalted monks IN PLACE — vocation, HP/mana/cap from the 10/10/25 formula, the Monk outfit for half of them. Names, levels and storage unchanged. It is how `02_players.sql` gets its monks (02 is patched by this file, never re-dumped). On a live server run it with canary **stopped** via `tools/bot_population_generator/apply_monk_conversion.sh apply` (backup + exact rollback); `26_monk_conversion.before.sql` is the snapshot rollback, `26_monk_conversion.ids.txt` the converted ids. Idempotent. |
 
 The numbering has gaps because the files that filled them seeded the old
 hunt/route/equipment tables. Those are CSV now, and the tables are gone.

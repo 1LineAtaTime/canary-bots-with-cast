@@ -1354,6 +1354,7 @@ void BotEngine::doPartyFollow(BotState& bot) {
 				case 1: doPartyHuntDpsMage(bot, ekBot); break;   // MS: mirror EK target + AoE
 				case 2: doPartyHuntHealer(bot, ekBot); break;    // ED: heal EK+human+party AND attack
 				case 3: doPartyHuntDpsRanged(bot, ekBot); break; // RP
+				case BOT_BASE_VOC_MONK: doPartyHuntMonk(bot, ekBot); break; // #197 MK: melee on the EK's target
 				default: { // baseVoc==4: a SECOND EK — just mirror EK#1's target (melee), no fallback
 					auto t = ekPlayer->getAttackedCreature();
 					if (t && t->getMonster() && t->getHealth() > 0 && !t->isRemoved()
@@ -1616,13 +1617,16 @@ void BotEngine::doPartyHealing(BotState& bot, const std::shared_ptr<Party>& part
 
 // Helper: get the hunt script's keep distance for a support bot's vocation in party hunt context
 int32_t BotEngine::getPartyHuntKeepDistance(const BotState& bot, BotState* leaderBot) const {
-	if (!leaderBot || leaderBot->huntScriptId == 0) return 3; // default
+	if (!leaderBot || leaderBot->huntScriptId == 0) {
+		return getBaseVocation(bot.vocationId) == BOT_BASE_VOC_MONK ? 0 : 3; // #197: a monk is melee everywhere
+	}
 	for (const auto& s : huntScripts_) {
 		if (s.id == leaderBot->huntScriptId) {
 			switch (getBaseVocation(bot.vocationId)) {
 				case 1: return s.keepDistanceMS > 0 ? s.keepDistanceMS : 3;
 				case 2: return s.keepDistanceED > 0 ? s.keepDistanceED : 3;
 				case 3: return 0; // RP in party hunt: melee range (can tank, needs close for AoE)
+				case BOT_BASE_VOC_MONK: return 0; // #197 MK: melee, adjacent to the leader's target
 				default: return 3;
 			}
 		}
@@ -1715,7 +1719,7 @@ bool BotEngine::tryCastUtamoVita(BotState& bot) {
 // once lets us elect the leader BEFORE any state is wired, which is what makes "the initiator may
 // not be the leader" tractable: there is no wire-then-reassign and nothing to unwind.
 BotEngine::PartyRoster BotEngine::recruitPartyRoster(const BotState& initiator, int32_t initLevel,
-	size_t* bestEd, size_t* bestMs, size_t* bestRp) {
+	size_t* bestEd, size_t* bestMs, size_t* bestRp, size_t* bestMk) {
 	PartyRoster roster;
 	std::unordered_set<uint32_t> usedGuids;
 	usedGuids.insert(initiator.guid);
@@ -1727,6 +1731,7 @@ BotEngine::PartyRoster BotEngine::recruitPartyRoster(const BotState& initiator, 
 		case 2: roster.ed = initiator.guid; break;
 		case 1: roster.ms = initiator.guid; break;
 		case 3: roster.rp = initiator.guid; break;
+		case BOT_BASE_VOC_MONK: roster.mk = initiator.guid; break; // #197
 		default: break;
 	}
 
@@ -1751,15 +1756,24 @@ BotEngine::PartyRoster BotEngine::recruitPartyRoster(const BotState& initiator, 
 	recruit(2, roster.ed, bestEd);
 	recruit(1, roster.ms, bestMs);
 	recruit(3, roster.rp, bestRp);
+	// #197: the optional 5th slot. A party still forms without a monk (supportCount >= 1), and
+	// botPartyMonkEnable=false keeps the old 4-vocation roster (a monk initiator still fills its own).
+	if (livenessCfg_.partyMonkEnable) {
+		recruit(BOT_BASE_VOC_MONK, roster.mk, bestMk);
+	}
 	return roster;
 }
 
-// EK > RP > initiator. By construction the roster holds at most one bot per base vocation and the
-// initiator occupies its own slot, so a recruited EK always wins and an EK can never end up as a
-// support of a non-EK leader.
+// EK > MK > RP > initiator. By construction the roster holds at most one bot per base vocation and
+// the initiator occupies its own slot, so a recruited EK always wins and an EK can never end up as a
+// support of a non-EK leader. #197: a monk is next (1.28 mitigation, close to the EK's 1.3, and it
+// heals the party with every harmony point it builds).
 uint32_t BotEngine::electPartyLeader(const PartyRoster& roster, uint32_t initiatorGuid) {
 	if (roster.ek != 0) {
 		return roster.ek;
+	}
+	if (roster.mk != 0) {
+		return roster.mk;
 	}
 	if (roster.rp != 0) {
 		return roster.rp;
@@ -1788,16 +1802,16 @@ bool BotEngine::tryStartPartyHunt(BotState& bot, int32_t forceScriptId) {
 
 	// 1. Recruit ONCE (initiator's level — the only level known before the election, and it keeps
 	//    the whole roster mutually level-compatible whoever wins).
-	size_t bestEd = 0, bestMs = 0, bestRp = 0;
-	const PartyRoster roster = recruitPartyRoster(bot, initLevel, &bestEd, &bestMs, &bestRp);
+	size_t bestEd = 0, bestMs = 0, bestRp = 0, bestMk = 0;
+	const PartyRoster roster = recruitPartyRoster(bot, initLevel, &bestEd, &bestMs, &bestRp, &bestMk);
 
 	// 2. Elect.
 	const uint32_t leaderGuid = electPartyLeader(roster, bot.guid);
 
 	// 3. Require at least one support besides the leader — a solo bot is not a party.
 	if (roster.supportCount(leaderGuid) == 0) {
-		g_logger().info("[BotEngine] PARTYHUNT-FAIL: '{}' lv{} no supports (best ed={}, ms={}, rp={})",
-			initName, initLevel, bestEd, bestMs, bestRp);
+		g_logger().info("[BotEngine] PARTYHUNT-FAIL: '{}' lv{} no supports (best ed={}, ms={}, rp={}, mk={})",
+			initName, initLevel, bestEd, bestMs, bestRp, bestMk);
 		return false;
 	}
 
@@ -1985,6 +1999,7 @@ bool BotEngine::formPartyWithLeader(BotState& leader, const std::shared_ptr<Play
 	const uint32_t edGuid = (roster.ed != leader.guid) ? roster.ed : 0;
 	const uint32_t msGuid = (roster.ms != leader.guid) ? roster.ms : 0;
 	const uint32_t rpGuid = (roster.rp != leader.guid) ? roster.rp : 0;
+	const uint32_t mkGuid = (roster.mk != leader.guid) ? roster.mk : 0; // #197
 	for (const auto* script : eligible) {
 
 		// We have EK + at least 1 support member — form the party!
@@ -2032,6 +2047,7 @@ bool BotEngine::formPartyWithLeader(BotState& leader, const std::shared_ptr<Play
 		if (edGuid) members.push_back(edGuid);
 		if (msGuid) members.push_back(msGuid);
 		if (rpGuid) members.push_back(rpGuid);
+		if (mkGuid) members.push_back(mkGuid);
 		s_partyHuntMembers[partyHuntId] = members;
 
 		// Create Canary Party with EK as leader
@@ -2257,13 +2273,15 @@ bool BotEngine::formPartyWithLeader(BotState& leader, const std::shared_ptr<Play
 
 			castLog(supportBot, fmt::format("PARTY_HUNT: Joined as {} (party={}, leader={})",
 				role == PARTY_ROLE_HEALER ? "HEALER" :
-				role == PARTY_ROLE_DPS_MAGE ? "DPS_MAGE" : "DPS_RANGED",
+				role == PARTY_ROLE_DPS_MAGE ? "DPS_MAGE" :
+				role == PARTY_ROLE_MONK ? "MONK" : "DPS_RANGED",
 				partyHuntId, leaderPlayer->getName()));
 		};
 
 		if (edGuid) setupSupport(edGuid, PARTY_ROLE_HEALER);
 		if (msGuid) setupSupport(msGuid, PARTY_ROLE_DPS_MAGE);
 		if (rpGuid) setupSupport(rpGuid, PARTY_ROLE_DPS_RANGED);
+		if (mkGuid) setupSupport(mkGuid, PARTY_ROLE_MONK); // #197: the 5th member
 
 		if (botLedAssembly && s_partyAssembly.count(botLedAssemblyId) > 0
 		    && !s_partyAssembly[botLedAssemblyId].members.empty()) {
@@ -2306,7 +2324,7 @@ bool BotEngine::formPartyWithLeader(BotState& leader, const std::shared_ptr<Play
 					// "leader/anchor" and can be held by any vocation, so the old role->"EK" mapping
 					// would print a druid leader as "EK" and poison every acceptance review.
 					const uint8_t mVoc = getBaseVocation(bots_[mIt->second].vocationId);
-					memberNames += mVoc == 4 ? "EK" : mVoc == 2 ? "ED" : mVoc == 1 ? "MS" : "RP";
+					memberNames += vocShortName(mVoc); // EK / ED / MS / RP / MK (#197)
 					if (role == PARTY_ROLE_TANK) memberNames += "*"; // * = leader
 					memberNames += ")";
 				}
@@ -2316,7 +2334,7 @@ bool BotEngine::formPartyWithLeader(BotState& leader, const std::shared_ptr<Play
 		g_logger().info("[BotEngine] PARTY_HUNT #{} formed: '{}' [{}] — {} members: {} (leader={} voc={} elected={}, initiator guid={})",
 			partyHuntId, script->name, script->id, members.size(), memberNames,
 			leaderName, getBaseVocation(leader.vocationId),
-			leader.guid == initiatorGuid ? "INITIATOR" : (getBaseVocation(leader.vocationId) == 4 ? "EK" : "RP"),
+			leader.guid == initiatorGuid ? "INITIATOR" : vocShortName(getBaseVocation(leader.vocationId)),
 			initiatorGuid);
 		castLog(leader, fmt::format("PARTY_HUNT: Formed! script='{}' members=[{}] hunt={}min",
 			script->name, memberNames, (leader.huntEndTime - leader.huntStartTime) / 60000));
@@ -2676,6 +2694,9 @@ void BotEngine::doPartyHunt(BotState& bot) {
 			break;
 		case PARTY_ROLE_DPS_RANGED:
 			doPartyHuntDpsRanged(bot, leaderBot);
+			break;
+		case PARTY_ROLE_MONK: // #197: without this the monk only healed itself and followed at 3 sqm
+			doPartyHuntMonk(bot, leaderBot);
 			break;
 	}
 

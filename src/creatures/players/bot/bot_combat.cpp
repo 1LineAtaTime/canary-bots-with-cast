@@ -49,6 +49,9 @@ uint8_t BotEngine::getBaseVocation(uint8_t vocId) const {
 	// Promoted vocations: 5=master sorc, 6=elder druid, 7=royal paladin, 8=elite knight
 	if (vocId >= 5 && vocId <= 8) return vocId - 4;
 	if (vocId >= 1 && vocId <= 4) return vocId;
+	// #197: monk 9 / exalted monk 10 keep the server's base id 9 (equipment.csv keys on it).
+	// They used to fall through to "knight" and fight with knight tables.
+	if (vocId == 9 || vocId == 10) return BOT_BASE_VOC_MONK;
 	return 4; // default knight
 }
 
@@ -75,6 +78,7 @@ int32_t BotEngine::getEffectiveKeepDistance(const BotState& bot) const {
 				case 2: return static_cast<int32_t>(s.keepDistanceED);
 				case 3: return static_cast<int32_t>(s.keepDistanceRP);
 				case 4: return static_cast<int32_t>(s.keepDistanceEK);
+				case BOT_BASE_VOC_MONK: return static_cast<int32_t>(s.keepDistanceEK); // #197: melee, EK column
 				default: return 0;
 			}
 		}
@@ -252,7 +256,7 @@ void BotEngine::ignoreHitBack(BotState& bot, const std::shared_ptr<Player>& play
 	// hit from a knight (who only lands it from melee range).
 	const uint8_t baseVoc = getBaseVocation(bot.vocationId);
 	CombatType_t type = COMBAT_PHYSICALDAMAGE;
-	if (baseVoc == 4) {
+	if (baseVoc == 4 || baseVoc == BOT_BASE_VOC_MONK) { // #197: a monk punches, from melee only
 		if (dist > 1) return;
 	} else if (baseVoc == 3) {
 		g_game().addDistanceEffect(from, to, CONST_ANI_ARROW);
@@ -1674,8 +1678,15 @@ void BotEngine::castSpell(BotState& bot, const std::shared_ptr<Creature>& target
 	uint8_t baseVoc = getBaseVocation(bot.vocationId);
 	bool targetIsPlayer = target->getPlayer() != nullptr;
 
-	// Runes for all vocations except knights (SD further restricted to MS/ED)
-	bool canUseRunes = (baseVoc != 4);
+	// #197: monks run their own harmony rule ladder (bot_monk.cpp), not the damage maximiser below.
+	if (baseVoc == BOT_BASE_VOC_MONK) {
+		castMonkSpell(bot, target, gangSingleTarget);
+		return;
+	}
+
+	// Runes for all vocations except knights and monks (SD further restricted to MS/ED). A monk
+	// with the forced ML 100 throwing GFB would look wrong (#197).
+	bool canUseRunes = (baseVoc != 4 && baseVoc != BOT_BASE_VOC_MONK);
 
 	// ================================================================
 	// Unified scoring: evaluate ALL attack options, pick highest total damage
@@ -2957,12 +2968,12 @@ bool BotEngine::executeRune(BotState& bot, const std::shared_ptr<Item>& runeItem
 // ============================================================================
 
 void BotEngine::pvpResolveHasteSpells() {
-	for (int v = 0; v < 5; ++v) resolvedHaste_[v].clear();
+	for (auto& v : resolvedHaste_) v.clear();
 	// Candidate haste words, strongest first. Vocation gating is read from the
 	// server spell registry (vocMap) so we only keep what each voc can actually cast.
 	static const char* kCandidates[] = { "utani gran hur", "utani tempo hur", "utani hur" };
-	for (int baseVoc = 1; baseVoc <= 4; ++baseVoc) {
-		uint16_t promVocId = static_cast<uint16_t>(baseVoc + 4); // promoted vocation id
+	for (const uint8_t baseVoc : kBotBaseVocs) {
+		const uint16_t promVocId = promotedVocId(baseVoc); // promoted vocation id (monk 9 -> 10)
 		for (const char* words : kCandidates) {
 			const auto& spell = g_spells().getInstantSpell(words);
 			if (!spell) continue;
@@ -2979,6 +2990,7 @@ int32_t BotEngine::getPvpKeepDistance(uint8_t baseVoc) const {
 		case 1: case 2: return pvpCfg_.mageKeepDist;  // sorcerer / druid
 		case 3: return pvpCfg_.paladinKeepDist;       // paladin
 		case 4: return 0;                             // knight = melee
+		case BOT_BASE_VOC_MONK: return 0;             // #197: monk = melee
 		default: return 0;
 	}
 }
@@ -2986,7 +2998,7 @@ int32_t BotEngine::getPvpKeepDistance(uint8_t baseVoc) const {
 bool BotEngine::pvpCastBestHaste(BotState& bot, const std::shared_ptr<Player>& player) {
 	if (!pvpCfg_.enableHaste || !player) return false;
 	uint8_t baseVoc = getBaseVocation(bot.vocationId);
-	if (baseVoc < 1 || baseVoc > 4) return false;
+	if (!isBotBaseVoc(baseVoc)) return false;
 	const auto& cands = resolvedHaste_[baseVoc];
 	if (cands.empty()) return false;
 	if (player->hasCondition(CONDITION_HASTE)) return false; // already hasted
@@ -4301,6 +4313,14 @@ void BotEngine::doHealing(BotState& bot) {
 
 	int64_t now = OTSYS_TIME();
 	if (now - bot.lastHealTime < HEAL_COOLDOWN * 1000) return;
+
+	// #197: a monk at <= 30 % with harmony >= 3 spends it on exura mas nia first (never in PvP —
+	// spending harmony on a heal resets the damage cycle, which a duel cannot afford).
+	if (baseVoc == BOT_BASE_VOC_MONK && emergency && !paralyzed
+	    && monkEmergencyHeal(bot, hpPct, ultAoePvpContext(bot, player->getAttackedCreature()))) {
+		bot.lastHealTime = now;
+		return;
+	}
 
 	auto& healSpells = getHealSpells(baseVoc);
 

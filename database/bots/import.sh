@@ -51,6 +51,7 @@ FILES=(
   23_bot_onlinetime_reset.sql
   24_bot_state_persistence_saved_at.sql
   25_bot_hunt_danger.sql
+  26_monk_conversion.sql
 )
 
 for f in "${FILES[@]}"; do run "$f"; done

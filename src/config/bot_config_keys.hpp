@@ -841,7 +841,13 @@
 	INT (BOT_KNIGHT_ATTACK_MANA_RESERVE_PCT, "botKnightAttackManaReservePct", 50)    \
 	/* knights: between botKnightHealthPotionPct and this HP %, a health potion only */ \
 	/* when the heal spell is unaffordable (mana < 2x its cost) */                   \
-	INT (BOT_KNIGHT_HEALTH_POTION_NO_SPELL_PCT, "botKnightHealthPotionNoSpellPct", 85)
+	INT (BOT_KNIGHT_HEALTH_POTION_NO_SPELL_PCT, "botKnightHealthPotionNoSpellPct", 85) \
+	/* #197: forge Momentum/Transcendence procs fire for bots (Player::onThink bot block) */ \
+	BOOL(BOT_FORGE_PROCS,                  "botForgeProcs",                 true)    \
+	/* #197: autonomous party hunts recruit a monk as a 5th member */               \
+	BOOL(BOT_PARTY_MONK_ENABLE,            "botPartyMonkEnable",            true)    \
+	/* #197: log [MONK] rotation lines for every monk (default: cast-watched/verbose) */ \
+	BOOL(BOT_MONK_LOG_ALL,                 "botMonkLogAll",                 false)
 
 // ============================================================================
 // #198 movement realism. Expanded at the very END of ConfigKey_t (after BOT_LEARNING_CONFIG_KEYS),

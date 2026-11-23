@@ -263,7 +263,7 @@ void BotEngine::sparHit(BotState& bot, const std::shared_ptr<Player>& self, cons
 	const Position to = other->getPosition();
 	const int32_t dist = sparCheb(from, to);
 	const uint8_t baseVoc = getBaseVocation(bot.vocationId);
-	const bool melee = baseVoc == 4 || baseVoc == 5; // knight, monk
+	const bool melee = baseVoc == 4 || baseVoc == BOT_BASE_VOC_MONK; // knight, monk (#197: base 9, not 5)
 	if (melee ? dist > 1 : dist > 4) return;
 	if (!g_game().map.isSightClear(from, to, true)) return;
 
@@ -283,6 +283,8 @@ void BotEngine::sparHit(BotState& bot, const std::shared_ptr<Player>& self, cons
 	} else if (baseVoc == 2) {
 		g_game().addDistanceEffect(from, to, CONST_ANI_ICE);
 		type = COMBAT_ICEDAMAGE;
+	} else if (baseVoc == BOT_BASE_VOC_MONK) {
+		g_game().addMagicEffect(to, CONST_ME_HITAREA); // #197: a punch, not a projectile
 	}
 	g_game().internalCreatureTurn(self, getDirectionTo(from, to));
 	// The stock rule under test: for a partner this adds in-fight ticks only (no skull, no pz-lock).
@@ -312,6 +314,10 @@ bool BotEngine::sparHeal(BotState& bot, const std::shared_ptr<Player>& self, con
 			self->saySpell(TALKTYPE_SAY, fmt::format("exura sio \"{}\"", other->getName()), false);
 			how = "sio";
 		}
+	}
+	// 1b. #197: a monk's real "exura tio sio" (Restore Balance, level 18).
+	if (!how && baseVoc == BOT_BASE_VOC_MONK && self->getLevel() >= 18 && monkHealOther(bot, other, "spar")) {
+		how = "tio_sio";
 	}
 	// 2. A real ultimate healing rune from the backpack.
 	if (!how && sparCheb(self->getPosition(), other->getPosition()) <= RUNE_RANGE) {
@@ -375,7 +381,7 @@ bool BotEngine::handleSpar(BotState& bot) {
 	const Position op = other->getPosition();
 	const int32_t dist = sparCheb(me, op);
 	const uint8_t baseVoc = getBaseVocation(bot.vocationId);
-	const bool melee = baseVoc == 4 || baseVoc == 5;
+	const bool melee = baseVoc == 4 || baseVoc == BOT_BASE_VOC_MONK;
 	const int32_t want = melee ? 1 : 3;
 	const int32_t hpSelf = sparHpPct(self);
 	const int32_t hpOther = sparHpPct(other);
@@ -396,7 +402,7 @@ bool BotEngine::handleSpar(BotState& bot) {
 			closeIn();
 			// FIGHT once both ends are in range: a melee end needs adjacency, two ranged ends 3 sqm.
 			const uint8_t oVoc = getBaseVocation(ob->vocationId);
-			const int32_t oWant = (oVoc == 4 || oVoc == 5) ? 1 : 3;
+			const int32_t oWant = (oVoc == 4 || oVoc == BOT_BASE_VOC_MONK) ? 1 : 3;
 			if (dist <= std::min(want, oWant)) {
 				pr.phase = SparPhase::FIGHT;
 				pr.phaseMs = now;

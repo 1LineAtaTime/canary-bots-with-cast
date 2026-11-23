@@ -1137,6 +1137,12 @@ botUltAoeMinMonsters = 3
 botKnightHealSpellPct = 88
 botKnightAttackManaReservePct = 50
 botKnightHealthPotionNoSpellPct = 85
+-- #197 monks: forge Momentum (helmet) / Transcendence (legs) procs also fire for bots;
+-- autonomous party hunts recruit a monk as a 5th member; botMonkLogAll logs [MONK] for every
+-- monk (default: only cast-watched / verbose bots)
+botForgeProcs = true
+botPartyMonkEnable = true
+botMonkLogAll = false
 botFoodChancePct = 6
 botFoodMinIntervalMs = 60000
 -- Rune crafting: only when the bot is genuinely IDLE IN PLACE for more than 10s (the

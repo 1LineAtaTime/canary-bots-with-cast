@@ -1255,16 +1255,35 @@ void BotEngine::equipBot(BotState& bot, bool preserveBackpack) {
 
 	auto voc = player->getVocation();
 	uint32_t baseVoc = voc ? voc->getBaseId() : 4; // default to paladin if unknown
-	uint32_t level = std::min(static_cast<uint32_t>(player->getLevel()), 500u);
-	uint32_t key = level * 10 + baseVoc;
-	auto it = equipmentData_.find(key);
+	// #197: the row is the HIGHEST one at or below the bot's level (clamp 1200), so a vocation can
+	// be authored as level bands (monks: one row per band) instead of 500 dense rows. Vocations
+	// 1-4 still have a row for every level 1..500, so for them this is the old exact lookup with
+	// the old 500 clamp: a level-700 knight walks down to its level-500 row.
+	uint32_t level = std::min(static_cast<uint32_t>(player->getLevel()), 1200u);
+	auto it = equipmentData_.end();
+	uint32_t rowLevel = 0;
+	for (uint32_t lv = level; lv >= 1; --lv) {
+		it = equipmentData_.find(lv * 10 + baseVoc);
+		if (it != equipmentData_.end()) {
+			rowLevel = lv;
+			break;
+		}
+	}
 	if (it == equipmentData_.end()) {
 		g_logger().warn("[BotEngine] EQUIP: No equipment data for '{}' (lv={}, baseVoc={}, key={})",
-			player->getName(), level, baseVoc, key);
+			player->getName(), level, baseVoc, level * 10 + baseVoc);
 		return;
 	}
+	level = std::min(level, rowLevel); // the log below keeps printing the row actually used
 
-	const auto& eq = it->second;
+	BotEquipment eq = it->second;
+	if (baseVoc == BOT_BASE_VOC_MONK) {
+		applyMonkGearVariants(eq, player->getGUID());
+		// Fist weapons are dual-wield: the shield hand stays empty. Clear anything left there.
+		if (auto offHand = player->getInventoryItem(CONST_SLOT_RIGHT); offHand && eq.shield == 0) {
+			g_game().internalRemoveItem(offHand);
+		}
+	}
 
 	struct SlotDef { Slots_t slot; uint16_t itemId; const char* name; };
 	SlotDef slots[] = {
@@ -1275,6 +1294,9 @@ void BotEngine::equipBot(BotState& bot, bool preserveBackpack) {
 		{CONST_SLOT_LEFT, eq.weapon, "weapon"},      // weapon in left hand
 		{CONST_SLOT_RIGHT, eq.shield, "shield"},     // shield in right hand
 		{CONST_SLOT_BACKPACK, eq.backpack, "backpack"},
+		// #197: monks wear the harmony amulet (level 8, no charges, no decay). Engine-side rather
+		// than a CSV column: the strict CSV reader would need every existing row rewritten.
+		{CONST_SLOT_NECKLACE, static_cast<uint16_t>(baseVoc == BOT_BASE_VOC_MONK && player->getLevel() >= 8 ? ITEM_BOT_MONK_AMULET : 0), "neck"},
 	};
 
 	int updated = 0;
@@ -1483,6 +1505,12 @@ void BotEngine::equipBot(BotState& bot, bool preserveBackpack) {
 					if (baseVoc == 4) {                       // knight
 						seed(lvl >= 200 ? 23375 : lvl >= 130 ? 7643 : lvl >= 80 ? 239 : lvl >= 50 ? 236 : 266, 1);
 						seed(lvl >= 50 ? 237 : 268, 1);
+					} else if (baseVoc == BOT_BASE_VOC_MONK) { // #197 monk: never 239/7643/23375/23373
+						seed(lvl >= 50 ? 236 : 266, 1);           // health / strong health
+						if (lvl >= 80) {
+							seed(lvl >= 130 ? 23374 : 7642, 1);   // great / ultimate spirit
+						}
+						seed(lvl >= 80 ? 238 : lvl >= 50 ? 237 : 268, 1);
 					} else if (baseVoc == 3) {                // paladin
 						seed(lvl >= 130 ? 23374 : lvl >= 80 ? 7642 : lvl >= 50 ? 236 : 266, 1);
 						seed(lvl >= 80 ? 238 : lvl >= 50 ? 237 : 268, 1);
@@ -1576,7 +1604,7 @@ void BotEngine::applyBotImbuements(const std::shared_ptr<Player>& player, uint32
 	constexpr uint16_t CAT_SKILL_DISTANCE   = 15;
 	constexpr uint16_t CAT_SKILL_MAGIC      = 16;
 	constexpr uint16_t CAT_SKILL_FIST       = 18;
-	(void)CAT_ELEMENTAL_DAMAGE; (void)CAT_SKILL_FIST;
+	(void)CAT_ELEMENTAL_DAMAGE;
 
 	// All-protections list — used as armor/legs/shield fallback after lifeleech/critical.
 	const std::vector<uint16_t> ALL_PROTECTIONS = {
@@ -1587,6 +1615,7 @@ void BotEngine::applyBotImbuements(const std::shared_ptr<Player>& player, uint32
 		const bool isKnight  = (voc == 4);
 		const bool isPaladin = (voc == 3);
 		const bool isMage    = (voc == 1 || voc == 2);
+		const bool isMonk    = (voc == BOT_BASE_VOC_MONK); // #197: Punch (fist skill, category 18)
 
 		std::vector<uint16_t> p;
 		auto pushHead = [&]() { p.push_back(CAT_CRITICAL); p.push_back(CAT_LIFE_LEECH); };
@@ -1604,6 +1633,9 @@ void BotEngine::applyBotImbuements(const std::shared_ptr<Player>& player, uint32
 			} else if (isMage) {
 				p.push_back(CAT_MANA_LEECH);
 				p.push_back(CAT_SKILL_MAGIC);
+			} else if (isMonk) {
+				p.push_back(CAT_SKILL_FIST);
+				p.push_back(CAT_MANA_LEECH);
 			}
 		} else if (slot == CONST_SLOT_HEAD) {
 			pushHead();
@@ -1619,6 +1651,9 @@ void BotEngine::applyBotImbuements(const std::shared_ptr<Player>& player, uint32
 			} else if (isMage) {
 				p.push_back(CAT_MANA_LEECH);
 				p.push_back(CAT_SKILL_MAGIC);
+			} else if (isMonk) {
+				p.push_back(CAT_SKILL_FIST);
+				p.push_back(CAT_MANA_LEECH);
 			}
 		} else if (slot == CONST_SLOT_ARMOR || slot == CONST_SLOT_LEGS) {
 			pushHead();
@@ -2543,10 +2578,10 @@ void BotEngine::buildSpellTables() {
 		parsedSpells.size(), parsedRunes.size());
 
 	// Build per-vocation spell lists from server registry + Lua metadata
-	for (int baseVoc = 1; baseVoc <= 4; baseVoc++) {
+	for (const uint8_t baseVoc : kBotBaseVocs) {
 		resolvedSingleSpells_[baseVoc].clear();
 		resolvedAoeSpells_[baseVoc].clear();
-		uint16_t promVocId = static_cast<uint16_t>(baseVoc + 4); // promoted vocation ID
+		const uint16_t promVocId = promotedVocId(baseVoc); // promoted vocation ID (monk 9 -> 10)
 
 		for (const auto& [words, spell] : g_spells().getInstantSpells()) {
 			// Must be available to this promoted vocation
@@ -2602,6 +2637,11 @@ void BotEngine::buildSpellTables() {
 			// Ultimate AoE: data-driven from the spell's own cooldown (see ULT_AOE_MIN_COOLDOWN_MS).
 			rs.cooldownMs = spell->getCooldown();
 			rs.isUltimateAoe = meta.isAoe && rs.cooldownMs >= ULT_AOE_MIN_COOLDOWN_MS;
+			// #197: the monk ultimate is a 6-target CHAIN with a 24 s cooldown, so neither half of the
+			// predicate marks it (chains parse as single-target). Listed explicitly.
+			if (isExplicitUltimateAoe(rs.words)) {
+				rs.isUltimateAoe = true;
+			}
 
 			if (meta.isAoe) {
 				resolvedAoeSpells_[baseVoc].push_back(rs);
@@ -2610,10 +2650,12 @@ void BotEngine::buildSpellTables() {
 			}
 		}
 		std::string ultList;
-		for (const auto& s : resolvedAoeSpells_[baseVoc]) {
-			if (!s.isUltimateAoe) continue;
-			ultList += fmt::format("{}'{}'(cd={}s area={})", ultList.empty() ? "" : " ", s.words,
-				s.cooldownMs / 1000, s.areaPatternName.empty() ? "?" : s.areaPatternName);
+		for (const auto* list : { &resolvedAoeSpells_[baseVoc], &resolvedSingleSpells_[baseVoc] }) {
+			for (const auto& s : *list) {
+				if (!s.isUltimateAoe) continue;
+				ultList += fmt::format("{}'{}'(cd={}s area={})", ultList.empty() ? "" : " ", s.words,
+					s.cooldownMs / 1000, s.areaPatternName.empty() ? "chain" : s.areaPatternName);
+			}
 		}
 		g_logger().info("[BotEngine] Voc {}: {} single-target + {} AoE attack spells; ultimate AoE: {}",
 			baseVoc, resolvedSingleSpells_[baseVoc].size(), resolvedAoeSpells_[baseVoc].size(),
@@ -2697,11 +2739,19 @@ const std::vector<RealHealSpell>& BotEngine::getHealSpells(uint8_t baseVoc) {
 		// exura gran ico (Intense Wound Cleansing) — level 80, cd 600s
 		{80,  "exura gran ico", 600, 0.2, 70.0, 438, 0.2, 92.0, 544},
 	};
+	// #197 monk: exura gran tio (Spirit Mend, level 80, cd 1 s) uses the exura san coefficients.
+	// exura mas nia is deliberately NOT here: it is a harmony SPENDER (monkEmergencyHeal / party).
+	static const std::vector<RealHealSpell> monkHeals = {
+		{8,   "exura",          1, 0.2, 1.4,   8,  0.2, 1.795, 11},
+		{20,  "exura gran",     1, 0.2, 3.184, 20,  0.2, 5.59,  35},
+		{80,  "exura gran tio", 1, 0.2, 7.22, 44,  0.2, 12.79, 79},
+	};
 	static const std::vector<RealHealSpell> empty;
 	switch (baseVoc) {
 		case 1: case 2: return mageHeals;
 		case 3: return paladinHeals;
 		case 4: return knightHeals;
+		case BOT_BASE_VOC_MONK: return monkHeals;
 		default: return empty;
 	}
 }

@@ -1927,12 +1927,12 @@ bool BotEngine::virtualTryStartPartyHunt(BotState &bot, int32_t forceScriptId) {
 	g_logger().info("[BotEngine] PARTYHUNT-VTRY: '{}' lv{} voc={} (forced={})",
 		bot.name, initLevel, getBaseVocation(bot.vocationId), forceScriptId);
 
-	size_t rosterBestEd = 0, rosterBestMs = 0, rosterBestRp = 0;
-	const PartyRoster roster = recruitPartyRoster(bot, initLevel, &rosterBestEd, &rosterBestMs, &rosterBestRp);
+	size_t rosterBestEd = 0, rosterBestMs = 0, rosterBestRp = 0, rosterBestMk = 0;
+	const PartyRoster roster = recruitPartyRoster(bot, initLevel, &rosterBestEd, &rosterBestMs, &rosterBestRp, &rosterBestMk);
 	const uint32_t leaderGuid = electPartyLeader(roster, bot.guid);
 	if (roster.supportCount(leaderGuid) == 0) {
-		g_logger().info("[BotEngine] PARTYHUNT-VFAIL: '{}' no supports (best ed={}, ms={}, rp={})",
-			bot.name, rosterBestEd, rosterBestMs, rosterBestRp);
+		g_logger().info("[BotEngine] PARTYHUNT-VFAIL: '{}' no supports (best ed={}, ms={}, rp={}, mk={})",
+			bot.name, rosterBestEd, rosterBestMs, rosterBestRp, rosterBestMk);
 		return false;
 	}
 
@@ -2017,6 +2017,7 @@ bool BotEngine::virtualTryStartPartyHunt(BotState &bot, int32_t forceScriptId) {
 	const uint32_t edGuid = (roster.ed != leader.guid) ? roster.ed : 0;
 	const uint32_t msGuid = (roster.ms != leader.guid) ? roster.ms : 0;
 	const uint32_t rpGuid = (roster.rp != leader.guid) ? roster.rp : 0;
+	const uint32_t mkGuid = (roster.mk != leader.guid) ? roster.mk : 0; // #197: twin of the live slot
 	for (const auto* script : eligible) {
 
 		// Form party — purely in static maps + BotState, no engine ops.
@@ -2114,6 +2115,7 @@ bool BotEngine::virtualTryStartPartyHunt(BotState &bot, int32_t forceScriptId) {
 		if (edGuid) setupVirtualSupport(edGuid, PARTY_ROLE_HEALER);
 		if (msGuid) setupVirtualSupport(msGuid, PARTY_ROLE_DPS_MAGE);
 		if (rpGuid) setupVirtualSupport(rpGuid, PARTY_ROLE_DPS_RANGED);
+		if (mkGuid) setupVirtualSupport(mkGuid, PARTY_ROLE_MONK); // #197
 
 		s_partyHuntMembers[partyHuntId] = members;
 
@@ -2125,16 +2127,16 @@ bool BotEngine::virtualTryStartPartyHunt(BotState &bot, int32_t forceScriptId) {
 			if (!memberNames.empty()) memberNames += ", ";
 			memberNames += mBot.name;
 			memberNames += "(";
-			memberNames += mBot.partyRole == PARTY_ROLE_TANK ? "EK" :
-				mBot.partyRole == PARTY_ROLE_HEALER ? "ED" :
-				mBot.partyRole == PARTY_ROLE_DPS_MAGE ? "MS" : "RP";
+			// Label by VOCATION, as the live path does (a non-EK leader used to print "EK").
+			memberNames += vocShortName(getBaseVocation(mBot.vocationId));
+			if (mBot.partyRole == PARTY_ROLE_TANK) memberNames += "*"; // * = leader
 			memberNames += ")";
 		}
 
 		g_logger().info("[BotEngine] PARTY_HUNT #{} virtual-formed: '{}' [{}] — {} virtual members: {} (leader='{}' voc={} elected={}, initiator guid={})",
 			partyHuntId, script->name, script->id, members.size(), memberNames,
 			leader.name, getBaseVocation(leader.vocationId),
-			leader.guid == initiatorGuid ? "INITIATOR" : (getBaseVocation(leader.vocationId) == 4 ? "EK" : "RP"),
+			leader.guid == initiatorGuid ? "INITIATOR" : vocShortName(getBaseVocation(leader.vocationId)),
 			initiatorGuid);
 
 		return true;
@@ -4397,6 +4399,7 @@ void BotEngine::tick() {
 			// below can pay with the mana it just gave.
 			maybeNeedPotion(bot);
 			doHealing(bot);
+			maybeMonkUpkeep(bot); // #197: Serene telemetry, virtue, gang squad heal (no-op unless monk)
 
 			// BOT_SUPPLY_REALISM. Deliberately HERE and not in processBot: processBot
 			// early-returns on the death-pause window, on every floor change, and on the whole
