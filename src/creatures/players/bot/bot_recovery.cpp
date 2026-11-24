@@ -129,9 +129,9 @@ void BotEngine::recordBotDeath(BotState& bot, const std::shared_ptr<Player>& pla
 	// #187 acceptance: did the bot die with an empty mana pool (potions not keeping up)?
 	if (livenessCfg_.manaPotionEnable) {
 		const auto lm = s_lastManaPct.find(bot.guid);
-		g_logger().info("[BOT_MANA_DEATH] bot='{}' voc={} lvl={} lastManaPct={} state={}", bot.name,
+		g_logger().info("[BOT_MANA_DEATH] bot='{}' voc={} lvl={} lastManaPct={} state={} shield={}", bot.name,
 			getBaseVocation(bot.vocationId), player->getLevel(), lm != s_lastManaPct.end() ? lm->second : -1,
-			static_cast<int>(bot.state));
+			static_cast<int>(bot.state), player->hasCondition(CONDITION_MANASHIELD) ? 1 : 0);
 	}
 	const int64_t now = OTSYS_TIME();
 	const Position pos = player->getPosition();

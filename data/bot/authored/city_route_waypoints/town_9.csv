@@ -115,9 +115,7 @@ venore|temple~boat:,node,32955,32032,6,
 venore|temple~boat:,node,32955,32022,6,
 venore|temple~boat:,stand,32955,32022,6,
 
-# --- venore|depot~boat: (15 waypoints) ---
-venore|depot~boat:,node,33019,32058,6,
-venore|depot~boat:,stand,33020,32059,6,
+# --- venore|depot~boat: (13 waypoints) ---
 venore|depot~boat:,node,33017,32059,7,
 venore|depot~boat:,stand,33020,32059,7,
 venore|depot~boat:,node,33016,32054,6,
@@ -328,9 +326,7 @@ venore|bank~runes:,node,32975,32079,6,
 venore|bank~runes:,node,32970,32082,6,
 venore|bank~runes:,stand,32970,32082,6,
 
-# --- venore|depot~runes: (15 waypoints) ---
-venore|depot~runes:,node,33019,32058,6,
-venore|depot~runes:,stand,33020,32059,6,
+# --- venore|depot~runes: (13 waypoints) ---
 venore|depot~runes:,node,33017,32057,7,
 venore|depot~runes:,stand,33020,32059,7,
 venore|depot~runes:,node,33017,32055,6,
@@ -552,9 +548,7 @@ venore|bank~potions:,node,32975,32079,6,
 venore|bank~potions:,node,32970,32085,6,
 venore|bank~potions:,stand,32970,32085,6,
 
-# --- venore|depot~potions: (15 waypoints) ---
-venore|depot~potions:,node,33019,32058,6,
-venore|depot~potions:,stand,33020,32059,6,
+# --- venore|depot~potions: (13 waypoints) ---
 venore|depot~potions:,node,33017,32057,7,
 venore|depot~potions:,stand,33020,32059,7,
 venore|depot~potions:,node,33017,32055,6,
@@ -838,9 +832,7 @@ venore|potions~soft.boots:,node,32948,32101,6,
 venore|potions~soft.boots:,node,32951,32108,6,
 venore|potions~soft.boots:,stand,32953,32108,6,
 
-# --- venore|depot~soft.boots: (19 waypoints) ---
-venore|depot~soft.boots:,node,33019,32058,6,
-venore|depot~soft.boots:,stand,33020,32059,6,
+# --- venore|depot~soft.boots: (17 waypoints) ---
 venore|depot~soft.boots:,node,33018,32057,7,
 venore|depot~soft.boots:,stand,33020,32059,7,
 venore|depot~soft.boots:,node,33016,32054,6,
@@ -935,9 +927,7 @@ venore|food~temple:,stand,32953,32077,6,
 venore|food~temple:,node,32958,32076,7,
 venore|food~temple:,stand,32958,32076,7,
 
-# --- venore|depot~temple: (17 waypoints) ---
-venore|depot~temple:,node,33019,32058,6,
-venore|depot~temple:,stand,33020,32059,6,
+# --- venore|depot~temple: (15 waypoints) ---
 venore|depot~temple:,node,33017,32057,7,
 venore|depot~temple:,stand,33020,32059,7,
 venore|depot~temple:,node,33015,32054,6,
@@ -1132,9 +1122,7 @@ venore|boat~bank:,node,33011,32053,6,
 venore|boat~bank:,node,33019,32053,6,
 venore|boat~bank:,stand,33019,32053,6,
 
-# --- venore|depot~bank: (6 waypoints) ---
-venore|depot~bank:,node,33019,32058,6,
-venore|depot~bank:,stand,33020,32059,6,
+# --- venore|depot~bank: (4 waypoints) ---
 venore|depot~bank:,node,33017,32057,7,
 venore|depot~bank:,stand,33020,32059,7,
 venore|depot~bank:,node,33019,32053,6,
@@ -1362,9 +1350,7 @@ venore|trainers~bank:,node,33012,32053,6,
 venore|trainers~bank:,node,33019,32053,6,
 venore|trainers~bank:,stand,33019,32053,6,
 
-# --- venore|depot~depot: (4 waypoints) ---
-venore|depot~depot:,node,33019,32058,6,
-venore|depot~depot:,stand,33020,32059,6,
+# --- venore|depot~depot: (2 waypoints) ---
 venore|depot~depot:,node,33018,32054,7,
 venore|depot~depot:,stand,33018,32054,7,
 
@@ -1804,9 +1790,7 @@ venore|runes~ammo:,node,32910,32125,6,
 venore|runes~ammo:,node,32906,32118,6,
 venore|runes~ammo:,stand,32906,32118,6,
 
-# --- venore|depot~ammo: (27 waypoints) ---
-venore|depot~ammo:,node,33019,32058,6,
-venore|depot~ammo:,stand,33020,32059,6,
+# --- venore|depot~ammo: (25 waypoints) ---
 venore|depot~ammo:,node,33017,32057,7,
 venore|depot~ammo:,stand,33020,32059,7,
 venore|depot~ammo:,node,33016,32055,6,
@@ -2000,9 +1984,7 @@ venore|runes~west.gate:,node,32876,32126,6,
 venore|runes~west.gate:,node,32863,32126,6,
 venore|runes~west.gate:,stand,32862,32126,6,
 
-# --- venore|depot~west.gate: (26 waypoints) ---
-venore|depot~west.gate:,node,33019,32058,6,
-venore|depot~west.gate:,stand,33020,32059,6,
+# --- venore|depot~west.gate: (24 waypoints) ---
 venore|depot~west.gate:,node,33018,32057,7,
 venore|depot~west.gate:,stand,33020,32059,7,
 venore|depot~west.gate:,node,33015,32055,6,
@@ -2274,9 +2256,7 @@ venore|potions~south.gate:,node,32936,32146,6,
 venore|potions~south.gate:,node,32936,32158,6,
 venore|potions~south.gate:,stand,32936,32159,6,
 
-# --- venore|depot~south.gate: (24 waypoints) ---
-venore|depot~south.gate:,node,33019,32058,6,
-venore|depot~south.gate:,stand,33020,32059,6,
+# --- venore|depot~south.gate: (22 waypoints) ---
 venore|depot~south.gate:,node,33018,32057,7,
 venore|depot~south.gate:,stand,33020,32059,7,
 venore|depot~south.gate:,node,33015,32054,6,
@@ -2479,9 +2459,7 @@ venore|food~north.gate:,node,32879,32032,6,
 venore|food~north.gate:,node,32868,32032,6,
 venore|food~north.gate:,stand,32867,32032,6,
 
-# --- venore|depot~north.gate: (22 waypoints) ---
-venore|depot~north.gate:,node,33019,32058,6,
-venore|depot~north.gate:,stand,33020,32059,6,
+# --- venore|depot~north.gate: (20 waypoints) ---
 venore|depot~north.gate:,node,33017,32057,7,
 venore|depot~north.gate:,stand,33020,32059,7,
 venore|depot~north.gate:,node,33015,32054,6,
@@ -2690,9 +2668,7 @@ venore|boat~food:,node,32976,32043,6,
 venore|boat~food:,node,32980,32036,6,
 venore|boat~food:,stand,32980,32036,6,
 
-# --- venore|depot~food: (12 waypoints) ---
-venore|depot~food:,node,33019,32058,6,
-venore|depot~food:,stand,33020,32059,6,
+# --- venore|depot~food: (10 waypoints) ---
 venore|depot~food:,node,33018,32057,7,
 venore|depot~food:,stand,33020,32059,7,
 venore|depot~food:,node,33014,32055,6,
@@ -3060,9 +3036,7 @@ venore|food~trainers:,stand,32932,32077,10,
 venore|food~trainers:,node,32941,32078,11,
 venore|food~trainers:,stand,32941,32078,11,
 
-# --- venore|depot~trainers: (23 waypoints) ---
-venore|depot~trainers:,node,33019,32058,6,
-venore|depot~trainers:,stand,33020,32059,6,
+# --- venore|depot~trainers: (21 waypoints) ---
 venore|depot~trainers:,node,33018,32057,7,
 venore|depot~trainers:,stand,33020,32059,7,
 venore|depot~trainers:,node,33015,32054,6,
@@ -3257,9 +3231,7 @@ venore|runes~east.gate:,node,32998,32081,6,
 venore|runes~east.gate:,node,32998,32091,6,
 venore|runes~east.gate:,node,32998,32096,6,
 
-# --- venore|depot~east.gate: (12 waypoints) ---
-venore|depot~east.gate:,node,33019,32058,6,
-venore|depot~east.gate:,stand,33020,32059,6,
+# --- venore|depot~east.gate: (10 waypoints) ---
 venore|depot~east.gate:,node,33018,32057,7,
 venore|depot~east.gate:,stand,33020,32059,7,
 venore|depot~east.gate:,node,33016,32055,6,
@@ -3489,9 +3461,7 @@ venore|runes~loot.yanni:,node,32910,32125,6,
 venore|runes~loot.yanni:,node,32909,32113,6,
 venore|runes~loot.yanni:,stand,32909,32113,6,
 
-# --- venore|depot~loot.yanni: (27 waypoints) ---
-venore|depot~loot.yanni:,node,33019,32058,6,
-venore|depot~loot.yanni:,stand,33020,32059,6,
+# --- venore|depot~loot.yanni: (25 waypoints) ---
 venore|depot~loot.yanni:,node,33017,32057,7,
 venore|depot~loot.yanni:,stand,33020,32059,7,
 venore|depot~loot.yanni:,node,33016,32055,6,
@@ -3712,9 +3682,7 @@ venore|runes~loot.romella:,node,32910,32125,6,
 venore|runes~loot.romella:,node,32913,32115,6,
 venore|runes~loot.romella:,stand,32913,32115,6,
 
-# --- venore|depot~loot.romella: (27 waypoints) ---
-venore|depot~loot.romella:,node,33019,32058,6,
-venore|depot~loot.romella:,stand,33020,32059,6,
+# --- venore|depot~loot.romella: (25 waypoints) ---
 venore|depot~loot.romella:,node,33017,32057,7,
 venore|depot~loot.romella:,stand,33020,32059,7,
 venore|depot~loot.romella:,node,33016,32055,6,

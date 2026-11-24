@@ -347,54 +347,84 @@ local BOT_CMD_RESULT_MAX = 32000
 
 local botManager = GlobalEvent("BotManager")
 
+-- #233: exactly-once command execution. The poll is async on the single FIFO bot-DB worker, and
+-- the row used to be marked processed only by the result UPDATE queued AFTER the command ran. Right
+-- after a restart that worker is backlogged with bot loading, so the 1 s polls queued SELECT after
+-- SELECT behind it; each returned the same `processed = 0` row before any UPDATE ran, and row 13295
+-- (`dumpnav world`) executed 9 times in 4 s. Now:
+--   * one poll in flight at a time (a SELECT is only queued once the previous callback ran; a lost
+--     callback frees the slot after BOT_CMD_POLL_STALE_MS);
+--   * the row is CLAIMED (processed = 1) before the command runs -- queued ahead of the next SELECT
+--     on the same FIFO worker, so that SELECT cannot return it;
+--   * ids this process already dispatched are never run again ([BOTCMD_DUP] if one comes back).
+local BOT_CMD_POLL_STALE_MS = 30000
+local botCmdPollSince = nil
+local botCmdSeen = {}
+
+local function runQueuedBotCommand(cmdId, botName, cmd)
+	if botCmdSeen[cmdId] then
+		logger.warn("[BOTCMD_DUP] id={} cmd='{}' bot='{}' returned again -- not re-run", cmdId, cmd, botName)
+		return
+	end
+	botCmdSeen[cmdId] = true
+	-- Claim before running: see the note above botCmdPollSince.
+	db.botAsyncQuery(string.format(
+		"UPDATE `bot_commands` SET `processed` = 1 WHERE `id` = %d AND `processed` = 0", cmdId))
+
+	local resultText
+	-- Global reload: parse `reload [debug,N | debug off]`
+	-- _global / reload              → plain hot-reload, preserve current active set
+	-- _global / reload debug,1      → hot-reload + activate 1 bot with debug stream
+	-- _global / reload debug off    → hot-reload + activate all bots, clear debug
+	local low = cmd:lower()
+	if botName == "_global" and (low == "reload" or low:match("^reload%s")) then
+		local opts = { source = "queue" }
+		-- Parse from `cmd` (original case), NOT `low` — bot names must survive.
+		local dbgSpec, dbgNames = BotSystem.parseDebugSpec(cmd)
+		if dbgSpec then
+			opts.debugCount = dbgSpec
+			opts.debugBotNames = dbgNames
+		end
+		local rv = BotSystem.executeReload(opts)
+		resultText = (rv and rv.message) or "reload returned nil"
+	elseif low == "storages" then
+		resultText = BotStorages.dump(botName)
+	else
+		-- 3rd arg labels the BOT_TEST_HARNESS `cmd` audit record only.
+		resultText = Game.botCommand(botName, cmd, "queue") or ""
+		-- Reply text is data, not a format string: JSON replies carry braces.
+		logger.info("[BotManager] Command '{}' for '{}': {}", cmd, botName, resultText)
+	end
+
+	-- Persist result + timestamp
+	db.botAsyncQuery(string.format(
+		"UPDATE `bot_commands` SET `processed` = 1, `result` = %s, `executed_at` = %d WHERE `id` = %d",
+		db.escapeString(resultText:sub(1, BOT_CMD_RESULT_MAX)), os.time(), cmdId))
+end
+
 function botManager.onThink(interval)
 	-- Global command queue poll (so MySQL-based commands still work).
 	-- JITTER FIX 2026-06-10: async — the sync db.storeQuery blocked the dispatcher
 	-- for the full round-trip incl. databaseLock convoy behind worker-thread DB
 	-- bursts (measured 376ms and 643ms tonight via DB_SYNC_SLOW). Command
 	-- processing becomes eventually-consistent within the same 10s window.
+	local nowMs = systemTime()
+	if botCmdPollSince and nowMs - botCmdPollSince < BOT_CMD_POLL_STALE_MS then
+		return true
+	end
+	botCmdPollSince = nowMs
 	db.botAsyncStoreQuery(
 		"SELECT `id`, `bot_name`, `command` FROM `bot_commands` WHERE `processed` = 0 ORDER BY `id` ASC LIMIT 10",
 		function(cmdResult)
-	if cmdResult then
-		repeat
-			local cmdId = Result.getNumber(cmdResult, "id")
-			local botName = Result.getString(cmdResult, "bot_name")
-			local cmd = Result.getString(cmdResult, "command")
-
-			local resultText
-			-- Global reload: parse `reload [debug,N | debug off]`
-			-- _global / reload              → plain hot-reload, preserve current active set
-			-- _global / reload debug,1      → hot-reload + activate 1 bot with debug stream
-			-- _global / reload debug off    → hot-reload + activate all bots, clear debug
-			local low = cmd:lower()
-			if botName == "_global" and (low == "reload" or low:match("^reload%s")) then
-				local opts = { source = "queue" }
-				-- Parse from `cmd` (original case), NOT `low` — bot names must survive.
-				local dbgSpec, dbgNames = BotSystem.parseDebugSpec(cmd)
-				if dbgSpec then
-					opts.debugCount = dbgSpec
-					opts.debugBotNames = dbgNames
-				end
-				local rv = BotSystem.executeReload(opts)
-				resultText = (rv and rv.message) or "reload returned nil"
-			elseif low == "storages" then
-				resultText = BotStorages.dump(botName)
-			else
-				-- 3rd arg labels the BOT_TEST_HARNESS `cmd` audit record only.
-				resultText = Game.botCommand(botName, cmd, "queue") or ""
-				-- Reply text is data, not a format string: JSON replies carry braces.
-				logger.info("[BotManager] Command '{}' for '{}': {}", cmd, botName, resultText)
+			botCmdPollSince = nil
+			if cmdResult then
+				repeat
+					runQueuedBotCommand(Result.getNumber(cmdResult, "id"), Result.getString(cmdResult, "bot_name"),
+						Result.getString(cmdResult, "command"))
+				until not Result.next(cmdResult)
+				Result.free(cmdResult)
 			end
-
-			-- Persist result + timestamp (mark processed in same statement)
-			db.botAsyncQuery(string.format(
-				"UPDATE `bot_commands` SET `processed` = 1, `result` = %s, `executed_at` = %d WHERE `id` = %d",
-				db.escapeString(resultText:sub(1, BOT_CMD_RESULT_MAX)), os.time(), cmdId))
-		until not Result.next(cmdResult)
-		Result.free(cmdResult)
-	end
-	end)
+		end)
 
 	return true
 end

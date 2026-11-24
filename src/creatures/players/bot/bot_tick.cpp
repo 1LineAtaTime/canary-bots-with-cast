@@ -435,7 +435,7 @@ uint32_t BotEngine::wakeBotsInRadius(const Position& pos, int radius) {
 	return count;
 }
 
-void BotEngine::logHuntAssign(const BotState& bot, uint32_t scriptId) const {
+void BotEngine::logHuntAssign(const BotState& bot, uint32_t scriptId, const char* tag) const {
 	// Find the script. ~200 entries, linear scan is fine — fires at ~0.1/sec server-wide.
 	const HuntScript* script = nullptr;
 	for (const auto& s : huntScripts_) {
@@ -450,10 +450,12 @@ void BotEngine::logHuntAssign(const BotState& bot, uint32_t scriptId) const {
 	} else {
 		townName = std::to_string(script->townId);
 	}
-	g_logger().info("[HuntAssign] {} (lv{} voc{}) -> '{}' (id={} town={}) spawn=({},{},{})",
+	// `tag` (#228): a recovery route borrows the nearest script's waypoints as a walk home whatever the
+	// bot's level -- say so, or a lv1143 bot "assigned" a lv8-100 hunt reads as a selection bug.
+	g_logger().info("[HuntAssign] {} (lv{} voc{}) -> '{}' (id={} town={}) spawn=({},{},{}){}{}",
 		bot.name, bot.cachedLevel, static_cast<int>(bot.vocationId),
 		script->name, scriptId, townName,
-		spawnPos.x, spawnPos.y, spawnPos.z);
+		spawnPos.x, spawnPos.y, spawnPos.z, tag ? " " : "", tag ? tag : "");
 }
 
 bool BotEngine::recoverOrphanForReload(uint32_t guid, const std::shared_ptr<Player>& player) {
@@ -1206,10 +1208,19 @@ void BotEngine::virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms) {
 	// same phase > 30min (warn rate-limited per-bot to 1 per 5min).
 	const int64_t huntVt_now = OTSYS_TIME();
 	const HuntPhase huntVt_prevPhase = bot.huntPhase;
-	int64_t &huntVt_enteredMs = huntPhaseEnteredMs_[bot.guid];
-	if (huntVt_enteredMs == 0) huntVt_enteredMs = huntVt_now;
-	const int64_t huntVt_inPhaseMs = huntVt_now - huntVt_enteredMs;
-	if (huntVt_inPhaseMs > 1800 * 1000LL) {
+	HuntPhaseStamp &huntVt_stamp = huntPhaseEnteredMs_[bot.guid];
+	if (huntVt_stamp.enteredMs == 0 || huntVt_stamp.phase != bot.huntPhase || huntVt_stamp.scriptId != bot.huntScriptId) {
+		huntVt_stamp = { huntVt_now, bot.huntPhase, bot.huntScriptId }; // #231: entered live, or a new hunt
+	}
+	const int64_t huntVt_inPhaseMs = huntVt_now - huntVt_stamp.enteredMs;
+	// #231: a watchdog for HUNTS -- not for a party member or a dweller that reaches this sim. And
+	// PATROLLING has a clock of its own, huntEndTime (a party hunt patrols 2-3 h by design: Baelog
+	// Stormpike's party read "stuck" for 2 h while its patrol index kept cycling): only a patrol 30 min
+	// past ITS end is stuck. Every other phase has a <= 5-20 min budget, so 30 min in it is.
+	const bool huntVt_patrolClock = bot.huntPhase == HuntPhase::PATROLLING && bot.huntEndTime > 0;
+	const bool huntVt_overdue = huntVt_patrolClock ? huntVt_now > bot.huntEndTime + 1800 * 1000LL
+	                                               : huntVt_inPhaseMs > 1800 * 1000LL;
+	if (huntVt_overdue && bot.state == BotAIState::HUNTING && bot.huntScriptId > 0) {
 		int64_t &huntVt_lastWarn = lastHuntStuckWarnMs_[bot.guid];
 		if (huntVt_now - huntVt_lastWarn > 300000) {
 			huntVt_lastWarn = huntVt_now;
@@ -1619,7 +1630,7 @@ void BotEngine::virtualAdvanceHunting(BotState &bot, int64_t elapsed_ms) {
 	// need logging. Note: RESUPPLYING done resets huntPhase=PREPARING + state=IDLE,
 	// so the transition log will show 4→0 there.
 	if (bot.huntPhase != huntVt_prevPhase) {
-		huntPhaseEnteredMs_[bot.guid] = huntVt_now;
+		huntPhaseEnteredMs_[bot.guid] = { huntVt_now, bot.huntPhase, bot.huntScriptId };
 		// 2026-06-10 fix: clear leftover-ms on phase transition. Without this, a remainder
 		// from the previous phase (up to 4999ms) carries over and gives the new phase's first
 		// wp a head-start of up to ~half a waypoint. Sonnet-flagged inaccuracy; one-line fix.
@@ -2898,6 +2909,29 @@ void BotEngine::syncTownIdToPos(BotState& bot) {
 // ============================================================================
 
 bool BotEngine::findNearestRecoveryRoute(BotState& bot) {
+	// #228: a "way home" for a bot already standing in town is a walk away from it. The recovery search
+	// keys on Chebyshev distance to any script's waypoints, so next to a temple it picks the nearest
+	// hunt's approach and marches the bot out along it -- soak 2026-11-24: lv1143 / lv1005 bots handed
+	// Thais' lv8-100 'Wasp Cave Thais Spear' at the temple after a death; on the fix build, a bot
+	// LEAVING from the Yalahar temple on 'Yalahar Elves' skip-chained 4 waypoints. Every caller has a
+	// fallback for "no route" (temple teleport, idle), which for a bot this close is a no-op.
+	if (auto player = bot.getPlayer()) {
+		const Position at = player->getPosition();
+		const auto homeTown = player->getTown();
+		for (const auto& town : { homeTown, g_game().map.towns.getTown(bot.townId) }) {
+			if (!town) {
+				continue;
+			}
+			const Position tp = town->getTemplePosition();
+			if (std::abs(static_cast<int32_t>(at.z) - static_cast<int32_t>(tp.z)) <= 1
+			    && std::max(std::abs(static_cast<int32_t>(at.x) - static_cast<int32_t>(tp.x)),
+			                std::abs(static_cast<int32_t>(at.y) - static_cast<int32_t>(tp.y))) <= HUNT_ABORT_IN_TOWN_DIST) {
+				g_logger().info("[RECOVERY_SKIP_INTOWN] bot='{}' at=({},{},{}) temple=({},{},{}) state={} phase={}",
+					bot.name, at.x, at.y, at.z, tp.x, tp.y, tp.z, botStateName(bot.state), static_cast<int>(bot.huntPhase));
+				return false;
+			}
+		}
+	}
 	const HuntScript* bestScript = nullptr;
 	int32_t bestDist = INT32_MAX;
 	size_t bestPatrolIdx = 0;
@@ -3016,7 +3050,7 @@ bool BotEngine::findNearestRecoveryRoute(BotState& bot) {
 	// Set bot state to follow recovery waypoints via doHuntLeaving()
 	const bool bestIsQuest = bestScript->isQuest || bestScript->scriptCategory == "quest";
 	bot.huntScriptId = bestScript->id;
-	logHuntAssign(bot, bestScript->id);
+	logHuntAssign(bot, bestScript->id, "recovery=1");
 	bot.huntStartTime = OTSYS_TIME(); // Reset safety timeout so doHunting() doesn't re-abort immediately
 	// Reserve the script for recovery — prevents another bot from hunting it while we navigate
 	// through. Quests are shared under a cooldown rather than reserved, so taking a
@@ -3973,6 +4007,13 @@ void BotEngine::tick() {
 			s_directFirstHit60s = 0;
 			s_directFirstMiss60s = 0;
 			s_directFirstSuppressed60s = 0;
+			// #228: authored-route waypoints the walker could not reach. backoff >> fails is the fix
+			// working (a failing waypoint no longer searches every tick); chains > 0 is the regression.
+			g_logger().info("[WP_NAVFAIL] 60s fails={} backoff={} resume={} walk={} none={} skips={} chains={} awake={}",
+				s_wpNav60sFails, s_wpNav60sBackoff, s_wpNav60sResume, s_wpNav60sWalk, s_wpNav60sNone,
+				s_wpNav60sSkips, s_wpNav60sChains, awakeBots);
+			s_wpNav60sFails = s_wpNav60sBackoff = s_wpNav60sResume = s_wpNav60sWalk = 0;
+			s_wpNav60sNone = s_wpNav60sSkips = s_wpNav60sChains = 0;
 		}
 		// #130 (review): goToWide's live cost. Always logged (zeros included), so its absence means
 		// an old build, not "no searches". Healthy: maxPerTick <= 2 (the cap), msMax well under 50.
@@ -7377,6 +7418,32 @@ void BotEngine::handleFloorChange(BotState& bot) {
 			bot.currentPos = player->getPosition();
 
 			if (bot.currentPos.z != bot.fcPreZ) {
+				// #230: a z change far from the stair being stepped is a RELOCATION (boat, death respawn,
+				// party regroup teleport, rescue) that landed while this FC was still in flight -- not the
+				// bot taking a wrong stair. Soak 2026-11-24: all 11 [FC_UNPLANNED] were this, 40-1573 tiles
+				// off. Nothing about this portal was learned: reset without a verdict (no unplanned/
+				// wrong-z/success accounting) and let the caller re-plan from where the bot now is.
+				// Teleport portals legitimately land far away and are judged below as before.
+				if (bot.fcTransIdx < bot.fcTransitions.size()) {
+					const Position stepPos = bot.fcTransitions[bot.fcTransIdx].pos;
+					const int32_t fromStep = std::max(
+						std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(stepPos.x)),
+						std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(stepPos.y)));
+					if (fromStep > FC_RELOCATED_DIST) {
+						const auto stepTile = g_game().map.getTile(stepPos);
+						const auto plannedTpIt = s_plannedFc.find(bot.guid);
+						const bool teleportPortal = (stepTile && stepTile->hasFlag(TILESTATE_TELEPORT))
+							|| (plannedTpIt != s_plannedFc.end() && plannedTpIt->second.portal.pos == stepPos
+							    && plannedTpIt->second.portal.kind == botnav::ZPortalKind::TELEPORT);
+						if (!teleportPortal) {
+							g_logger().info("[FC_RELOCATED] bot='{}' at ({},{},{}) step=({},{},{}) dist={} preZ={} planned={} -> reset, not judged",
+								bot.name, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z, stepPos.x, stepPos.y,
+								stepPos.z, fromStep, bot.fcPreZ, plannedTpIt != s_plannedFc.end() ? 1 : 0);
+							resetFloorChange(bot);
+							break;
+						}
+					}
+				}
 				// TRUE MULTI-FLOOR: a planned hop verifies against its PLANNED
 				// landing floor, not the toward-target heuristic below — a
 				// multi-hop route may legitimately step AWAY from the target

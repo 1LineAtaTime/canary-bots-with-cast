@@ -20,6 +20,217 @@
 #include "map/house/house.hpp"   // House::getId — shrine hits are tagged with their house
 
 // ============================================================================
+// #228: unreachable waypoints on authored routes (patrol, travel_to, leaving, city routes).
+//
+// Soak 2026-11-24 (GM + cameras touring 14 cities): 83% of PROCBOT_SLOW sat next to a
+// `wp-skip-pathfail`. A waypoint the chunked walker cannot reach (a lap wrapping to a wp0 128 tiles
+// across Thais; a woken traveller 23-68 tiles off its route; a LEAVING walk from far away) failed the
+// SAME search on every tick: up to 9 NODE candidates x (kernel + stock + 2 offset) 512-node searches,
+// ~14 ms, for the 50 ticks (~10 s) the skip threshold needed -- and then again for the next waypoint,
+// standing still all the while. The chunk target is a straight-line point 12 tiles out; across a river
+// or a block of houses it lands inside the obstacle, so the walker never finds the route that exists.
+//
+// Now a failed search (a) walks the step field instead -- the planner's own BFS from the bot, exact
+// passability, doors as openable -- to the nearest WALKABLE waypoint at or after the cursor
+// (recoverUnreachableWp), at most once per tile per waypoint; and (b) arms a per-waypoint backoff, so a
+// waypoint nothing reaches costs one search per window instead of one per tick, and is skipped after
+// WP_PATHFAIL_SKIP_SEARCHES searches (~12 s, the old ~10 s) rather than 50 ticks.
+// ============================================================================
+namespace {
+	constexpr uint32_t WP_PATHFAIL_SKIP_SEARCHES = 10;
+	constexpr uint32_t WP_SKIP_CHAIN_WARN = 4; // consecutive skips on one tile -> [WP_SKIP_CHAIN]
+
+	// Backoff after the n-th consecutive failed search for one waypoint: the first two retry on the
+	// next tick (a creature in a corridor, a door being opened), then 0.5, 1, then 2 s.
+	int64_t wpNavBackoffMs(uint32_t fails) {
+		return fails <= 2 ? 0 : fails == 3 ? 500 : fails == 4 ? 1000 : 2000;
+	}
+
+	struct WpNavFail {
+		const Waypoint* list = nullptr; // route identity: the vector's storage (+ index + position)
+		size_t idx = SIZE_MAX;
+		Position wp;
+		int64_t retryAtMs = 0;
+	};
+	std::unordered_map<uint32_t, WpNavFail> s_wpNavFail;
+
+	struct WpRecoverTry {
+		const Waypoint* list = nullptr;
+		size_t idx = SIZE_MAX;
+		Position from;
+	};
+	std::unordered_map<uint32_t, WpRecoverTry> s_wpRecoverTry;
+
+	struct WpSkipChain {
+		Position at;
+		uint32_t count = 0;
+	};
+	std::unordered_map<uint32_t, WpSkipChain> s_wpSkipChain;
+
+	bool wpNavFailMatches(const WpNavFail& f, const std::vector<Waypoint>& wps, size_t idx, const Position& wp) {
+		return f.list == wps.data() && f.idx == idx && f.wp == wp;
+	}
+
+	Direction stepDirection(const Position& from, const Position& to) {
+		const int32_t dx = static_cast<int32_t>(to.x) - static_cast<int32_t>(from.x);
+		const int32_t dy = static_cast<int32_t>(to.y) - static_cast<int32_t>(from.y);
+		if (dx == 0) {
+			return dy < 0 ? DIRECTION_NORTH : DIRECTION_SOUTH;
+		}
+		if (dy == 0) {
+			return dx < 0 ? DIRECTION_WEST : DIRECTION_EAST;
+		}
+		if (dx > 0) {
+			return dy < 0 ? DIRECTION_NORTHEAST : DIRECTION_SOUTHEAST;
+		}
+		return dy < 0 ? DIRECTION_NORTHWEST : DIRECTION_SOUTHWEST;
+	}
+
+	// The field's own path from its origin to `to` (or to the cheapest reached neighbour, for a tile the
+	// flood never enters -- the stepsTo rule), as the cells AFTER the origin in walking order. Descends the
+	// BFS distances, so every step is one 8-connected move between flood-passable cells.
+	bool fieldPathCells(const botnav::ZStepField& f, const Position& origin, const Position& to, std::vector<Position>& cells) {
+		cells.clear();
+		int32_t cx = to.x, cy = to.y;
+		int32_t d = f.at(cx, cy);
+		if (d < 0) {
+			for (int32_t dx = -1; dx <= 1; ++dx) {
+				for (int32_t dy = -1; dy <= 1; ++dy) {
+					const int32_t v = (dx || dy) ? f.at(to.x + dx, to.y + dy) : -1;
+					if (v >= 0 && (d < 0 || v < d)) {
+						d = v;
+						cx = to.x + dx;
+						cy = to.y + dy;
+					}
+				}
+			}
+			if (d < 0) {
+				return false;
+			}
+		}
+		static constexpr int32_t kD[8][2] = { { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
+		while (d > 0) {
+			cells.emplace_back(static_cast<uint16_t>(cx), static_cast<uint16_t>(cy), origin.z);
+			bool moved = false;
+			for (const auto& k : kD) {
+				if (f.at(cx + k[0], cy + k[1]) == d - 1) {
+					cx += k[0];
+					cy += k[1];
+					--d;
+					moved = true;
+					break;
+				}
+			}
+			if (!moved) {
+				break; // the seed of an origin the flood could not stand on: origin -> seed is one step
+			}
+		}
+		std::reverse(cells.begin(), cells.end());
+		return !cells.empty()
+			&& std::max(std::abs(static_cast<int32_t>(cells.front().x) - static_cast<int32_t>(origin.x)),
+			            std::abs(static_cast<int32_t>(cells.front().y) - static_cast<int32_t>(origin.y)))
+			<= 1;
+	}
+}
+
+bool BotEngine::recoverUnreachableWp(BotState& bot, const std::shared_ptr<Player>& player,
+	const std::vector<Waypoint>& waypoints, size_t& waypointIdx, const WaypointFollowConfig& config) {
+	if (!zGraphReady_ || !player || waypointIdx >= waypoints.size()) {
+		return false;
+	}
+	const Position at = bot.currentPos;
+	// Once per tile per waypoint: a field walk that was cut short (a creature, a door that would not
+	// open) is retried only after the bot has moved, never every tick from the same spot.
+	auto& tried = s_wpRecoverTry[bot.guid];
+	if (tried.list == waypoints.data() && tried.idx == waypointIdx && tried.from == at) {
+		return false;
+	}
+	tried = { waypoints.data(), waypointIdx, at };
+	const ZStepPtr field = zWalkStepsFrom(at);
+	if (!field) {
+		return false;
+	}
+	// Candidates: the cursor and the waypoints after it, up to and INCLUDING the first one that is not a
+	// plain NODE/STAND -- an NPC greet, a door, a ladder, a stair is walked to, never skipped past.
+	const size_t n = waypoints.size();
+	const size_t limit = config.cyclicRoute ? std::min(n, waypointIdx + WP_RESUME_CYCLIC_WINDOW) : n;
+	int32_t best = -1;
+	size_t bestIdx = waypointIdx;
+	for (size_t i = waypointIdx; i < limit; ++i) {
+		const Waypoint& w = waypoints[i];
+		if (w.type == WaypointType::TELEPORT) {
+			break;
+		}
+		if (w.pos.z == at.z) {
+			const int32_t st = field->stepsTo(w.pos);
+			// `<=`: of equally near waypoints take the later one (further along the route).
+			if (st >= 0 && (best < 0 || st <= best)) {
+				best = st;
+				bestIdx = i;
+			}
+		}
+		if (w.type != WaypointType::NODE && w.type != WaypointType::STAND) {
+			break;
+		}
+	}
+	const Position cur = waypoints[waypointIdx].pos;
+	const int32_t curCheb = std::max(std::abs(static_cast<int32_t>(cur.x) - static_cast<int32_t>(at.x)),
+		std::abs(static_cast<int32_t>(cur.y) - static_cast<int32_t>(at.y)));
+	if (best < 0) {
+		s_wpNav60sNone++;
+		castLog(bot, fmt::format("{}: [WP_UNREACHABLE] wp {}/{} at ({},{},{}) cheb={} — no waypoint walkable from ({},{},{})",
+			config.logPrefix, waypointIdx + 1, n, cur.x, cur.y, cur.z, curCheb, at.x, at.y, at.z));
+		return false;
+	}
+	std::vector<Position> cells;
+	if (!fieldPathCells(*field, at, waypoints[bestIdx].pos, cells)) {
+		s_wpNav60sNone++;
+		return false;
+	}
+	// The field treats an openable door as open. Open one we are standing at; stop in front of any later
+	// one (the next failed search, from there, opens it).
+	size_t walkLen = cells.size();
+	for (size_t i = 0; i < cells.size(); ++i) {
+		const auto tile = g_game().map.getTile(cells[i]);
+		if (!tile || !tile->hasFlag(TILESTATE_BLOCKSOLID)) {
+			continue;
+		}
+		if (i == 0 && tryOpenDoorAt(bot, player, cells[0])) {
+			continue;
+		}
+		walkLen = i;
+		break;
+	}
+	const size_t fromIdx = waypointIdx;
+	if (bestIdx != waypointIdx) {
+		waypointIdx = bestIdx;
+		s_routeWpTimer.erase(bot.guid);
+		s_wpNav60sResume++;
+	}
+	g_logger().info("[WP_RECOVER] bot='{}' route={} wp {}->{}/{} steps={} walk={} cheb={} at=({},{},{}) to=({},{},{})",
+		bot.name, config.logPrefix, fromIdx + 1, bestIdx + 1, n, best, walkLen, curCheb, at.x, at.y, at.z,
+		waypoints[bestIdx].pos.x, waypoints[bestIdx].pos.y, waypoints[bestIdx].pos.z);
+	if (walkLen == 0) {
+		// Resumed, but the first step is a door that will not open: the caller backs off as usual.
+		return bestIdx != fromIdx;
+	}
+	std::vector<Direction> dirs;
+	dirs.reserve(walkLen);
+	Position prev = at;
+	for (size_t i = 0; i < walkLen; ++i) {
+		dirs.push_back(stepDirection(prev, cells[i]));
+		prev = cells[i];
+	}
+	std::reverse(dirs.begin(), dirs.end()); // end-first: the walker pops from the back
+	// A fresh per-waypoint clock for a walk that is actually under way: a 75-step field walk must not
+	// arrive to find the stuck timer it started under already spent.
+	s_routeWpTimer.erase(bot.guid);
+	botStartAutoWalk(bot, player, dirs);
+	s_wpNav60sWalk++;
+	return true;
+}
+
+// ============================================================================
 // Unified waypoint-following function — used by city routes, travel, leaving, patrol
 // ============================================================================
 
@@ -412,7 +623,10 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 
 				// (c) Mid-route destination change ("changed my mind"). CITY ROUTES ONLY —
 				// aborting a travel leg would strand the bot mid-journey, and hunt phases have
-				// their own state machine. Fires once per bot per 10 min, and only in the MIDDLE
+				// their own state machine. #233: `followingCityRoute` does NOT say that -- doTraveling's
+				// legs (to the boat, and boat -> depot on arrival) are city routes too, and an aborted
+				// arrival leg reads as "City route to depot complete" -> IDLE mid-route (soak 2026-11-24:
+				// 57 of 107 TRAVELING rerolls ended the journey 200 ms later). So: not while TRAVELING. Fires once per bot per 10 min, and only in the MIDDLE
 				// THIRD of the route so it reads as a change of mind rather than a stutter at the
 				// start or a failure at the destination. Clearing is delegated to the caller,
 				// which already tears the route down on !inProgress; doIdle then picks a fresh POI.
@@ -424,7 +638,7 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 				const size_t routeLen = waypoints.size();
 				const size_t rerollMargin = std::max<size_t>(2, routeLen / 3);
 				static std::unordered_map<uint32_t, int64_t> s_lastMidRouteRerollMs;
-				if (bot.followingCityRoute && rerollPct > 0 && routeLen >= 6
+				if (bot.followingCityRoute && bot.state != BotAIState::TRAVELING && rerollPct > 0 && routeLen >= 6
 				    && waypointIdx >= rerollMargin && (routeLen - waypointIdx) >= rerollMargin
 				    && uniform_random(1, 100) <= rerollPct) {
 					const int64_t nowMs = OTSYS_TIME();
@@ -437,6 +651,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 						bot.nextRerollTime = nowMs + uniform_random(1200, 3000);
 						castLog(bot, fmt::format("{}: [JITTER] changed destination mid-route at wp {}/{}",
 							config.logPrefix, waypointIdx, routeLen));
+						// #233 acceptance: never state=TRAVELING.
+						g_logger().info("[JITTER_REROLL] bot='{}' state={} route={} wp {}/{}", bot.name,
+							botStateName(bot.state), config.logPrefix, waypointIdx, routeLen);
 						if (audFor(AUD_PATHOUT, bot.guid)) [[unlikely]] {
 							botAudPathout(bot, "abandoned", config.logPrefix, waypointIdx, routeLen, "jitter-reroll");
 						}
@@ -561,7 +778,21 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 					config.logPrefix, waypointIdx + 1, waypoints.size(), wp.x, wp.y, wp.z,
 					sameZTarget.x, sameZTarget.y, sameZTarget.z, hasFc ? 1 : 0));
 				if (hasFc) {
+					// #228: the same per-waypoint backoff as the same-floor walk below -- a stair the walker
+					// cannot reach failed this search on every tick for 50 ticks.
+					const bool zAuthored = !config.wideSearchOnFail;
+					if (zAuthored) {
+						auto nfIt = s_wpNavFail.find(bot.guid);
+						if (nfIt != s_wpNavFail.end() && wpNavFailMatches(nfIt->second, waypoints, waypointIdx, wp)
+						    && OTSYS_TIME() < nfIt->second.retryAtMs) {
+							s_wpNav60sBackoff++;
+							return result;
+						}
+					}
 					if (goTo(bot, sameZTarget, 0)) {
+						if (zAuthored) {
+							s_wpNavFail.erase(bot.guid);
+						}
 						// A planner "wait" is not progress (#116 review). goTo itself never reaches
 						// zPlanFullRoute's wait path (only planScopedWalk does), so this is defensive.
 						if (!zPlanWaiting(bot.guid)) {
@@ -572,7 +803,18 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 						// Count failures so we eventually skip this waypoint and let the
 						// teleport-to-start fallback handle the z-transition.
 						bot.pathFailCount++;
-						if (bot.pathFailCount >= 50) {
+						if (zAuthored) {
+							s_wpNav60sFails++;
+							const int64_t backoffMs = wpNavBackoffMs(bot.pathFailCount);
+							if (backoffMs > 0) {
+								s_wpNavFail[bot.guid] = { waypoints.data(), waypointIdx, wp, OTSYS_TIME() + backoffMs };
+							}
+						}
+						if (bot.pathFailCount >= (zAuthored ? WP_PATHFAIL_SKIP_SEARCHES : 50u)) {
+							if (zAuthored) {
+								s_wpNav60sSkips++;
+								s_wpNavFail.erase(bot.guid);
+							}
 							castLogError(bot, fmt::format("{}: Skipping unreachable wp {}/{} at ({},{},{}) (Z-REDIRECT pathfails={} FC target ({},{},{}) unreachable)",
 								config.logPrefix, waypointIdx + 1, waypoints.size(), wp.x, wp.y, wp.z,
 								bot.pathFailCount, sameZTarget.x, sameZTarget.y, sameZTarget.z));
@@ -670,6 +912,21 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 			skipCount = 0;
 			bot.pathFailCount = 0;
 			continue;
+		}
+
+		// #228: authored routes only (planner legs bound their own escalation, see goToWide). A waypoint
+		// whose last search failed less than its backoff ago gets no search this tick.
+		const bool authoredRoute = !config.wideSearchOnFail;
+		if (authoredRoute) {
+			auto nfIt = s_wpNavFail.find(bot.guid);
+			if (nfIt != s_wpNavFail.end()) {
+				if (!wpNavFailMatches(nfIt->second, waypoints, waypointIdx, wp)) {
+					s_wpNavFail.erase(nfIt);
+				} else if (OTSYS_TIME() < nfIt->second.retryAtMs) {
+					s_wpNav60sBackoff++;
+					return result;
+				}
+			}
 		}
 
 		// Navigation: determine maxDist based on waypoint type
@@ -812,7 +1069,10 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 				}
 			}
 			int chosenIdx = -1;
-			for (int i = 0; i < count; i++) {
+			// #228: beyond the chunk distance every candidate chunks to (nearly) the same straight-line
+			// point, so 9 searches answer one question 9 times. Keep the ranked lane tile and the centre.
+			const int tries = dist > CHUNK_DIST + 1 ? std::min(count, 2) : count;
+			for (int i = 0; i < tries; i++) {
 				auto candidateTile = g_game().map.getTile(candidates[i]);
 				if (candidateTile && !candidateTile->hasFlag(TILESTATE_BLOCKPATH)) {
 					if (goTo(bot, candidates[i], 0)) {
@@ -870,6 +1130,19 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 			bot.pathFailCount++;
 			skipCount++;
 
+			// #228: the walker cannot find it from here; the step field may. Same floor only (a z-mismatch
+			// is handled above), never for a waypoint already in reach.
+			if (authoredRoute) {
+				s_wpNav60sFails++;
+				if (dist >= 2 && wp.z == bot.currentPos.z
+				    && recoverUnreachableWp(bot, player, waypoints, waypointIdx, config)) {
+					s_wpNavFail.erase(bot.guid);
+					bot.pathFailCount = 0;
+					skipCount = 0;
+					return result;
+				}
+			}
+
 			// NPC squeeze: A* has already failed to route around (pathFailCount climbing).
 			// If a stationary/wandering NPC is the chokepoint in a 1-tile corridor, step
 			// past it. Gated at >=3 so it only fires once routing-around has genuinely
@@ -899,7 +1172,7 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 				}
 			}
 
-			if (bot.pathFailCount >= 50) {
+			if (bot.pathFailCount >= (authoredRoute ? WP_PATHFAIL_SKIP_SEARCHES : 50u)) {
 				int32_t pathDist = std::max(
 					std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(wp.x)),
 					std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(wp.y)));
@@ -911,13 +1184,41 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 					// The route continues past the skipped waypoint, so this is scoped to ONE wp.
 					botAudPathout(bot, "stuck", config.logPrefix, waypointIdx, waypoints.size(), "wp-skip-pathfail", pathDist);
 				}
+				if (authoredRoute) {
+					// #228 acceptance signal: no bot skips more than WP_SKIP_CHAIN_WARN-1 waypoints in a row
+					// standing on one tile.
+					s_wpNav60sSkips++;
+					s_wpNavFail.erase(bot.guid);
+					auto& chain = s_wpSkipChain[bot.guid];
+					chain.count = chain.at == bot.currentPos ? chain.count + 1 : 1;
+					chain.at = bot.currentPos;
+					if (chain.count == WP_SKIP_CHAIN_WARN) {
+						s_wpNav60sChains++;
+						g_logger().warn("[WP_SKIP_CHAIN] bot='{}' route={} skips={} at=({},{},{}) last wp {}/{} ({},{},{}) dist={}",
+							bot.name, config.logPrefix, chain.count, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z,
+							waypointIdx + 1, waypoints.size(), wp.x, wp.y, wp.z, pathDist);
+					}
+				}
 				waypointIdx++;
 				skipCount = 0;
 				bot.pathFailCount = 0;
 				continue;
 			}
+			if (authoredRoute) {
+				// #228: one search per backoff window from here on (see wpNavBackoffMs).
+				const int64_t backoffMs = wpNavBackoffMs(bot.pathFailCount);
+				if (backoffMs > 0) {
+					s_wpNavFail[bot.guid] = { waypoints.data(), waypointIdx, wp, OTSYS_TIME() + backoffMs };
+				}
+			}
 		} else {
 			bot.pathFailCount = 0;
+			if (authoredRoute) {
+				s_wpNavFail.erase(bot.guid);
+				if (auto chainIt = s_wpSkipChain.find(bot.guid); chainIt != s_wpSkipChain.end()) {
+					s_wpSkipChain.erase(chainIt);
+				}
+			}
 		}
 		return result;
 	}

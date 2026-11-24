@@ -1681,7 +1681,7 @@ void BotEngine::tryCastChallenge(BotState& bot, const char* logTag) {
 }
 
 // Try to cast utamo vita (mana shield) for ED self-protection
-bool BotEngine::tryCastUtamoVita(BotState& bot) {
+bool BotEngine::tryCastUtamoVita(BotState& bot, const char* why) {
 	auto player = bot.getPlayer();
 	if (!player) return false;
 
@@ -1705,7 +1705,10 @@ bool BotEngine::tryCastUtamoVita(BotState& bot) {
 	auto result = g_spells().playerSaySpell(player, words);
 	if (result == TALKACTION_BREAK) {
 		player->saySpell(TALKTYPE_SAY, "utamo vita", false);
-		castLog(bot, "PARTY_HUNT: utamo vita (mana shield for self-protection)");
+		castLog(bot, fmt::format("utamo vita (mana shield, {})", why));
+		// #232 acceptance: a mage that dies with mana left shows this line in the 10 s before it.
+		g_logger().info("[UTAMO_VITA] bot='{}' why={} hp={}/{} mana={}/{}", bot.name, why, player->getHealth(),
+			player->getMaxHealth(), player->getMana(), player->getMaxMana());
 		return true;
 	}
 	return false;

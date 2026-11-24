@@ -4309,6 +4309,14 @@ void BotEngine::doHealing(BotState& bot) {
 	const int32_t healLine = baseVoc == 4 ? livenessCfg_.knightHealSpellPct : HEAL_THRESHOLD_PCT;
 	bool needHeal  = hpPct <= healLine;
 	bool emergency = hpPct <= HEAL_EMERGENCY_PCT;
+	// #232: utamo vita for every sorcerer/druid, not only a party ED. Soak 2026-11-24: a woken lv1143
+	// sorcerer, boxed in by a goanna pack, traded exura vita / exura gran for GFBs from 47 % down to
+	// 12 % HP and died with 90 % mana -- the only shield cast in the engine sat in the party-hunt
+	// support path. Before the heal (its own spell group; the server enforces both cooldowns).
+	if ((baseVoc == 1 || baseVoc == 2) && hpPct <= MAGE_SHIELD_HP_PCT && player->getMaxMana() > 0
+	    && player->getMana() * 100 >= player->getMaxMana() * MAGE_SHIELD_MIN_MANA_PCT) {
+		tryCastUtamoVita(bot, "low_hp");
+	}
 	if (!needHeal && !paralyzed) return;
 
 	int64_t now = OTSYS_TIME();

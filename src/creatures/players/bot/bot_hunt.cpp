@@ -1718,6 +1718,7 @@ void BotEngine::doHuntPatrol(BotState& bot) {
 		config.zChangeGraceMs = 500;
 		config.enableLookaheadSkip = true;
 		config.enableTeleportStand = true;
+		config.cyclicRoute = true; // #228: a lap; resume only within the next waypoints, never at its own tail
 		bot.huntWaypointIdx = dangerSkipPatrolIdx(bot, *script, bot.huntWaypointIdx, false);   // #96 waypoint choice
 		auto result = followWaypoints(bot, script->patrolWaypoints, bot.huntWaypointIdx,
 			bot.huntWaypointSkipCount, config);
@@ -2577,8 +2578,30 @@ void BotEngine::abortHunt(BotState& bot, const std::string& reason) {
 	// #97: the Nth consecutive abort from the same tile skips the recovery route, which is
 	// exactly the walk that keeps landing the bot back on that tile.
 	const bool abortLoop = noteHuntAbortLoop(bot, player ? player->getPosition() : bot.currentPos, reason, false);
-	if (abortLoop || reason == "pk_threat" || !findNearestRecoveryRoute(bot)) {
-		teleportToTemple(bot);
+	// #228: a bot already standing in its home town needs no "way home". After a death the respawn puts
+	// a hunting bot on its temple while its hunt (and phase) carry on; the patrol 1,500 tiles away then
+	// aborts, and the recovery search took the nearest script within 50 tiles of the TEMPLE: soak
+	// 2026-11-24, lv1143 Fei Bridenbrad and lv1005 Jorad Dawnblade were handed Thais' lv8-100 'Wasp Cave
+	// Thais Spear' (reserving it) and walked its unreachable approach out of a house, skip-chaining.
+	// No recovery walk and no teleport: the bot is home, it just goes idle like any other abort.
+	bool inTown = false;
+	if (player && reason != "pk_threat") {
+		if (auto home = player->getTown()) {
+			const Position tp = home->getTemplePosition();
+			const Position at = player->getPosition();
+			inTown = std::abs(static_cast<int32_t>(at.z) - static_cast<int32_t>(tp.z)) <= 1
+				&& std::max(std::abs(static_cast<int32_t>(at.x) - static_cast<int32_t>(tp.x)),
+				            std::abs(static_cast<int32_t>(at.y) - static_cast<int32_t>(tp.y))) <= HUNT_ABORT_IN_TOWN_DIST;
+			if (inTown) {
+				g_logger().info("[HUNT_ABORT_INTOWN] bot='{}' reason='{}' at=({},{},{}) temple=({},{},{}) -> idle, no recovery route",
+					bot.name, reason, at.x, at.y, at.z, tp.x, tp.y, tp.z);
+			}
+		}
+	}
+	if (abortLoop || reason == "pk_threat" || inTown || !findNearestRecoveryRoute(bot)) {
+		if (!inTown) {
+			teleportToTemple(bot);
+		}
 		if (teamReturn) {
 			// #193: home by teleport — the followers' separation teleport brings them along, and
 			// the team regroups and disbands at the depot exactly as after a walked return.

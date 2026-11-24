@@ -4204,6 +4204,13 @@ inline uint32_t s_move60sLaneWall = 0, s_move60sPlannerShaped = 0;
 inline uint32_t s_directFirstHit60s = 0;        // direct search found the whole route
 inline uint32_t s_directFirstMiss60s = 0;       // direct search failed -> chunked walk (one wasted search)
 inline uint32_t s_directFirstSuppressed60s = 0; // in band + opted in, skipped: the bot missed < 3 s ago
+// #228: an authored route's unreachable waypoint, logged as "[WP_NAVFAIL] 60s ..." by the same 60 s block.
+// fails = failed searches (each one candidate loop); backoff = ticks that ran no search because the
+// waypoint failed < its backoff ago; resume = cursor moved to a nearer walkable waypoint; walk = a
+// step-field walk issued; none = nothing walkable from there; skips = waypoints skipped on failures;
+// chains = a bot reaching WP_SKIP_CHAIN_WARN consecutive skips on one tile ([WP_SKIP_CHAIN] line).
+inline uint32_t s_wpNav60sFails = 0, s_wpNav60sBackoff = 0, s_wpNav60sResume = 0, s_wpNav60sWalk = 0,
+	s_wpNav60sNone = 0, s_wpNav60sSkips = 0, s_wpNav60sChains = 0;
 // #130 (review): goToWide's always-on cost, logged as "[WIDE] 60s ..." by the same 60 s block.
 inline uint32_t s_wide60sRuns = 0;          // searches that ran
 inline uint32_t s_wide60sOk = 0;            // ... and found a route
@@ -5115,7 +5122,7 @@ private:
 	// Journal line emitted whenever a bot reserves a NEW hunt script. Skipped on party
 	// state restore (already logged at original assignment) and on DB restore at startup
 	// (rehydrating saved state, not a new reservation). Format documented in cpp.
-	void logHuntAssign(const BotState& bot, uint32_t scriptId) const;
+	void logHuntAssign(const BotState& bot, uint32_t scriptId, const char* tag = nullptr) const;
 
 	// Combat handlers (Phase 3)
 	void doSelfDefense(BotState& bot);
@@ -6347,7 +6354,21 @@ private:
 		// whose per-tick population is exactly what made the old goTo-level wide search a 5.7s
 		// dispatcher stall (see goToWide's own cooldown).
 		bool wideSearchOnFail = false;
+		// #228: a hunt patrol is a LOOP. An unreachable waypoint resumes at the nearest walkable one
+		// within the next WP_RESUME_CYCLIC_WINDOW waypoints only: right after a lap wrap the lap's own
+		// tail is the nearest, and resuming there would wrap again forever.
+		bool cyclicRoute = false;
 	};
+	// #228: an authored route's waypoint the walker cannot reach. Called on a failed search: resume at the
+	// waypoint the bot can WALK to soonest (step field, no skipping past an action/floor-change
+	// waypoint) and walk the field's own path there. False = nothing walkable from here (or already
+	// tried from this tile); the caller backs off and eventually skips.
+	bool recoverUnreachableWp(BotState& bot, const std::shared_ptr<Player>& player,
+		const std::vector<Waypoint>& waypoints, size_t& waypointIdx, const WaypointFollowConfig& config);
+	static constexpr size_t WP_RESUME_CYCLIC_WINDOW = 15;
+	// #228: abortHunt skips the recovery route (and the temple teleport) within this many tiles of the
+	// bot's home temple.
+	static constexpr int32_t HUNT_ABORT_IN_TOWN_DIST = 40;
 	struct WaypointFollowResult {
 		bool inProgress = true;
 		bool advanced = false;
@@ -6819,7 +6840,11 @@ private:
 	bool tryPartyAoeReposition(BotState& bot, BotState* leaderBot);
 	// exeta res only when an adjacent monster targets someone else, within attackManaOk.
 	void tryCastChallenge(BotState& bot, const char* logTag = "PARTY_HUNT");
-	bool tryCastUtamoVita(BotState& bot);  // mana shield for ED self-protection
+	bool tryCastUtamoVita(BotState& bot, const char* why = "party");  // mana shield (party EDs; #232 any mage)
+	// #232: a sorcerer/druid at or below this HP%, with at least MAGE_SHIELD_MIN_MANA_PCT mana, raises
+	// utamo vita before healing. A full mana bar is the mage's real health bar.
+	static constexpr int32_t MAGE_SHIELD_HP_PCT = 60;
+	static constexpr int32_t MAGE_SHIELD_MIN_MANA_PCT = 30;
 	int32_t getPartyHuntKeepDistance(const BotState& bot, BotState* leaderBot) const;
 
 	// BOT_PARTY_TRAIL_FOLLOW (implementation_plans/BOT_PARTY_TRAIL_FOLLOW.md)
@@ -7600,7 +7625,16 @@ private:
 	// huntPhase; lastHuntStuckWarnMs_ rate-limits per-bot stuck warnings so a chronic
 	// stuck bot doesn't spam. Captures (a) when transitions actually fire (info line)
 	// and (b) which bots have been frozen in a phase > 30 min (warn).
-	std::unordered_map<uint32_t, int64_t> huntPhaseEnteredMs_;
+	// #231: keyed by the (phase, script) it was stamped for. Only the virtual sim's own transitions
+	// used to refresh it, so a bot that changed phase LIVE (or got a new hunt, a recovery route, a
+	// party) kept an hours-old stamp and read "stuck" on its next virtual tick: 542 false
+	// [HUNT:STUCK] in the 2026-11-24 soak. A stamp for another phase or script is restarted.
+	struct HuntPhaseStamp {
+		int64_t enteredMs = 0;
+		HuntPhase phase = HuntPhase::PREPARING;
+		uint32_t scriptId = 0;
+	};
+	std::unordered_map<uint32_t, HuntPhaseStamp> huntPhaseEnteredMs_;
 	std::unordered_map<uint32_t, int64_t> lastHuntStuckWarnMs_;
 
 	// advanceWaypointIdx leftover-ms accumulator (2026-06-10 fix). Was: integer-floor
@@ -7765,6 +7799,8 @@ private:
 	// deliberately NOT config.lua — retuning must not need a full rebuild) ----
 	static constexpr int32_t Z_LEG_MAX = 80; // max same-floor leg between hops (planner radius)
 	static constexpr int32_t Z_FC_ENGAGE_DIST = 10; // enter the FC machine when this close to the planned portal
+	// #230: a z change this far (Chebyshev) from the stair being stepped is a relocation, not a hop.
+	static constexpr int32_t FC_RELOCATED_DIST = 20;
 	static constexpr int64_t Z_BLACKLIST_MS = 10 * 60 * 1000; // failed-portal quarantine
 	// How long a bot refuses to re-enter the portal it just traversed. Long enough to break a
 	// ping-pong, short enough that a genuine there-and-back route is only briefly delayed.
