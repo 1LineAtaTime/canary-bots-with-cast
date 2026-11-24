@@ -1046,8 +1046,9 @@ void ProtocolGame::release() {
 		player->forwardToCastViewers([&leaveMsg](ProtocolGame* v) {
 			v->sendChannelMessage("", leaveMsg, TALKTYPE_CHANNEL_O, CHANNEL_CAST);
 		});
-		g_logger().info("[Cast] {} disconnected from {} ({} remaining)",
-			getCastViewerName(), player->getName(), player->getRealCastViewerCount());
+		// isolated= #215: packets this camera got alone in their own message (monk Virtue updates).
+		g_logger().info("[Cast] {} disconnected from {} ({} remaining) isolated={}",
+			getCastViewerName(), player->getName(), player->getRealCastViewerCount(), m_castIsolatedPackets);
 		player = nullptr;
 	} else if (m_isLivestreamViewer) {
 		g_livestream().removeViewer(getThis());
@@ -1909,6 +1910,35 @@ void ProtocolGame::disconnectClient(const std::string &message) const {
 	output->addString(message);
 	send(output);
 	disconnect();
+}
+
+// FORK(cast) #215: a camera client whose 15.25 support predates the official
+// VocationSpecificPlayerData layout (the June-2026 Redemption build the user watches with) reads the
+// monk Virtue entry (0xC1 0x02 count u16:spellId) as ONE value byte, takes the spell id's low byte
+// (0x12 / 0x13 / 0x14) for the next opcode and drops the REST of that network message. A watched monk
+// bot switches virtue mid-hunt, and the dropped tail held creature add / move / remove packets: the
+// camera's map desynced (ghost creatures, invisible monsters) until relog. Sent as the only packet of
+// its own message, the misread costs that client nothing; a correct client (OTClient 4.2) sees the
+// same bytes as before. Same write path as writeToOutputBuffer (barrier-parallel deferral included),
+// so the order relative to the packets around it is unchanged.
+void ProtocolGame::writeIsolatedToOutputBuffer(NetworkMessage &msg) {
+	m_castPacketsSent++;
+	auto writeMessage = [self = getThis(), msg]() mutable {
+		if (auto &pending = self->getCurrentBuffer()) {
+			self->send(std::move(pending)); // close the message that precedes it
+		}
+		self->getOutputBuffer(msg.getLength())->append(msg);
+		if (auto &own = self->getCurrentBuffer()) {
+			self->send(std::move(own)); // ... and the one it is alone in
+		}
+		self->m_castIsolatedPackets++;
+	};
+
+	if (g_dispatcher().context().isBarrierParallel()) {
+		dispatchProtocolTask(std::move(writeMessage), __FUNCTION__);
+	} else {
+		writeMessage();
+	}
 }
 
 void ProtocolGame::writeToOutputBuffer(NetworkMessage &msg) {
@@ -12757,6 +12787,13 @@ void ProtocolGame::sendMonkData(MonkData_t type, uint8_t value) {
 		msg.addByte(value);
 	}
 
+	// FORK(cast) #215: see writeIsolatedToOutputBuffer. Only a bot camera, and only the one entry
+	// whose official layout an older 15.25 client misreads.
+	if (m_isCastViewer && type == MonkData_t::Virtue && hasProtocolFeature(protocolProfile, ProtocolFeature::OfficialVocationSpecificPlayerData)) {
+		writeIsolatedToOutputBuffer(msg);
+		g_logger().info("[CAST_ISOLATE] {} of '{}' packet=virtue value={}", getCastViewerName(), player ? player->getName() : "?", value);
+		return;
+	}
 	writeToOutputBuffer(msg);
 }
 

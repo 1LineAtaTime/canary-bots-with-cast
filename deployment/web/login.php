@@ -19,6 +19,22 @@ function sendError($message, $code = 3){
 	die(json_encode($ret));
 }
 
+# vocation name for the character list (#214)
+# MyAAC's Player::vocation_name reads the `core.vocations` setting, whose default stops at
+# Elite Knight (id 8). Canary 15.x adds Monk (9) and Exalted Monk (10), so without this every
+# monk was listed as "Unknown". The setting wins when it names the id; otherwise fall back to
+# the names in data/XML/vocations.xml.
+function char_vocation_name($player) {
+	static $canary = [0 => 'None', 1 => 'Sorcerer', 2 => 'Druid', 3 => 'Paladin', 4 => 'Knight',
+		5 => 'Master Sorcerer', 6 => 'Elder Druid', 7 => 'Royal Paladin', 8 => 'Elite Knight',
+		9 => 'Monk', 10 => 'Exalted Monk'];
+	$name = $player->vocation_name;
+	if ($name === 'Unknown' || $name === null || $name === '') {
+		$name = $canary[(int)$player->vocation] ?? 'Unknown';
+	}
+	return $name;
+}
+
 # event schedule function
 function parseEvent($table1, $date, $table2)
 {
@@ -180,7 +196,7 @@ switch ($action) {
 					"ismale" => $player->sex === 1,
 					"tutorial" => false,
 					"level" => $player->level,
-					"vocation" => $player->vocation_name,
+					"vocation" => char_vocation_name($player),
 					"outfitid" => $player->looktype,
 					"headcolor" => $player->lookhead,
 					"torsocolor" => $player->lookbody,
@@ -418,7 +434,7 @@ function create_char($player, $highestLevelId) {
 		'ismale' => $player->sex === 1,
 		'tutorial' => isset($player->istutorial) && $player->istutorial,
 		'level' => $player->level,
-		'vocation' => $player->vocation_name,
+		'vocation' => char_vocation_name($player),
 		'outfitid' => $player->looktype,
 		'headcolor' => $player->lookhead,
 		'torsocolor' => $player->lookbody,

@@ -239,7 +239,10 @@ ReturnValue BotEngine::rescueTeleport(BotState& bot, const std::shared_ptr<Playe
 	return RETURNVALUE_NOERROR;
 }
 
-void BotEngine::executePendingRescue(BotState& bot, const std::shared_ptr<Player>& player, const Position& landing,
+// `landing` is taken BY VALUE: two callers pass pendingRescues_[guid].dest, which the erase below
+// frees -- the teleport then read a dangling reference (#217: the camera fallback logged
+// landing=(51216,40192,227) and only landed right while the freed node was still intact).
+void BotEngine::executePendingRescue(BotState& bot, const std::shared_ptr<Player>& player, Position landing,
 	const char* how) {
 	auto it = pendingRescues_.find(bot.guid);
 	if (it == pendingRescues_.end()) return;

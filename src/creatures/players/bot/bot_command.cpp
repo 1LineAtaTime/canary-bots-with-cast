@@ -3602,6 +3602,38 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 				goDown ? "down" : "up", bot.currentPos.z);
 		}
 
+		// ---- seen: server truth of what this bot's @cast camera should show (#215) ----
+		// Every creature ProtocolGame::canSee(pos) would accept from the bot's position (the same
+		// floor/offset rule), minus the bot itself and what canSeeCreature hides. The harness diffs it
+		// against the camera's `view` (client map) to find ghost / missing creatures.
+		if (command == "seen") {
+			auto pl = bot.getPlayer();
+			if (!pl || pl->isRemoved()) return fmt::format("Bot '{}' has no body (hibernated?).", botName);
+			const Position me = pl->getPosition();
+			auto canSee = [&](const Position& p) {
+				if (me.z <= MAP_INIT_SURFACE_LAYER) {
+					if (p.z > MAP_INIT_SURFACE_LAYER) return false;
+				} else if (std::abs(static_cast<int32_t>(me.z) - static_cast<int32_t>(p.z)) > MAP_LAYER_VIEW_LIMIT) {
+					return false;
+				}
+				const int32_t off = static_cast<int32_t>(me.z) - static_cast<int32_t>(p.z);
+				const int32_t x = p.x, y = p.y, mx = me.x, my = me.y;
+				return x >= mx - MAP_MAX_CLIENT_VIEW_PORT_X + off && x <= mx + MAP_MAX_CLIENT_VIEW_PORT_X + 1 + off
+					&& y >= my - MAP_MAX_CLIENT_VIEW_PORT_Y + off && y <= my + MAP_MAX_CLIENT_VIEW_PORT_Y + 1 + off;
+			};
+			std::string out;
+			uint32_t n = 0;
+			for (const auto& c : Spectators().find<Creature>(me, true, MAP_MAX_CLIENT_VIEW_PORT_X + 3,
+					 MAP_MAX_CLIENT_VIEW_PORT_X + 4, MAP_MAX_CLIENT_VIEW_PORT_Y + 3, MAP_MAX_CLIENT_VIEW_PORT_Y + 4, /*useCache=*/false)) {
+				if (!c || c == pl || c->isRemoved() || !pl->canSeeCreature(c)) continue;
+				const Position& p = c->getPosition();
+				if (!canSee(p)) continue;
+				out += fmt::format("{} {},{},{}\n", c->getID(), p.x, p.y, p.z);
+				n++;
+			}
+			return fmt::format("SEEN at={},{},{} n={} ms={}\n{}", me.x, me.y, me.z, n, OTSYS_TIME(), out);
+		}
+
 		// ---- scan [radius]: Scan for floor-change tiles ----
 		if (command == "scan" || (command.size() > 5 && command.substr(0, 5) == "scan ")) {
 			int32_t radius = FC_SCAN_RADIUS;

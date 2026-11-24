@@ -5999,7 +5999,7 @@ private:
 	} rescueStats_;
 	ReturnValue rescueTeleport(BotState& bot, const std::shared_ptr<Player>& player, const Position& dest,
 		bool push, const char* site);
-	void executePendingRescue(BotState& bot, const std::shared_ptr<Player>& player, const Position& landing,
+	void executePendingRescue(BotState& bot, const std::shared_ptr<Player>& player, Position landing,
 		const char* how);
 	bool tickPendingRescue(BotState& bot);
 	bool rescueWatched(const Position& p, const Position& self, bool selfIsCamera) const;

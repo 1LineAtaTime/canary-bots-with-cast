@@ -2244,7 +2244,8 @@ void BotEngine::materializeCanaryParty(uint32_t partyHuntId) {
 	// Reserve the leader's own tile so a support never displaces onto it / its descent tile.
 	burstReservedTiles_.insert(packPosU64(leaderBot.currentPos));
 
-	uint32_t joined = 0;
+	const Position leaderPos = leaderPlayer->getPosition();
+	uint32_t joined = 0, kept = 0, moved = 0;
 	for (uint32_t guid : membersIt->second) {
 		if (guid == leaderGuid) continue;
 		auto mIt = guidToIndex_.find(guid);
@@ -2253,9 +2254,32 @@ void BotEngine::materializeCanaryParty(uint32_t partyHuntId) {
 		auto supportPlayer = supportBot.getPlayer();
 		if (!supportPlayer) continue;
 
-		// FC-safe placement near the leader (immediate, not an off-screen walk-in → false)
-		Position placeAt = chooseWakePosition(supportBot, leaderBot.currentPos, /*proximityWake=*/false);
-		BOT_TELEPORT(supportPlayer, placeAt, true);
+		// #217: the per-member wake just placed this support at its own virtual position, which the
+		// virtual sim keeps next to the leader. Leave it there when it is on the leader's floor and
+		// on his screen. This used to re-place every support through chooseWakePosition(leaderPos):
+		// the leader's own tile is occupied (isUnsafeWakeTile's queryAdd refuses it), a PARTY-state
+		// bot has no route to rewind, so it fell back to the TEMPLE -- on every cast-wake the team
+		// appeared in a temple/depot and was rescue-teleported to the hunt 2-3 s later.
+		// Otherwise (a cold caller, or a support whose own wake landed elsewhere): near the leader
+		// via chooseSafePartyFollowPos, which never sends a follower to temple.
+		const Position from = supportPlayer->getPosition();
+		const int32_t cheb = std::max(std::abs(static_cast<int32_t>(from.x) - static_cast<int32_t>(leaderPos.x)),
+			std::abs(static_cast<int32_t>(from.y) - static_cast<int32_t>(leaderPos.y)));
+		const bool keep = from.z == leaderPos.z && cheb <= MAP_MAX_CLIENT_VIEW_PORT_X;
+		Position placeAt = from;
+		if (keep) {
+			kept++;
+		} else {
+			placeAt = chooseSafePartyFollowPos(supportBot, leaderPos, burstReservedTiles_);
+			if (placeAt != from) {
+				BOT_TELEPORT(supportPlayer, placeAt, true);
+			}
+			placeAt = supportPlayer->getPosition();
+			moved++;
+		}
+		g_logger().info("[PARTY_MAT] party=#{} support='{}' how={} from=({},{},{}) to=({},{},{}) leader=({},{},{}) cheb={}",
+			partyHuntId, supportBot.name, keep ? "kept" : "near_leader", from.x, from.y, from.z,
+			placeAt.x, placeAt.y, placeAt.z, leaderPos.x, leaderPos.y, leaderPos.z, cheb);
 		supportBot.currentPos = placeAt;
 		supportBot.lastPos = placeAt;
 		supportPlayer->setSecureMode(true);
@@ -2266,8 +2290,8 @@ void BotEngine::materializeCanaryParty(uint32_t partyHuntId) {
 	}
 
 	party->setSharedExperience(leaderPlayer, true);
-	g_logger().info("[BotEngine] PARTY_HUNT #{} materialized: leader='{}' joined={} supports",
-		partyHuntId, leaderPlayer->getName(), joined);
+	g_logger().info("[BotEngine] PARTY_HUNT #{} materialized: leader='{}' joined={} supports (kept={} moved={})",
+		partyHuntId, leaderPlayer->getName(), joined, kept, moved);
 }
 
 void BotEngine::forceDeactivateBot(uint32_t guid) {

@@ -150,6 +150,8 @@ private:
 	void connect(const std::string &playerName, OperatingSystem_t operatingSystem);
 	void disconnectClient(const std::string &message) const;
 	void writeToOutputBuffer(NetworkMessage &msg);
+	// FORK(cast) #215: `msg` as the only packet of its own network message (see sendMonkData).
+	void writeIsolatedToOutputBuffer(NetworkMessage &msg);
 	[[nodiscard]] bool shouldSuppressPreLoginPacket() const;
 	[[nodiscard]] bool isSessionEnding() const;
 	void clearReusableSessionHints();
@@ -680,6 +682,7 @@ private:
 	bool m_isCastViewer = false;
 	uint32_t m_castViewerNumber = 0;
 	uint64_t m_castPacketsSent = 0;
+	uint64_t m_castIsolatedPackets = 0; // #215: packets sent alone in their own message
 	// Last /lagmark from this viewer — used to debounce a viewer spamming the cmd
 	int64_t m_lastLagmarkMs = 0;
 

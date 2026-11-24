@@ -1372,11 +1372,14 @@ Position BotEngine::chooseWakePosition(BotState& bot, const Position& virtualPos
 		candidate = wb.first;
 		if (candidate.x > 0) bot.advStoneRouteIdx = static_cast<uint16_t>(wb.second);
 	} else if (bot.partyLeaderGuid != 0 && !bot.isPartyHuntLeader) {
-		// Party follower: snap to leader's position if safe.
+		// Party follower: next to the leader. #217: this used to accept only the leader's own tile,
+		// which isUnsafe() refuses whenever the leader stands on it (queryAdd blocks on the
+		// creature), so an awake leader sent every such follower to the temple below.
+		// chooseSafePartyFollowPos spirals around him and never falls back to temple.
 		auto lit = guidToIndex_.find(bot.partyLeaderGuid);
-		if (lit != guidToIndex_.end()) {
-			const auto& leader = bots_[lit->second];
-			if (!isUnsafe(leader.currentPos)) candidate = leader.currentPos;
+		if (lit != guidToIndex_.end() && bots_[lit->second].currentPos.x > 0) {
+			candidate = chooseSafePartyFollowPos(bot, bots_[lit->second].currentPos, burstReservedTiles_);
+			if (candidate.x > 0) return candidate; // already reserved by chooseSafePartyFollowPos
 		}
 	}
 
