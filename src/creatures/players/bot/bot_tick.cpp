@@ -1062,7 +1062,9 @@ void BotEngine::virtualAdvanceTraveling(BotState &bot, int64_t elapsed_ms) {
 				std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(bot.travelSrcBoatPos.y)));
 			if (walkedBoatRoute || (dist <= 3 && bot.currentPos.z == bot.travelSrcBoatPos.z)) {
 				bot.travelPhase = "at_boat";
-				bot.travelWaitUntil = OTSYS_TIME() + uniform_random(3, 10) * 1000LL;
+				// #227: the live bot greets (3-10 s), names the destination (2-4 s) and says yes (1-2 s)
+				// before it boards; the twin waits the same total, with nobody to hear it.
+				bot.travelWaitUntil = OTSYS_TIME() + (uniform_random(3, 10) + uniform_random(2, 4) + uniform_random(1, 2)) * 1000LL;
 			}
 			return;
 		}
@@ -1078,6 +1080,7 @@ void BotEngine::virtualAdvanceTraveling(BotState &bot, int64_t elapsed_ms) {
 		bot.travelWaitUntil = OTSYS_TIME() + uniform_random(3, 10) * 1000LL;
 	} else if (bot.travelPhase == "at_boat") {
 		if (OTSYS_TIME() >= bot.travelWaitUntil) {
+			s_travelTalkStep.erase(bot.guid); // #227: a live dialogue cut short by hibernation ends here
 			// Virtual boat ride: instant teleport to destination boat position
 			if (bot.travelBoatPos.x > 0) {
 				bot.currentPos = bot.travelBoatPos;
@@ -2348,6 +2351,7 @@ void BotEngine::forceDeactivateBot(uint32_t guid) {
 	s_travelDestPOI.erase(guid);
 	s_travelArriveTarget.erase(guid);
 	s_travelSrcPOI.erase(guid);
+	s_travelTalkStep.erase(guid);
 	s_lastRouteEndPos.erase(guid);
 	walkPauseInfo_.erase(guid);
 	s_walkObsPending.erase(guid); // #120
@@ -3991,6 +3995,32 @@ void BotEngine::tick() {
 			s_wide60sUsMax = 0;
 			s_wide60sUs.clear();
 		}
+		// #135: the z-planner's cost split. Always logged (zeros included). searchMs = total - flood:
+		// the graph search's own fan-out versus the leg pricer's reachability floods. Healthy: no
+		// abort, p99 well under Z_PLAN_SEARCH_BUDGET_MS (15 ms), armed=0.
+		{
+			uint32_t p50Us = 0, p99Us = 0;
+			if (!s_zStat60sUs.empty()) {
+				std::sort(s_zStat60sUs.begin(), s_zStat60sUs.end());
+				p50Us = s_zStat60sUs[s_zStat60sUs.size() / 2];
+				p99Us = s_zStat60sUs[std::min(s_zStat60sUs.size() - 1, s_zStat60sUs.size() * 99 / 100)];
+			}
+			const uint32_t runs = s_zStat60sRuns;
+			g_logger().info("[ZPLAN_STAT] 60s runs={} ok={} fail={} abort={} armed={} shortcut={} msP50={:.2f} msP99={:.2f} "
+				"msMax={:.2f} floodShare={}% floods={} settlesAvg={:.0f} legsAvg={:.0f} adhocAvg={:.1f} reachEvict={} oracle={}",
+				runs, s_zStat60sOk, s_zStat60sFail, s_zStat60sAbort, s_zStat60sArmed, s_zStat60sShortcut, p50Us / 1000.0,
+				p99Us / 1000.0, s_zStat60sUsMax / 1000.0,
+				s_zStat60sTotalUs ? s_zStat60sFloodUs * 100 / s_zStat60sTotalUs : 0, s_zStat60sFloods,
+				runs ? static_cast<double>(s_zStat60sSettles) / runs : 0.0,
+				runs ? static_cast<double>(s_zStat60sLegCalls) / runs : 0.0,
+				runs ? static_cast<double>(s_zStat60sAdhoc) / runs : 0.0, s_zReachEvictions, s_zStat60sOracle);
+			s_zStat60sRuns = s_zStat60sOk = s_zStat60sFail = s_zStat60sAbort = s_zStat60sArmed = s_zStat60sShortcut = 0;
+			s_zStat60sOracle = 0;
+			s_zStat60sLegCalls = s_zStat60sSettles = s_zStat60sAdhoc = s_zStat60sTotalUs = s_zStat60sFloodUs = 0;
+			s_zStat60sFloods = 0;
+			s_zStat60sUsMax = 0;
+			s_zStat60sUs.clear();
+		}
 		// #144: walk desyncs (a failed step left the bot off its queue's line). Always logged, zeros
 		// included. count = desyncs seen, retried = still on the line, the same walk re-queued (no
 		// search; at most 3 bumps per blocking episode), cleared = queues dropped for a re-plan (at most 2 per bot per
@@ -4169,9 +4199,10 @@ void BotEngine::tick() {
 		// counts fallbacks to the legacy greedy scan (graph had no route);
 		// hopFail counts blacklist events (bad edge quarantined + replanned).
 		if (s_zPlanOk > 0 || s_zPlanFail > 0 || s_zHopOk > 0 || s_zHopFail > 0 || s_legWideOk > 0 || s_legWideFail > 0) {
-			g_logger().info("[ZROUTE] planOk={} planFail={} hopOk={} hopFail={} legWalks={} legWide={}/{} portals={} blacklisted={} (per 5min)",
+			g_logger().info("[ZROUTE] planOk={} planFail={} hopOk={} hopFail={} legWalks={} legWide={}/{} portals={} blacklisted={} "
+				"unplannedHops={} (per 5min; unplannedHops cumulative, #213)",
 				s_zPlanOk, s_zPlanFail, s_zHopOk, s_zHopFail, s_zLegWalks, s_legWideOk, s_legWideOk + s_legWideFail,
-				zGraph_.size(), s_zPortalBlacklist.size());
+				zGraph_.size(), s_zPortalBlacklist.size(), s_fcUnplannedHops);
 			s_legWideOk = 0;
 			s_legWideFail = 0;
 			s_zPlanOk = 0;
@@ -4565,6 +4596,13 @@ void BotEngine::tick() {
 	// main-binary sink. Inside the measured body on purpose: its cost must show in perf-gate.
 	auditTick();
 
+	// #224: one slice (Z_ADMIN_SLICE_MS) of a running admin nav job (zparity, zoracle, zpass parity,
+	// zstat census, zbench). Last, so bot work keeps its priority; inside the measured body. Free
+	// when no job runs (one pointer test).
+	if (zJob_) {
+		zJobTick();
+	}
+
 	// JITTER DIAGNOSTIC: log if tick body or gap-since-last-tick exceeds threshold.
 	// Body breakdown: vt=virtualTick, fne=flushNavEvents, awake/hib = bot population.
 	// If body=0 and the sum of these phases is also ~0, the cost is OUTSIDE the bot tick.
@@ -4892,6 +4930,8 @@ void BotEngine::processBot(BotState& bot) {
 				}
 				if (bot.fcState != FloorChangeState::NONE) {
 					resetFloorChange(bot);
+				} else {
+					zForgetBotPlanHistory(bot.guid, "teleport"); // #213: a jump breaks any ping-pong
 				}
 				if (bot.followingCityRoute) {
 					bot.followingCityRoute = false;
@@ -6919,6 +6959,34 @@ void BotEngine::handleFloorChange(BotState& bot) {
 		}
 
 		case FloorChangeState::WALKING_TO: {
+			// #213: a floor change that happens DURING the approach walk. The walk queue is built
+			// on the source floor with FC tiles excluded, but a step that fails or is pushed leaves
+			// the rest of the queue one tile off its line (#144), and one such step can land on a
+			// DIFFERENT stair. The #144 detector calls that a Jump and leaves it to this machine.
+			// The leftover directions then cannot drain on the new floor, so the old
+			// `listWalkDir non-empty -> return` guard below parked the bot here for good (live:
+			// fc=2, pathLen=22, 9+ minutes on (32360,32243,6)). So: check the floor FIRST, drop
+			// the stale queue, and let VERIFYING judge what was traversed.
+			{
+				uint8_t sourceZ = bot.currentPos.z;
+				if (auto pIt = s_plannedFc.find(bot.guid); pIt != s_plannedFc.end()) {
+					sourceZ = pIt->second.portal.pos.z;
+				} else if (bot.fcTransIdx < bot.fcTransitions.size()) {
+					sourceZ = bot.fcTransitions[bot.fcTransIdx].pos.z;
+				}
+				if (bot.currentPos.z != sourceZ) {
+					if (!player->listWalkDir.empty()) {
+						player->listWalkDir.clear();
+						player->stopEventWalk();
+					}
+					s_zLegPlan.erase(bot.guid);
+					s_routeWpTimer.erase(bot.guid);
+					s_routeProgress.erase(bot.guid);
+					bot.fcPreZ = sourceZ;
+					bot.fcState = FloorChangeState::VERIFYING;
+					return;
+				}
+			}
 			if (!player->listWalkDir.empty()) return;
 
 			// PLANNED HOP: walk it as ordinary waypoints (doors + the portal action) through the
@@ -7320,6 +7388,41 @@ void BotEngine::handleFloorChange(BotState& bot) {
 					&& bot.fcPreZ == plannedIt->second.portal.pos.z;
 				if (traversedPlanned) {
 					const uint8_t expectedZ = plannedIt->second.portal.landing.z;
+					// #213: the right FLOOR is not proof of the right PORTAL. A stray step onto another
+					// stair on the way to the planned one also reaches expectedZ, and used to be logged
+					// as PLANNED HOP OK and stamped as the portal just used. Judge the landing tile too
+					// (Chebyshev <= 2 of the planned landing: the game may snap it by a tile). An
+					// unplanned landing is nobody's fault -- the planned portal was never tried -- so
+					// no blacklist, no failure strike and no justUsed stamp: reset and let the caller
+					// re-plan toward the original goal from where the bot now stands.
+					const Position& plannedLanding = plannedIt->second.portal.landing;
+					const int32_t landingOff = std::max(
+						std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(plannedLanding.x)),
+						std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(plannedLanding.y)));
+					// Loop guard: the SAME planned portal landing off twice within 2 min for one bot means
+					// the graph's landing for it is wrong, not that the bot strayed -- fall through to
+					// the old verdicts below (wrong-z quarantine / accept), so this can never ping-pong.
+					auto& lastUnplanned = s_fcUnplannedLast[bot.guid];
+					const uint64_t plannedKey = botTileKey(plannedIt->second.portal.pos);
+					const bool repeatOffender = lastUnplanned.first == plannedKey
+						&& OTSYS_TIME() - lastUnplanned.second < 120000;
+					if (plannedIt->second.portal.kind != botnav::ZPortalKind::TELEPORT && landingOff > 2 && !repeatOffender) {
+						lastUnplanned = { plannedKey, OTSYS_TIME() };
+						castLog(bot, fmt::format("FC_VERIFY: UNPLANNED HOP z={}->{} at ({},{},{}) -- planned {} at ({},{},{}) "
+							"lands ({},{},{}); re-planning from here",
+							bot.fcPreZ, bot.currentPos.z, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z,
+							botnav::zPortalKindName(plannedIt->second.portal.kind), plannedIt->second.portal.pos.x,
+							plannedIt->second.portal.pos.y, plannedIt->second.portal.pos.z, plannedLanding.x,
+							plannedLanding.y, plannedLanding.z));
+						g_logger().warn("[FC_UNPLANNED] bot='{}' at ({},{},{}) planned=({},{},{}) landing=({},{},{}) off={}",
+							bot.name, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z, plannedIt->second.portal.pos.x,
+							plannedIt->second.portal.pos.y, plannedIt->second.portal.pos.z, plannedLanding.x,
+							plannedLanding.y, plannedLanding.z, landingOff);
+						s_fcUnplannedHops++;
+						s_plannedFc.erase(plannedIt);
+						resetFloorChange(bot);
+						break;
+					}
 					if (bot.currentPos.z == expectedZ) {
 						castLog(bot, fmt::format("FC_VERIFY: PLANNED HOP OK z={}->{} at ({},{},{})",
 							bot.fcPreZ, bot.currentPos.z, bot.currentPos.x, bot.currentPos.y, bot.currentPos.z));

@@ -429,6 +429,8 @@ compile_commands.json
 !/tools/bot_population_generator/
 /tools/bot_population_generator/__pycache__/
 !/tools/bot_route_splice/
+!/tools/bot_route_gen/
+/tools/bot_route_gen/__pycache__/
 !/tools/botnavsim/
 /tools/botnavsim/build/
 !/tools/botperf/

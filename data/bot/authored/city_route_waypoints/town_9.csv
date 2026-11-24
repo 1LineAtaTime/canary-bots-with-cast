@@ -954,19 +954,13 @@ venore|depot~temple:,stand,32953,32077,6,
 venore|depot~temple:,node,32958,32076,7,
 venore|depot~temple:,stand,32958,32076,7,
 
-# --- venore|soft.boots~temple: (13 waypoints) ---
+# --- venore|soft.boots~temple: (7 waypoints) --- generated #140
 venore|soft.boots~temple:,node,32949,32104,6,
-venore|soft.boots~temple:,node,32953,32095,6,
-venore|soft.boots~temple:,node,32953,32085,6,
-venore|soft.boots~temple:,node,32953,32076,6,
-venore|soft.boots~temple:,stand,32953,32077,6,
-venore|soft.boots~temple:,node,32975,32080,6,
-venore|soft.boots~temple:,node,32975,32073,6,
-venore|soft.boots~temple:,node,32964,32073,6,
-venore|soft.boots~temple:,node,32955,32073,6,
-venore|soft.boots~temple:,node,32953,32076,6,
-venore|soft.boots~temple:,stand,32953,32077,6,
-venore|soft.boots~temple:,node,32958,32076,7,
+venore|soft.boots~temple:,node,32949,32096,6,
+venore|soft.boots~temple:,node,32953,32092,6,
+venore|soft.boots~temple:,node,32953,32084,6,
+venore|soft.boots~temple:,node,32954,32077,6,
+venore|soft.boots~temple:,node,32953,32078,7,
 venore|soft.boots~temple:,stand,32958,32076,7,
 
 # --- venore|potions~temple: (8 waypoints) ---

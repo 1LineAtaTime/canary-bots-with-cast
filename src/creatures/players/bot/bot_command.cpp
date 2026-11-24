@@ -265,7 +265,8 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 	if (command == "pathbench" || command.substr(0, 10) == "pathbench ") {
 		int queries = 200;
 		if (command.size() > 10) {
-			try { queries = std::clamp(std::stoi(command.substr(10)), 10, 2000); } catch (...) {}
+			// #224: max 400 (was 2000): the whole benchmark (warm-up + 3 variants) runs inside one tick.
+			try { queries = std::clamp(std::stoi(command.substr(10)), 10, 400); } catch (...) {}
 		}
 		std::shared_ptr<Player> ctx;
 		Position start;
@@ -345,6 +346,15 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 	// ---- dumpnav: BOT_NAV_REALISM Phase 3. Snapshot a region's bot-walkability +
 	// FC/teleport/PZ/door flags + walk cost into a binary NavDump for the offline
 	// simulator (tools/botnavsim). Syntax: dumpnav x1,y1,x2,y2,z1,z2 ----
+	// #140: `dumpnav world [file]` -- the WHOLE map as a sparse v3 dump (no tile materialised), for
+	// tools/botnavsim `poiroutes`. A tick-sliced admin job: the result arrives via `zjob`.
+	if (command == "dumpnav world" || command.substr(0, 14) == "dumpnav world ") {
+		std::string path = command.size() > 14 ? command.substr(14) : std::string("navdump_world.bin");
+		if (path.empty() || path.find('/') != std::string::npos || path.find("..") != std::string::npos) {
+			return "dumpnav world: give a plain file name (written to the server's working directory)";
+		}
+		return navDumpWorldStart(path);
+	}
 	if (command.substr(0, 8) == "dumpnav ") {
 		int x1, y1, x2, y2, z1, z2;
 		if (std::sscanf(command.c_str() + 8, "%d,%d,%d,%d,%d,%d", &x1, &y1, &x2, &y2, &z1, &z2) != 6) {
@@ -825,6 +835,86 @@ std::string BotEngine::executeCommand(const std::string& botName, const std::str
 		}
 		g_logger().info("{}", out);
 		return out;
+	}
+
+	// ---- #135: z-planner cost measurement ----
+	// `zstat`          : cumulative reach-cache and flood figures (cheap).
+	// `zstat census`   : + the sizing census (#224: a tick-sliced job, result via `zjob`).
+	if (command == "zstat" || command == "zstat census") {
+		if (command == "zstat census") {
+			return zCensus();
+		}
+		return fmt::format("[ZSTAT] reachCache entries={}/{} hits={} misses={} evictions={} | floods={} avgCells={:.0f} "
+			"avgUs={:.0f} | 'zstat census' for the sizing census",
+			zReachCache_.size(), Z_REACH_CACHE_MAX, zReachHits_, zReachMisses_, s_zReachEvictions, s_zFloodCountTotal,
+			s_zFloodCountTotal ? static_cast<double>(s_zFloodCellsTotal) / s_zFloodCountTotal : 0.0,
+			s_zFloodCountTotal ? static_cast<double>(s_zFloodUsTotal) / s_zFloodCountTotal : 0.0);
+	}
+	// #139 D0: `zkernel [adj|ref]` shows or switches the z-planner kernel (not persisted: a restart
+	// returns to adj); `zparity [N]` (default 3, max 20) diffs the two kernels' routes on N live
+	// pairs (#224: a tick-sliced job, result via `zjob`).
+	if (command == "zkernel" || command.substr(0, 8) == "zkernel ") {
+		if (command == "zkernel adj") {
+			zPlanUseAdj_ = true;
+		} else if (command == "zkernel ref") {
+			zPlanUseAdj_ = false;
+		}
+		const std::string out = fmt::format("[ZKERNEL] kernel={} adjacency entries={} adhoc={} MB={:.1f}",
+			zPlanUseAdj_ ? "adj" : "ref", zAdj_.to.size(), zAdj_.adhocEntries, zAdj_.bytes() / 1048576.0);
+		g_logger().info("{}", out);
+		return out;
+	}
+	// #138 C': `zoracle on|off` switches the negative-only oracle (not persisted); `zoracle [N]` checks
+	// it against the planner on N sampled pairs (#224: a tick-sliced job, result via `zjob`).
+	if (command == "zoracle" || command.substr(0, 8) == "zoracle ") {
+		if (command == "zoracle on" || command == "zoracle off") {
+			zOracleOff_ = command == "zoracle off";
+			return fmt::format("[ZORACLE] {} (unreachable answers so far: {})", zOracleOff_ ? "off" : "on", s_zOracleUnreach);
+		}
+		int n = 200;
+		if (command.size() > 8) {
+			n = std::atoi(command.c_str() + 8);
+		}
+		return zOracleCheck(static_cast<uint32_t>(std::clamp(n, 1, 2000)));
+	}
+	// #137 B: `zpass` shows the passability bitmap; `zpass parity [z]` diffs it against the live
+	// predicate over every present cell (#224: a tick-sliced job, result via `zjob`).
+	if (command == "zpass" || command.substr(0, 6) == "zpass ") {
+		if (command.substr(0, 12) == "zpass parity") {
+			int z = -1;
+			if (command.size() > 12) {
+				z = std::atoi(command.c_str() + 12);
+			}
+			return zPassParity(z);
+		}
+		return fmt::format("[ZPASS] built={} blocks={} passableCells={} MB={:.1f} | 'zpass parity [z]' diffs it against the live map",
+			zPass_.built(), zPass_.blockCount(), zPass_.passableCells(), zPass_.bytes() / 1048576.0);
+	}
+	if (command == "zparity" || command.substr(0, 8) == "zparity ") {
+		int n = 3;
+		if (command.size() > 8) {
+			n = std::atoi(command.c_str() + 8);
+		}
+		return zParity(static_cast<uint32_t>(std::clamp(n, 1, 20)));
+	}
+	// #224: `zjob` shows the running admin nav job (or the last result); `zjob cancel` stops it.
+	if (command == "zjob" || command.substr(0, 5) == "zjob ") {
+		return zJobCommand(command.size() > 5 ? command.substr(5) : std::string());
+	}
+	// `zbench x1,y1,z1 x2,y2,z2 [N] [cold]`: replay one pair as an admin plan (no negative-cache answer)
+	// N times (default 3, max 20) and report each run's cost split. `cold` drops the shared reach cache
+	// before the first run, so run 1 = a cold plan and runs 2..N = warm. #224: a tick-sliced job (each
+	// run's figures are summed over its slices), result via `zjob`.
+	if (command.substr(0, 7) == "zbench ") {
+		int fx = 0, fy = 0, fz = 0, tx = 0, ty = 0, tz = 0, n = 3;
+		const int got = std::sscanf(command.c_str() + 7, "%d,%d,%d %d,%d,%d %d", &fx, &fy, &fz, &tx, &ty, &tz, &n);
+		if (got < 6) {
+			return "zbench: syntax is 'zbench x1,y1,z1 x2,y2,z2 [N] [cold]'";
+		}
+		n = std::clamp(got >= 7 ? n : 3, 1, 20);
+		const Position from(static_cast<uint16_t>(fx), static_cast<uint16_t>(fy), static_cast<uint8_t>(fz));
+		const Position to(static_cast<uint16_t>(tx), static_cast<uint16_t>(ty), static_cast<uint8_t>(tz));
+		return zBenchStart(from, to, n, command.find(" cold") != std::string::npos);
 	}
 
 	if (command == "zgraph" || command.substr(0, 7) == "zgraph ") {
@@ -4092,6 +4182,7 @@ void BotEngine::commandResetWalk(BotState& bot, const std::shared_ptr<Player>& p
 	const bool hadRoute = bot.followingCityRoute;
 	const bool hadFc = bot.fcState != FloorChangeState::NONE;
 	const bool hadPause = bot.pendingWalkPauseEventId != 0;
+	zForgetBotPlanHistory(bot.guid, "operator"); // #213: the command, not the old plan history, owns the walk
 	if (hadPause) {
 		g_dispatcher().stopEvent(bot.pendingWalkPauseEventId);
 		bot.pendingWalkPauseEventId = 0;

@@ -931,13 +931,11 @@ edron|towers~depot:,node,33171,31808,8,
 edron|towers~depot:,node,33168,31800,8,
 edron|towers~depot:,stand,33168,31800,8,
 
-# --- edron|depot~depot: (7 waypoints) ---
+# --- edron|depot~depot: (5 waypoints) --- generated #140
 edron|depot~depot:,node,33167,31808,10,
-edron|depot~depot:,stand,33166,31808,10,
-edron|depot~depot:,stand,33167,31808,9,
-edron|depot~depot:,node,33169,31811,7,
-edron|depot~depot:,stand,33169,31812,7,
-edron|depot~depot:,node,33168,31800,8,
+edron|depot~depot:,node,33166,31807,9,
+edron|depot~depot:,node,33167,31807,9,
+edron|depot~depot:,node,33167,31807,8,
 edron|depot~depot:,stand,33168,31800,8,
 
 # --- edron|boat~depot: (19 waypoints) ---

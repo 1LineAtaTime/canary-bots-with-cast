@@ -630,15 +630,9 @@ port hope|trainers~bank:,node,32632,32746,6,
 port hope|trainers~bank:,node,32632,32739,6,
 port hope|trainers~bank:,stand,32632,32739,6,
 
-# --- port hope|depot~bank: (9 waypoints) ---
+# --- port hope|depot~bank: (3 waypoints) --- generated #140
 port hope|depot~bank:,node,32625,32742,5,
-port hope|depot~bank:,stand,32626,32742,5,
-port hope|depot~bank:,node,32625,32748,6,
-port hope|depot~bank:,stand,32625,32749,6,
-port hope|depot~bank:,node,32624,32749,7,
-port hope|depot~bank:,stand,32625,32749,7,
-port hope|depot~bank:,node,32632,32746,6,
-port hope|depot~bank:,node,32632,32739,6,
+port hope|depot~bank:,node,32626,32742,6,
 port hope|depot~bank:,stand,32632,32739,6,
 
 # --- port hope|south.exit~potions: (17 waypoints) ---
@@ -735,16 +729,8 @@ port hope|food~potions:,ladder,32626,32742,6,
 port hope|food~potions:,node,32622,32742,5,
 port hope|food~potions:,stand,32622,32742,5,
 
-# --- port hope|depot~potions: (10 waypoints) ---
+# --- port hope|depot~potions: (2 waypoints) --- generated #140
 port hope|depot~potions:,node,32625,32742,5,
-port hope|depot~potions:,stand,32626,32742,5,
-port hope|depot~potions:,node,32625,32748,6,
-port hope|depot~potions:,stand,32625,32749,6,
-port hope|depot~potions:,node,32624,32749,7,
-port hope|depot~potions:,stand,32625,32749,7,
-port hope|depot~potions:,node,32625,32743,6,
-port hope|depot~potions:,ladder,32626,32742,6,
-port hope|depot~potions:,node,32622,32742,5,
 port hope|depot~potions:,stand,32622,32742,5,
 
 # --- port hope|bank~potions: (4 waypoints) ---
@@ -877,16 +863,8 @@ port hope|food~runes:,ladder,32626,32742,6,
 port hope|food~runes:,node,32622,32742,5,
 port hope|food~runes:,stand,32622,32742,5,
 
-# --- port hope|depot~runes: (10 waypoints) ---
+# --- port hope|depot~runes: (2 waypoints) --- generated #140
 port hope|depot~runes:,node,32625,32742,5,
-port hope|depot~runes:,stand,32626,32742,5,
-port hope|depot~runes:,node,32625,32748,6,
-port hope|depot~runes:,stand,32625,32749,6,
-port hope|depot~runes:,node,32624,32749,7,
-port hope|depot~runes:,stand,32625,32749,7,
-port hope|depot~runes:,node,32625,32743,6,
-port hope|depot~runes:,ladder,32626,32742,6,
-port hope|depot~runes:,node,32622,32742,5,
 port hope|depot~runes:,stand,32622,32742,5,
 
 # --- port hope|bank~runes: (4 waypoints) ---

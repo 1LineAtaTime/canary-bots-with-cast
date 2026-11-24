@@ -319,19 +319,19 @@ depot|svargrond|2:,node,32269,31141,6,
 # --- depot|svargrond|3: (1 waypoints) ---
 depot|svargrond|3:,node,32259,31141,6,
 
-# --- liberty bay|temple~temple: (2 waypoints) ---
-liberty bay|temple~temple:,node,32212,31134,7,
-liberty bay|temple~temple:,stand,32212,31134,7,
+# --- svargrond|temple~temple: (2 waypoints) ---
+svargrond|temple~temple:,node,32212,31134,7,
+svargrond|temple~temple:,stand,32212,31134,7,
 
-# --- liberty bay|food~temple: (8 waypoints) ---
-liberty bay|food~temple:,node,32209,31160,7,
-liberty bay|food~temple:,node,32216,31159,7,
-liberty bay|food~temple:,node,32222,31155,7,
-liberty bay|food~temple:,node,32222,31147,7,
-liberty bay|food~temple:,node,32222,31147,7,
-liberty bay|food~temple:,node,32215,31143,7,
-liberty bay|food~temple:,node,32212,31134,7,
-liberty bay|food~temple:,stand,32212,31134,7,
+# --- svargrond|food~temple: (8 waypoints) ---
+svargrond|food~temple:,node,32209,31160,7,
+svargrond|food~temple:,node,32216,31159,7,
+svargrond|food~temple:,node,32222,31155,7,
+svargrond|food~temple:,node,32222,31147,7,
+svargrond|food~temple:,node,32222,31147,7,
+svargrond|food~temple:,node,32215,31143,7,
+svargrond|food~temple:,node,32212,31134,7,
+svargrond|food~temple:,stand,32212,31134,7,
 
 # --- svargrond|depot~temple: (9 waypoints) ---
 svargrond|depot~temple:,node,32275,31142,7,

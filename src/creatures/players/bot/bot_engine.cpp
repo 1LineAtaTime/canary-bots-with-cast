@@ -695,6 +695,8 @@ bool BotEngine::deactivateBot(uint32_t guid) {
 	s_travelDestPOI.erase(guid);
 	s_travelArriveTarget.erase(guid);
 	s_travelSrcPOI.erase(guid);
+	s_travelTalkStep.erase(guid);
+	s_routeResumeAfterWake.erase(guid);
 	s_lastRouteEndPos.erase(guid);
 	walkPauseInfo_.erase(guid);
 	s_walkObsPending.erase(guid); // #120
@@ -1398,6 +1400,9 @@ bool BotEngine::wakeBot(uint32_t guid) {
 		bot.hasFleeTarget = false;
 		bot.fleeDirectional = false;
 	}
+
+	// #229: whatever route this bot starts next resumes where it can walk to (startCityRoute).
+	s_routeResumeAfterWake[bot.guid] = OTSYS_TIME();
 
 	// Resume floor-change from a clean state if it was stuck.
 	if (bot.fcState == FloorChangeState::STEPPING_ON) {

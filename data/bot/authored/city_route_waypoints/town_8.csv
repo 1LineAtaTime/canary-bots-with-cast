@@ -157,12 +157,9 @@ thais|loot~boat:,node,32316,32212,6,
 thais|loot~boat:,node,32310,32211,6,
 thais|loot~boat:,stand,32310,32211,6,
 
-# --- thais|depot~bank: (6 waypoints) ---
+# --- thais|depot~bank: (3 waypoints) --- generated #140
 thais|depot~bank:,node,32346,32231,8,
-thais|depot~bank:,stand,32347,32231,8,
-thais|depot~bank:,stand,32348,32225,5,
-thais|depot~bank:,stand,32350,32226,6,
-thais|depot~bank:,node,32344,32228,7,
+thais|depot~bank:,node,32347,32230,7,
 thais|depot~bank:,stand,32344,32228,7,
 
 # --- thais|north.gate~bank: (10 waypoints) ---
@@ -244,10 +241,10 @@ thais|boat~bank:,stand,32344,32229,7,
 # --- thais|bank~depot: (1 waypoints) ---
 thais|bank~depot:,node,32343,32228,7,
 
-# --- thais|depot~depot: (4 waypoints) ---
+# --- thais|depot~depot: (4 waypoints) --- generated #140
 thais|depot~depot:,node,32348,32228,7,
-thais|depot~depot:,node,32349,32225,8,
-thais|depot~depot:,node,32347,32222,5,
+thais|depot~depot:,node,32350,32227,7,
+thais|depot~depot:,node,32350,32225,6,
 thais|depot~depot:,node,32347,32222,6,
 
 # --- thais|north.gate~depot: (9 waypoints) ---
@@ -804,19 +801,17 @@ thais|depot~south.gate:,node,32338,32265,7,
 thais|depot~south.gate:,node,32338,32272,7,
 thais|depot~south.gate:,node,32342,32278,7,
 
-# --- thais|temple~south.gate: (13 waypoints) ---
+# --- thais|temple~south.gate: (11 waypoints) --- generated #140
 thais|temple~south.gate:,node,32369,32233,7,
-thais|temple~south.gate:,node,32369,32224,7,
-thais|temple~south.gate:,node,32369,32215,7,
-thais|temple~south.gate:,node,32360,32215,7,
-thais|temple~south.gate:,node,32350,32215,7,
-thais|temple~south.gate:,node,32339,32216,7,
-thais|temple~south.gate:,node,32337,32225,7,
-thais|temple~south.gate:,node,32337,32234,7,
-thais|temple~south.gate:,node,32338,32244,7,
-thais|temple~south.gate:,node,32338,32253,7,
-thais|temple~south.gate:,node,32338,32262,7,
-thais|temple~south.gate:,node,32338,32272,7,
+thais|temple~south.gate:,node,32365,32229,7,
+thais|temple~south.gate:,node,32362,32234,7,
+thais|temple~south.gate:,node,32357,32237,7,
+thais|temple~south.gate:,node,32356,32244,7,
+thais|temple~south.gate:,node,32355,32251,7,
+thais|temple~south.gate:,node,32352,32256,7,
+thais|temple~south.gate:,node,32350,32262,7,
+thais|temple~south.gate:,node,32348,32268,7,
+thais|temple~south.gate:,node,32344,32272,7,
 thais|temple~south.gate:,node,32342,32278,7,
 
 # --- thais|loot~south.gate: (14 waypoints) ---
@@ -943,24 +938,17 @@ thais|depot~ammo:,stand,32350,32246,7,
 thais|depot~ammo:,node,32345,32246,6,
 thais|depot~ammo:,stand,32345,32246,6,
 
-# --- thais|temple~ammo: (18 waypoints) ---
+# --- thais|temple~ammo: (11 waypoints) --- generated #140
 thais|temple~ammo:,node,32369,32233,7,
-thais|temple~ammo:,node,32369,32226,7,
-thais|temple~ammo:,node,32369,32219,7,
-thais|temple~ammo:,node,32365,32215,7,
-thais|temple~ammo:,node,32358,32215,7,
-thais|temple~ammo:,node,32351,32215,7,
-thais|temple~ammo:,node,32343,32215,7,
-thais|temple~ammo:,node,32338,32219,7,
-thais|temple~ammo:,node,32338,32225,7,
-thais|temple~ammo:,node,32338,32231,7,
-thais|temple~ammo:,node,32338,32236,7,
-thais|temple~ammo:,node,32338,32243,7,
-thais|temple~ammo:,node,32338,32249,7,
-thais|temple~ammo:,node,32344,32246,7,
+thais|temple~ammo:,node,32365,32229,7,
+thais|temple~ammo:,node,32362,32234,7,
+thais|temple~ammo:,node,32357,32237,7,
+thais|temple~ammo:,node,32354,32242,7,
+thais|temple~ammo:,node,32353,32249,7,
+thais|temple~ammo:,node,32346,32250,7,
+thais|temple~ammo:,node,32345,32247,7,
 thais|temple~ammo:,node,32349,32246,7,
-thais|temple~ammo:,stand,32350,32246,7,
-thais|temple~ammo:,node,32345,32246,6,
+thais|temple~ammo:,node,32350,32245,6,
 thais|temple~ammo:,stand,32345,32246,6,
 
 # --- thais|bank~ammo: (11 waypoints) ---
@@ -1100,23 +1088,17 @@ thais|ammo~depot:,node,32338,32228,7,
 thais|ammo~depot:,node,32343,32225,7,
 thais|ammo~depot:,node,32348,32228,7,
 
-# --- thais|ammo~temple: (17 waypoints) ---
+# --- thais|ammo~temple: (11 waypoints) --- generated #140
 thais|ammo~temple:,node,32349,32246,6,
-thais|ammo~temple:,stand,32350,32246,6,
-thais|ammo~temple:,node,32344,32246,7,
-thais|ammo~temple:,node,32338,32249,7,
-thais|ammo~temple:,node,32338,32242,7,
-thais|ammo~temple:,node,32338,32235,7,
-thais|ammo~temple:,node,32338,32228,7,
-thais|ammo~temple:,node,32338,32221,7,
-thais|ammo~temple:,node,32342,32215,7,
-thais|ammo~temple:,node,32349,32215,7,
-thais|ammo~temple:,node,32356,32215,7,
-thais|ammo~temple:,node,32363,32215,7,
-thais|ammo~temple:,node,32368,32218,7,
-thais|ammo~temple:,node,32369,32223,7,
-thais|ammo~temple:,node,32369,32228,7,
-thais|ammo~temple:,node,32369,32234,7,
+thais|ammo~temple:,node,32350,32247,7,
+thais|ammo~temple:,node,32344,32247,7,
+thais|ammo~temple:,node,32347,32250,7,
+thais|ammo~temple:,node,32355,32250,7,
+thais|ammo~temple:,node,32356,32243,7,
+thais|ammo~temple:,node,32358,32237,7,
+thais|ammo~temple:,node,32362,32233,7,
+thais|ammo~temple:,node,32366,32229,7,
+thais|ammo~temple:,node,32367,32236,7,
 thais|ammo~temple:,node,32369,32239,7,
 
 # --- thais|ammo~bank: (10 waypoints) ---

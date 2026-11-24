@@ -925,8 +925,8 @@ town_id,source_name,enabled
 16,depot|svargrond|1:,1
 16,depot|svargrond|2:,1
 16,depot|svargrond|3:,1
-16,liberty bay|temple~temple:,1
-16,liberty bay|food~temple:,1
+16,svargrond|temple~temple:,1
+16,svargrond|food~temple:,1
 16,svargrond|depot~temple:,1
 16,svargrond|bank~temple:,1
 16,svargrond|potions~temple:,1
@@ -1580,7 +1580,7 @@ town_id,source_name,enabled
 17,yalahar|sunken.quarter~foreign.quarter:,1
 17,yalahar|factory.quarter~foreign.quarter:,1
 17,yalahar|trade.quarter~foreign.quarter:,1
-17,yalahar|arena.quarter~boat:,1
+17,yalahar|arena.quarter~boat:,0
 17,yalahar|arena.quarter~bank:,1
 17,yalahar|arena.quarter~depot:,1
 17,yalahar|arena.quarter~ammo:,1

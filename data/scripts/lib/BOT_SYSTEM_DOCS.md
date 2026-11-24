@@ -377,7 +377,7 @@ them apart. Only the first is in scope here:
 | kind | how to recognize it | destination |
 |---|---|---|
 | hunt script | has `label:travel_to` / `hunt_patrol` / `travel_from` | `hunt_scripts.csv` + `hunt_waypoints/<id>.csv` |
-| city route | labels are `src-dst` pairs (`temple-depot`) | `city_routes.csv` + `city_route_waypoints/` — **no tool writes these yet** |
+| city route | labels are `src-dst` pairs (`temple-depot`) | `city_routes.csv` + `city_route_waypoints/` — no cfg importer writes these; generated replacements come from `botnavsim poiroutes` + `tools/bot_route_gen/` (#140) |
 | POI route | no labels at all | as above |
 
 Importing a route cfg as a hunt would *look* fine — every waypoint lands in
@@ -753,6 +753,9 @@ spliced` line — both unconditional, no verbose mode needed.
 | `/cavebot pathtest [N]` | compare the bot pathfinder against the engine's, N sample routes |
 | `/cavebot pathbench [N]` | time server vs bot kernel vs kernel+jitter, µs per pathfinding call |
 | `/cavebot dumpnav x1,y1,x2,y2,z1,z2` | dump a map region for the offline path simulator |
+| `/cavebot dumpnav world [file]` | the whole map as a sparse v3 dump (no tile materialised; runs as a job) for `botnavsim poiroutes` |
+| `/cavebot zparity [N]` / `zoracle [N]` / `zpass parity [z]` / `zstat census` / `zbench a b [N] [cold]` | z-planner self-checks. **Jobs** (#224): they return at once, run 4 ms per bot tick, and report via `zjob` and the journal. `zparity` default 3, max 20 |
+| `/cavebot zjob` / `zjob cancel` | the running admin job's progress, or the last result; cancel it |
 | `/cavebot roam` | ambient-roam inventory: live sessions, ledger, per-cluster counts, suppressed anchors |
 | `/cavebot intown x,y,z` | why a tile counts as in-town (or not) — prints each rule's own verdict |
 | `/cavebot roamanchor x,y,z` / `roamanchor off` | synthetic anchor, so roam is drivable with nobody logged in |

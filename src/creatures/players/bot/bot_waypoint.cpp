@@ -608,7 +608,18 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 		// every step incorrectly skipped a moving bot's portal approach after 28s.
 		if (player->listWalkDir.empty() || config.trackMovementProgress) {
 			auto& wpTimer = s_routeWpTimer[bot.guid];
-			const int32_t distance = Position::getDiagonalDistance(bot.currentPos, wp);
+			int32_t distance = Position::getDiagonalDistance(bot.currentPos, wp);
+			// #222: progress in walk steps (see RouteWaypointTimer::steps). Outside the field (beyond its
+			// 80-tile window, or another floor) the Chebyshev distance is offset past every in-field value,
+			// so the metric stays one ordering: entering the field is progress, leaving it is not.
+			const bool sameWpTimer = wpTimer.second != 0 && wpTimer.first == waypointIdx && wpTimer.target == wp;
+			if (config.trackMovementProgress) {
+				if (!sameWpTimer) {
+					wpTimer.steps = wp.z == bot.currentPos.z ? zWalkStepsFrom(wp) : nullptr;
+				}
+				const int32_t st = wpTimer.steps ? wpTimer.steps->stepsTo(bot.currentPos) : -1;
+				distance = st >= 0 ? st : 100000 + distance;
+			}
 			// The target test applies to EVERY route, not only progress-tracking ones (#118).
 			// s_routeWpTimer is keyed by guid alone, so a clock left behind by a route that never
 			// reached "Completed all waypoints" (a ZLEG handed to the FC machine, a jitter reroll,
@@ -616,8 +627,9 @@ BotEngine::WaypointFollowResult BotEngine::followWaypoints(
 			// the same INDEX -- and a one-waypoint ZLEG is always at index 0. The new route then
 			// skipped its first waypoint instantly with the old route's age: the baseline's
 			// `pathout stuck reason=wp-skip-timeout val=120849`, logged right before `arrived`.
-			if (wpTimer.second == 0 || wpTimer.first != waypointIdx || wpTimer.target != wp) {
-				wpTimer = {static_cast<uint32_t>(waypointIdx), OTSYS_TIME(), wp, distance};
+			if (!sameWpTimer) {
+				wpTimer = { static_cast<uint32_t>(waypointIdx), OTSYS_TIME(), wp, distance,
+					config.trackMovementProgress ? wpTimer.steps : nullptr };
 				castLog(bot, fmt::format("{}: Walking to {} wp {}/{} at ({},{},{})",
 					config.logPrefix, waypointTypeName(waypoint.type), waypointIdx + 1, waypoints.size(),
 					wp.x, wp.y, wp.z));

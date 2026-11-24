@@ -2737,6 +2737,12 @@ inline std::unordered_map<uint32_t, std::string> s_travelArriveTarget;
 
 inline std::unordered_map<uint32_t, std::string> s_travelSrcPOI;                      // guid → "boat"/"carpet" (source)
 
+// #227: the captain dialogue in doTraveling at_boat. Present only once the bot has greeted a captain
+// (walk_to_boat's "hi"): 1 = next says the destination, 2 = next says "yes", 3 = next boards. A bot
+// that reaches at_boat any other way (no source dock, a virtual wake) has no entry and boards at once,
+// as before. Erased with the other travel maps and at boarding.
+inline std::unordered_map<uint32_t, uint8_t> s_travelTalkStep;
+
 inline std::unordered_map<uint32_t, Position> s_lastRouteEndPos;                      // guid → last waypoint of completed route
 
 // --------------------------------------------------------------------------
@@ -4207,6 +4213,39 @@ inline uint32_t s_wide60sCooldownSkips = 0; // per-bot cooldown: not run
 inline uint32_t s_wide60sMaxPerTick = 0;    // most searches in one tick (cap = 2)
 inline int64_t s_wide60sUsMax = 0;
 inline std::vector<uint32_t> s_wide60sUs;   // per-search microseconds for the p50 (bounded: 4096 entries)
+// #135: the z-planner's cost split, logged as "[ZPLAN_STAT] 60s ..." by the same 60 s block. A plan
+// that RAN its search (not deferred, not answered from the negative cache or the abort backoff)
+// adds one sample. Search time = total - flood time: the graph search itself (settles x fan-out)
+// versus the leg pricer's reachability floods, the two costs the nav-precompute steps attack.
+struct ZPlanCost {
+	uint32_t totalUs = 0;     // wall time of the whole zPlanFullRoute call
+	uint32_t floodUs = 0;     // ... of which spent computing reachability floods (cache misses)
+	uint32_t floods = 0;      // floods computed (cache misses)
+	uint32_t floodCells = 0;  // cells those floods visited
+	uint32_t settles = 0;     // portals settled by the Dijkstra (both passes)
+	uint32_t legCalls = 0;    // legCost evaluations (both passes)
+	uint32_t legStart = 0, legTarget = 0, legComp = 0, legAdhoc = 0; // ... by pricing branch
+	uint32_t hops = 0;
+	const char* result = "";  // ok | fail | abort
+};
+inline ZPlanCost s_zLastPlanCost;           // the last plan that ran (for /cavebot zbench)
+// #213: planned hops that landed somewhere else (a stray step onto another FC tile). Cumulative,
+// logged by "[ZROUTE]"; per-bot memo of the last one (portal key, ms) bounds the re-plan loop.
+inline uint64_t s_fcUnplannedHops = 0;
+inline std::unordered_map<uint32_t, std::pair<uint64_t, int64_t>> s_fcUnplannedLast;
+inline uint32_t s_zStat60sRuns = 0, s_zStat60sOk = 0, s_zStat60sFail = 0, s_zStat60sAbort = 0;
+inline uint32_t s_zStat60sArmed = 0;        // abort backoffs armed
+inline uint32_t s_zStat60sShortcut = 0;     // answered without a search: fail-cached / backoff / deferred
+inline uint32_t s_zStat60sOracle = 0;       // #138: answered "unreachable" by the component oracle (also in shortcut)
+inline uint64_t s_zStat60sLegCalls = 0, s_zStat60sSettles = 0, s_zStat60sAdhoc = 0;
+inline uint64_t s_zStat60sTotalUs = 0, s_zStat60sFloodUs = 0;
+inline uint32_t s_zStat60sFloods = 0;
+inline uint32_t s_zStat60sUsMax = 0;
+inline std::vector<uint32_t> s_zStat60sUs;  // per-run microseconds for p50/p99 (bounded: 4096 entries)
+// Cumulative reach-cache churn (LocalReach): evictions forced by Z_REACH_CACHE_MAX, and the cost of
+// every flood it computed. Read by /cavebot zstat.
+inline uint64_t s_zReachEvictions = 0;
+inline uint64_t s_zFloodUsTotal = 0, s_zFloodCellsTotal = 0, s_zFloodCountTotal = 0;
 inline int64_t s_wideTickStamp = 0;         // s_tickBodyStartMs of the tick s_wideThisTick counts
 inline uint32_t s_wideThisTick = 0;
 // #125: wakes whose first AI tick has not been seen yet (s_audBot[guid].wakeAtMs != 0). Lets the tick
@@ -4592,6 +4631,8 @@ public:
 	// known at its point of declaration. Public because bot_zgraph.cpp's anonymous-namespace
 	// LocalReach shares the engine's flood cache by pointer and must name this type.
 	using ZReachSet = std::shared_ptr<const std::unordered_set<uint64_t>>;
+	// #139 D-real: the planner's floods are walk-step fields (botnav::ZStepField), not sets.
+	using ZStepPtr = std::shared_ptr<const botnav::ZStepField>;
 
 private:
 
@@ -4636,8 +4677,21 @@ private:
 		int64_t second = 0;
 		Position target {};
 		int32_t bestDistance = -1;
+		// #222: progress-tracked routes measure "closer" in walk steps to the waypoint (a flood from
+		// it on the bitmap, shared through zReachCache_), not Chebyshev. A detour that first walks
+		// AWAY from a stair 19 tiles off (the Thais temple's 66-step one) is progress all the way.
+		ZStepPtr steps;
 	};
 	std::unordered_map<uint32_t, RouteWaypointTimer> s_routeWpTimer;
+	// #222: walk-step field from `origin` (same rules and cache as the planner's floods); null when the
+	// graph is not built. Distance of a position = field->stepsTo(pos).
+	ZStepPtr zWalkStepsFrom(const Position& origin);
+	// #229: the first city route a bot starts after a wake resumes at the waypoint it can WALK to
+	// soonest (step field from the bot), not at wp0. wakeBot clears the route, so a TRAVELING bot
+	// woken mid-journey restarted `boat~depot` from the boat; on a folded route (Issavi's two lanes
+	// split by a wall) it then skip-chained the far lane's waypoints. Keyed guid -> wake time.
+	std::unordered_map<uint32_t, int64_t> s_routeResumeAfterWake;
+	void resumeCityRouteAfterWake(BotState& bot);
 	// Post-action waypoint hold: guid -> time the bot may resume walking. Written by
 	// followWaypoints (bot_waypoint.cpp) AND by handleActionWaypoint (bot_tick.cpp) — which is
 	// why it is a member and not a function-local static: NPC_INTERACT's greet-and-wait is set
@@ -4694,7 +4748,9 @@ private:
 	// Deliberately caching the FLOOD rather than the finished route: a route also depends on the
 	// per-bot exclusions (blacklist, just-used-portal guard), so a shared route cache would hand
 	// one bot a plan that is invalid for another. The flood has no such coupling.
-	std::unordered_map<uint64_t, std::pair<ZReachSet, int64_t>> zReachCache_; // originKey -> {set, expiry}
+	// #139 D-real: entries are walk-step fields (~52 KB each at radius 80) since the planner prices legs
+	// in steps; roam keeps its own set-based cache (roamReachCache_).
+	std::unordered_map<uint64_t, std::pair<ZStepPtr, int64_t>> zReachCache_; // originKey -> {field, expiry}
 	uint64_t zReachHits_ = 0, zReachMisses_ = 0;
 	std::unordered_map<uint64_t, int64_t> s_zPortalBlacklist; // botTileKey(portal pos) -> expiry (OTSYS_TIME ms)
 	// guid -> {portal tile key, expiry}: the portal this bot most recently traversed. The same-z
@@ -4749,6 +4805,102 @@ private:
 	// the branch that decided it ([ZLEGCOST]). Diagnostic only — set by `/cavebot zplan ... -v`
 	// around a single call, never left on (it is O(legs) log lines per plan).
 	bool zPlanTrace_ = false;
+	// #135 /cavebot zbench: skip the negative-cache probe so a replayed failing pair is searched, not
+	// answered as fail-cached. Admin-only, set and cleared around each benchmark call.
+	bool zPlanBenchNoNeg_ = false;
+	// #139 D0: precomputed same-floor portal adjacency (bot_zcore.hpp ZPortalAdjacency), rebuilt from
+	// the graph + component labels on every graph load (not persisted, so no ZCACHE_VERSION change).
+	// zPlanUseAdj_ selects the kernel: true = planZRouteAdj (default), false = the reference
+	// planZRoute. Admin-switchable (`/cavebot zkernel adj|ref`) for A/B and parity; never persisted.
+	botnav::ZPortalAdjacency zAdj_;
+	botnav::ZPlanScratch zScratch_;
+	std::vector<uint8_t> zAdjLandingForced_, zAdjPosForced_; // per portal: end is a force-placed landing
+	bool zPlanUseAdj_ = true;
+	// #139 D-real: walk steps of every plain adjacency entry (parallel to zAdj_.to; 0xFFFF = the walk
+	// leaves the legMax window although both ends share a component -> a lower-bound price). Built from
+	// one bitmap flood per landing (seconds for the whole graph), so persisted in the zcache (v14) and
+	// reused when the adjacency it was computed for is unchanged (zAdjStepsKey_ = entry count + hash).
+	std::vector<uint16_t> zAdjSteps_;
+	uint64_t zAdjStepsKey_ = 0;
+	std::vector<uint16_t> zAdjStepsCached_; // read from the zcache, consumed by buildZAdjacency
+	uint64_t zAdjStepsCachedKey_ = 0;
+	bool zAdjStepsComputed_ = false; // this load computed them (so the cache needs rewriting)
+	// Leg price for a same-component pair from the steps table: 10 * steps, or the lower bound.
+	static int32_t zStepsCost(uint16_t steps, int32_t cheb) {
+		return steps != 0xFFFF ? 10 * static_cast<int32_t>(steps) : 10 * std::max(cheb, 2 * Z_LEG_MAX - cheb);
+	}
+	// The steps table entry for the leg landing(a) -> pos(b): >= 0 steps, -1 the 0xFFFF marker,
+	// -2 no such entry (the reference kernel then floods). For the reference kernel's interior legs.
+	int32_t zInteriorStepsLookup(const Position& a, const Position& b) const;
+	std::unordered_map<uint64_t, uint32_t> zLandingToPortal_;
+	void buildZAdjacency();
+	// #213: forget one bot's z-plan HISTORY (anti-ping-pong justUsed guard, per-bot negative and
+	// abort-backoff entries, planned hop / leg / wait) after a position discontinuity. Returns true
+	// when something was dropped. See bot_zgraph.cpp.
+	bool zForgetBotPlanHistory(uint32_t guid, const char* reason);
+	std::string zParity(uint32_t samples);
+	// #137 B: static flood-passability bitmap (bot_zcore.hpp ZPassBitmap), built in the zgraph sweep
+	// and persisted in the zcache (v12). Read by the planner floods and the component pass only.
+	botnav::ZPassBitmap zPass_;
+	// `/cavebot zpass parity [z]`: diff the bitmap against the live zFloodPassableAt over every present
+	// cell (admin, synchronous; z < 0 = all floors).
+	std::string zPassParity(int32_t onlyZ);
+	// #138 C': whole-map component labels (persisted, ZCACHE v13) and the negative-only connectivity
+	// oracle over them (rebuilt at every graph load from the labels + the portals, not persisted).
+	botnav::ZCompLabels zLab_;
+	botnav::ZCompOracle zOracle_;
+	bool zOracleOff_ = false; // admin: `/cavebot zoracle off|on` (and zoracle's own A/B), never persisted
+	uint64_t s_zOracleUnreach = 0;
+	void buildZOracle();
+	// 0 = no verdict (unlabelled end), 1 = maybe reachable (search it), 2 = provably unreachable.
+	int zOracleVerdict(const Position& from, const Position& target) const;
+	// `/cavebot zoracle [N]`: N sampled pairs, oracle verdict vs the planner with the oracle off.
+	std::string zOracleCheck(uint32_t samples);
+	// #135 /cavebot zstat census (~1-2 s of work on the full map; tick-sliced since #224).
+	std::string zCensus();
+
+	// ---- #224: tick-sliced admin nav jobs ----
+	// zparity / zoracle / zpass parity / zstat census / zbench used to run synchronously inside the
+	// command handler: `zparity 30` froze the dispatcher for 67 s (the reference kernel costs ~1.1 s
+	// per plan since D-real). They now queue a job; BotEngine::tick runs one Z_ADMIN_SLICE_MS slice of
+	// it per tick (last, after every bot), so the game loop is never held longer than one slice plus
+	// the one indivisible unit in flight (a single reach flood, <= ~25 ms cold). One job at a time.
+	// The result goes to the journal and to `/cavebot zjob` (also `zjob cancel`).
+	struct ZAdminJob {
+		std::string name;
+		// Runs work until `deadlineMs` (botnav::zSteadyMs clock) and returns true when finished,
+		// with the report in `result`.
+		std::function<bool(int64_t deadlineMs)> step;
+		std::string result;
+		int64_t startedMs = 0;
+		uint32_t slices = 0;
+		uint64_t workUs = 0;
+		uint32_t maxSliceUs = 0;
+		uint32_t maxSliceCpuUs = 0; // thread CPU of the worst slice: wall minus this = preemption
+		std::string progress; // updated by step (shown by `zjob`)
+	};
+	static constexpr int64_t Z_ADMIN_SLICE_MS = 4;
+	std::unique_ptr<ZAdminJob> zJob_;
+	std::string zJobLast_;
+	std::string zJobStart(std::unique_ptr<ZAdminJob> job);
+	void zJobTick();
+	std::string zJobCommand(const std::string& arg);
+	std::string zBenchStart(const Position& from, const Position& to, int runs, bool cold);
+	// #140: `/cavebot dumpnav world [file]` -- the whole map as a v3 sparse navdump (a job too).
+	std::string navDumpWorldStart(const std::string& path);
+	// One slice of an admin plan (forGuid 0, no negative cache, blacklist ignored so both kernels of a
+	// parity pair see the same graph). Both kernels resume their Dijkstra across slices
+	// (zAdminResume_; the adjacency kernel's per-portal state in zAdminScratch_, never the live
+	// zScratch_). Returns 1 = route, 0 = no route, -1 = not finished (call again next slice with the
+	// same pair). `acc` accumulates the cost split over the slices of this plan.
+	int zAdminPlanSlice(const Position& from, const Position& to, std::vector<botnav::ZRouteHop>& hops, bool useAdj,
+		int64_t deadlineMs, ZPlanCost& acc);
+	bool zAdminSliceMode_ = false;   // set only inside zAdminPlanSlice
+	int64_t zAdminDeadlineMs_ = 0;
+	bool zAdminAborted_ = false;     // the last admin slice stopped on its deadline
+	botnav::ZPlanResume zAdminResume_;
+	botnav::ZPlanScratch zAdminScratch_; // the adjacency kernel's state for a resumed admin search
+	std::pair<const void*, size_t> zJobGraphTag_ { nullptr, 0 }; // the graph the job's indices refer to
 
 	// Teleport-fallback KPI (Phase 8 increment 3). Member, not a file-scope static — see the
 	// BOT_TELEPORT macro comment above this class.

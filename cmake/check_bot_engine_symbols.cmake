@@ -26,6 +26,8 @@ set(BOT_ALLOWED_CONTROL_BLOCKS
     "_ZTVSt23_Sp_counted_ptr_inplaceINSt8__detail4_NFAINSt7__cxx1112regex_traitsIcEEEESaIvELN9__gnu_cxx12_Lock_policyE2EE"
     # zgraph flood cache (BotEngine member)
     "_ZTVSt23_Sp_counted_ptr_inplaceISt13unordered_setImSt4hashImESt8equal_toImESaImEESaIvELN9__gnu_cxx12_Lock_policyE2EE"
+    # z-planner walk-step fields (#139 D-real): held only by BotEngine members (zReachCache_, s_routeWpTimer)
+    "_ZTVSt23_Sp_counted_ptr_inplaceIN6botnav10ZStepFieldESaIvELN9__gnu_cxx12_Lock_policyE2EE"
     # nlohmann::json::dump() output adapter (#91 bot_verb.cpp): a temporary inside dump(), freed before it returns
     "_ZTVSt23_Sp_counted_ptr_inplaceIN8nlohmann16json_abi_v3_12_06detail21output_string_adapterIcNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEESaIvELN9__gnu_cxx12_Lock_policyE2EE"
 )

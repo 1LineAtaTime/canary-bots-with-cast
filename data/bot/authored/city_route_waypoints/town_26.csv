@@ -1,6 +1,6 @@
 source_name,waypoint_type,pos_x,pos_y,pos_z,action_label
 
-# --- feyrist|temple~boat: (31 waypoints) ---
+# --- feyrist|temple~boat: (30 waypoints) ---
 feyrist|temple~boat:,stand,33490,32221,7,
 feyrist|temple~boat:,node,33496,32222,7,
 feyrist|temple~boat:,node,33502,32222,7,
@@ -28,8 +28,7 @@ feyrist|temple~boat:,node,32344,32215,7,
 feyrist|temple~boat:,node,32338,32215,7,
 feyrist|temple~boat:,node,32332,32215,7,
 feyrist|temple~boat:,stand,32326,32215,7,
-feyrist|temple~boat:,use_with,32321,32211,7,0
-feyrist|temple~boat:,stand,32321,32212,7,
+feyrist|temple~boat:,ladder,32321,32211,7,
 feyrist|temple~boat:,node,32315,32212,6,
 feyrist|temple~boat:,stand,32310,32211,6,
 
@@ -111,7 +110,7 @@ feyrist|boat~depot:,stand,33489,32221,7,
 feyrist|boat~depot:,use_with,33489,32223,6,0
 feyrist|boat~depot:,stand,33488,32222,6,
 
-# --- feyrist|depot~boat: (37 waypoints) ---
+# --- feyrist|depot~boat: (36 waypoints) ---
 feyrist|depot~boat:,stand,33489,32224,5,
 feyrist|depot~boat:,stand,33489,32223,5,
 feyrist|depot~boat:,stand,33488,32220,6,
@@ -145,7 +144,6 @@ feyrist|depot~boat:,stand,32344,32215,7,
 feyrist|depot~boat:,stand,32338,32215,7,
 feyrist|depot~boat:,stand,32332,32215,7,
 feyrist|depot~boat:,stand,32326,32215,7,
-feyrist|depot~boat:,use_with,32321,32211,7,0
-feyrist|depot~boat:,stand,32321,32212,7,
+feyrist|depot~boat:,ladder,32321,32211,7,
 feyrist|depot~boat:,stand,32315,32212,6,
 feyrist|depot~boat:,stand,32310,32211,6,

@@ -51,6 +51,7 @@ void BotEngine::startTravel(BotState& bot, uint32_t destTownId) {
 	bot.lastRouteDestination.clear();
 	bot.travelSpreadTarget = Position(); // BOT_LIVENESS_PACK Phase C.6: fresh spread pick per trip
 	s_travelFcRecoveryCount.erase(bot.guid);
+	s_travelTalkStep.erase(bot.guid);
 	s_travelStartTime[bot.guid] = OTSYS_TIME();
 
 	// Get destination travel position from MySQL table (randomly picks boat or carpet)
@@ -279,6 +280,7 @@ void BotEngine::doTraveling(BotState& bot) {
 			bot.cityRouteIdx = 0;
 			botMoveFaceNpc(bot, player); // #198
 			g_game().internalCreatureSay(player, TALKTYPE_SAY, "hi", false);
+			s_travelTalkStep[bot.guid] = 1; // #227: destination, then yes, then board
 			bot.travelPhase = "at_boat";
 			bot.travelWaitUntil = OTSYS_TIME() + uniform_random(3, 10) * 1000LL;
 			castLog(bot, fmt::format("TRAVEL: At boat NPC, saying hi, waiting {}s",
@@ -337,6 +339,44 @@ void BotEngine::doTraveling(BotState& bot) {
 	// Phase 2: At boat NPC, waiting before teleport
 	if (bot.travelPhase == "at_boat") {
 		if (OTSYS_TIME() < bot.travelWaitUntil) return;
+
+		// #227: the rest of the captain dialogue, the way a player books a passage -- "hi" (said on
+		// arrival), then the destination, then "yes" -- each after a reading pause. The captain may
+		// well act on the "yes" itself (charge the fare and move the bot); the board below still
+		// runs and lands on the travel position, so the journey's outcome never depends on whether
+		// the NPC knows that destination, the bot can pay, or the NPC answers bots at all.
+		if (auto talkIt = s_travelTalkStep.find(bot.guid); talkIt != s_travelTalkStep.end() && talkIt->second < 3) {
+			if (talkIt->second == 1) {
+				std::string dest;
+				if (auto destTown = g_game().map.towns.getTown(bot.travelDestTownId)) {
+					dest = destTown->getName();
+				}
+				std::transform(dest.begin(), dest.end(), dest.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+				if (!dest.empty()) {
+					botMoveFaceNpc(bot, player);
+					g_game().internalCreatureSay(player, TALKTYPE_SAY, dest, false);
+				}
+				talkIt->second = 2;
+				bot.travelWaitUntil = OTSYS_TIME() + uniform_random(2, 4) * 1000LL;
+				castLog(bot, fmt::format("TRAVEL: told the captain '{}'", dest));
+				return;
+			}
+			g_game().internalCreatureSay(player, TALKTYPE_SAY, "yes", false);
+			talkIt->second = 3;
+			bot.travelWaitUntil = OTSYS_TIME() + uniform_random(1, 2) * 1000LL;
+			castLog(bot, "TRAVEL: said 'yes' to the captain");
+			return;
+		}
+		if (auto talkIt = s_travelTalkStep.find(bot.guid); talkIt != s_travelTalkStep.end()) {
+			// Closed-loop signal: did the captain move the bot before the board? (>10 tiles from the
+			// dock it greeted at = the NPC's own travel fired.)
+			const Position dockAt = s_lastRouteEndPos.count(bot.guid) ? s_lastRouteEndPos[bot.guid] : bot.travelSrcBoatPos;
+			const int32_t moved = std::max(std::abs(static_cast<int32_t>(bot.currentPos.x) - static_cast<int32_t>(dockAt.x)),
+				std::abs(static_cast<int32_t>(bot.currentPos.y) - static_cast<int32_t>(dockAt.y)));
+			g_logger().info("[TRAVEL_TALK] {} hi/destination/yes town {} -> {} npcMoved={} ({} tiles from the dock)",
+				player->getName(), bot.townId, bot.travelDestTownId, moved > 10 ? 1 : 0, moved);
+			s_travelTalkStep.erase(talkIt);
+		}
 
 		// Teleport to destination boat position
 		if (bot.travelBoatPos.x > 0) {

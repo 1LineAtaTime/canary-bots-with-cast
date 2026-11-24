@@ -43,6 +43,8 @@
 #include "map/house/house.hpp" // House::getId — route planning refuses other people's houses
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <random> // std::mt19937 / std::random_device — the pre-cap shuffle in buildFishingSpotIndex
 #include <unordered_set>
 
@@ -414,8 +416,10 @@ constexpr int32_t kNbrOffsets[8][2] = {
 //
 // zWalkableAt itself is deliberately UNCHANGED: it gates portal LANDING validation, where a
 // bare door tile really is a bad place to land.
-bool zFloodPassableAt(int32_t x, int32_t y, int32_t z) {
-	ZCell c = zCellAt(x, y, z);
+//
+// #137: the cell form is what the sweep calls (it already holds the ZCell); the bitmap is built from
+// it, so the two cannot drift apart by construction. zFloodPassableFast below reads the bitmap.
+bool zFloodPassableCell(const ZCell& c) {
 	if (c.tile) {
 		if (!c.tile->getGround() || c.tile->hasFlag(TILESTATE_FLOORCHANGE) || c.tile->hasFlag(TILESTATE_TELEPORT)) {
 			return false;
@@ -465,10 +469,21 @@ bool zFloodPassableAt(int32_t x, int32_t y, int32_t z) {
 			if (BotEngine::getDoorTable().count(it->id) && !BotEngine::isKeyLockedDoorId(it->id)) {
 				openableDoor = true;
 			}
-			if (t.blockSolid || t.blockPathFind) {
+			// blockSolid only, exactly like the live branch's TILESTATE_BLOCKSOLID test. blockPathFind
+			// (the protobuf `avoid` flag: chairs, tables, static fields) is a routing preference, not
+			// a wall, for the walker this flood stands in for: the bot A* (FLAG_PATHFINDING |
+			// FLAG_IGNOREBLOCKITEM, map.cpp getPathfindingTile) ignores it, and the step itself
+			// (queryAdd without FLAG_PATHFINDING) never tests TILESTATE_BLOCKPATH at all. Counting it
+			// here made the answer depend on whether the tile happened to be materialised: 1,548 of
+			// the 1,725 `zpass parity` mismatches were "live passable, cached not" (#225, ZCACHE v15).
+			if (t.blockSolid) {
 				blocked = true;
 			}
-			if (it->destX != 0 || it->destY != 0) {
+			// A teleport TYPE, with or without a stored destination: the live branch's
+			// TILESTATE_TELEPORT is set by Item::getTeleport(), i.e. by the type (a magic forcefield
+			// whose destination a script sets later, or never, still carries it, and A* refuses it).
+			// Testing only destX/destY left those passable in the cached branch (#225 residue).
+			if (t.isTeleport() || it->destX != 0 || it->destY != 0) {
 				return false; // teleport tile
 			}
 		}
@@ -477,21 +492,62 @@ bool zFloodPassableAt(int32_t x, int32_t y, int32_t z) {
 	return false;
 }
 
-// Component id of (x,y) in a freshly-built per-floor label map, falling back to a labelled
-// neighbour when (x,y) is itself an FC/teleport tile (stairs never get flooded through, so they
-// carry no direct label). -1 when nothing is adjacent either.
-int32_t zLabelOf(const std::unordered_map<uint32_t, uint32_t>& label, int32_t x, int32_t y) {
-	auto key = [](int32_t kx, int32_t ky) {
-		return (static_cast<uint32_t>(kx) << 16) | static_cast<uint32_t>(ky);
-	};
-	auto direct = label.find(key(x, y));
-	if (direct != label.end()) {
-		return static_cast<int32_t>(direct->second);
+bool zFloodPassableAt(int32_t x, int32_t y, int32_t z) {
+	return zFloodPassableCell(zCellAt(x, y, z));
+}
+
+// #137 B: the static passability bitmap (BotEngine::zPass_), published by buildZPortalGraph once it is
+// built or loaded, and cleared at the start of every rebuild. TU-local: every reader is in this file.
+const botnav::ZPassBitmap* g_zPassActive = nullptr;
+
+// The planner-flood predicate: the bitmap's snapshot of zFloodPassableAt when one exists, else the
+// live predicate. Floods and the build-time labelling only -- never A*, a landing or a door check.
+inline bool zFloodPassableFast(int32_t x, int32_t y, int32_t z) {
+	return g_zPassActive ? g_zPassActive->passable(x, y, z) : zFloodPassableAt(x, y, z);
+}
+
+// #137: per-floor component labels over the bitmap's blocks (dense; replaces the per-floor
+// unordered_map<cell, label> that made the component pass ~18 s). The floor's blocks are a
+// contiguous id range, so the label of a cell is lab[(block - first) * 256 + cell].
+struct ZFloorLabels {
+	static constexpr uint32_t NONE = UINT32_MAX;
+	const botnav::ZPassBitmap* bm = nullptr;
+	int32_t z = 0;
+	uint32_t first = 0;
+	std::vector<uint32_t> lab;
+	size_t labelled = 0;
+
+	ZFloorLabels(const botnav::ZPassBitmap& b, int32_t fz) :
+		bm(&b), z(fz), first(b.floors[fz].first), lab(static_cast<size_t>(b.floors[fz].count) * 256, NONE) { }
+	uint32_t* slot(int32_t x, int32_t y) {
+		const int64_t blk = bm->blockOf(x, y, z);
+		return blk < 0 ? nullptr : &lab[static_cast<size_t>(blk - first) * 256 + botnav::ZPassBitmap::cellOf(x, y)];
+	}
+	int32_t get(int32_t x, int32_t y) const {
+		const int64_t blk = bm->blockOf(x, y, z);
+		if (blk < 0) {
+			return -1;
+		}
+		const uint32_t v = lab[static_cast<size_t>(blk - first) * 256 + botnav::ZPassBitmap::cellOf(x, y)];
+		return v == NONE ? -1 : static_cast<int32_t>(v);
+	}
+	size_t size() const {
+		return labelled;
+	}
+};
+
+// Component id of (x,y) in a floor's dense labels, falling back to a labelled neighbour when (x,y)
+// is itself an FC/teleport tile (stairs never get flooded through, so they carry no direct label).
+// -1 when nothing is adjacent either.
+int32_t zLabelOf(const ZFloorLabels& label, int32_t x, int32_t y) {
+	const int32_t direct = label.get(x, y);
+	if (direct >= 0) {
+		return direct;
 	}
 	for (const auto& d : kNbrOffsets) {
-		auto it = label.find(key(x + d[0], y + d[1]));
-		if (it != label.end()) {
-			return static_cast<int32_t>(it->second);
+		const int32_t n = label.get(x + d[0], y + d[1]);
+		if (n >= 0) {
+			return n;
 		}
 	}
 	return -1;
@@ -588,8 +644,9 @@ private:
 			}
 		}
 
+		const auto floodT0 = std::chrono::steady_clock::now();
 		auto owned = std::make_shared<std::unordered_set<uint64_t>>();
-		if (zFloodPassableAt(origin_.x, origin_.y, origin_.z)) {
+		if (zFloodPassableFast(origin_.x, origin_.y, origin_.z)) {
 			flood(*owned, origin_.x, origin_.y);
 		} else {
 			// Origin itself unwalkable (mid-transition, or snapped onto a portal tile) — seed from
@@ -597,13 +654,18 @@ private:
 			for (const auto& d : kNbrOffsets) {
 				const int32_t nx = static_cast<int32_t>(origin_.x) + d[0];
 				const int32_t ny = static_cast<int32_t>(origin_.y) + d[1];
-				if (zFloodPassableAt(nx, ny, origin_.z)) {
+				if (zFloodPassableFast(nx, ny, origin_.z)) {
 					flood(*owned, nx, ny);
 					break;
 				}
 			}
 		}
 		set_ = owned;
+		// #135: what a computed flood costs (the leg pricer's share of a plan) and how big it is.
+		s_zFloodUsTotal += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::steady_clock::now() - floodT0).count());
+		s_zFloodCellsTotal += owned->size();
+		s_zFloodCountTotal++;
 
 		if (cache_ && cacheMax_ > 0) {
 			// Crude size bound: once full, drop the oldest-expiring entry. Floods are all
@@ -616,32 +678,70 @@ private:
 					}
 				}
 				cache_->erase(oldest);
+				s_zReachEvictions++;
 			}
 			(*cache_)[originKey] = { set_, now + ttlMs_ };
 		}
 	}
 
+	// #137: membership during the flood is a window bitset around the origin (every visited cell is
+	// within radius_ of it: a cell is only expanded while strictly inside the radius, so its
+	// neighbours are at most radius_ away), and the set is filled once per cell. Same visit order,
+	// same budget cut-off, same result as the set-probing flood it replaces.
 	void flood(std::unordered_set<uint64_t>& visited, int32_t sx, int32_t sy) {
 		auto keyOf = [this](int32_t x, int32_t y) {
 			return botTileKey(Position(static_cast<uint16_t>(x), static_cast<uint16_t>(y), origin_.z));
 		};
+		const int32_t ox = static_cast<int32_t>(origin_.x), oy = static_cast<int32_t>(origin_.y);
+		const int32_t side = 2 * radius_ + 3; // radius_ + 1 of slack on each side
+		// A plain local (~3.3 KB at radius 80), never thread_local: a thread_local with a destructor
+		// pins this .so in memory past dlclose, which would keep every inline global alive across
+		// `/cavebot reload` -- the "fresh engine every load" invariant.
+		std::vector<uint64_t> win((static_cast<size_t>(side) * side + 63) / 64, 0);
+		auto mark = [&](int32_t x, int32_t y) -> bool { // false when already marked or outside the window
+			const int32_t wx = x - ox + radius_ + 1, wy = y - oy + radius_ + 1;
+			if (static_cast<uint32_t>(wx) >= static_cast<uint32_t>(side) || static_cast<uint32_t>(wy) >= static_cast<uint32_t>(side)) {
+				return false;
+			}
+			const size_t bit = static_cast<size_t>(wy) * side + wx;
+			uint64_t& w = win[bit >> 6];
+			const uint64_t m = uint64_t(1) << (bit & 63);
+			if (w & m) {
+				return false;
+			}
+			w |= m;
+			return true;
+		};
+		auto seen = [&](int32_t x, int32_t y) -> bool {
+			const int32_t wx = x - ox + radius_ + 1, wy = y - oy + radius_ + 1;
+			if (static_cast<uint32_t>(wx) >= static_cast<uint32_t>(side) || static_cast<uint32_t>(wy) >= static_cast<uint32_t>(side)) {
+				return true;
+			}
+			const size_t bit = static_cast<size_t>(wy) * side + wx;
+			return (win[bit >> 6] >> (bit & 63)) & 1u;
+		};
 		std::vector<std::pair<int32_t, int32_t>> queue;
-		visited.insert(keyOf(sx, sy));
-		queue.push_back({ sx, sy });
-		while (!queue.empty() && visited.size() < budget_) {
+		size_t count = 0;
+		visited.reserve(4096);
+		if (mark(sx, sy)) {
+			visited.insert(keyOf(sx, sy));
+			++count;
+			queue.push_back({ sx, sy });
+		}
+		while (!queue.empty() && count < budget_) {
 			auto [cx, cy] = queue.back();
 			queue.pop_back();
-			if (std::max(std::abs(cx - static_cast<int32_t>(origin_.x)),
-			             std::abs(cy - static_cast<int32_t>(origin_.y))) >= radius_) {
+			if (std::max(std::abs(cx - ox), std::abs(cy - oy)) >= radius_) {
 				continue; // hit the leg-max boundary
 			}
 			for (const auto& d : kNbrOffsets) {
 				const int32_t nx = cx + d[0], ny = cy + d[1];
-				const uint64_t nk = keyOf(nx, ny);
-				if (visited.size() >= budget_ || visited.count(nk) || !zFloodPassableAt(nx, ny, origin_.z)) {
+				if (count >= budget_ || seen(nx, ny) || !zFloodPassableFast(nx, ny, origin_.z)) {
 					continue;
 				}
-				visited.insert(nk);
+				mark(nx, ny);
+				visited.insert(keyOf(nx, ny));
+				++count;
 				queue.push_back({ nx, ny });
 			}
 		}
@@ -658,6 +758,110 @@ private:
 	bool computed_ = false;
 	bool cacheHit_ = false;
 	BotEngine::ZReachSet set_; // shared with the cache when cached
+};
+
+// #139 D-real: the z-planner's flood. Same origin/seed/radius/budget rules and the same shared-cache
+// discipline as LocalReach, but the result is a walk-step field (botnav::ZStepField) on the bitmap, so
+// a leg is priced in real steps instead of Chebyshev. Membership is identical to LocalReach's at the
+// planner's budget (30000 >= the 161x161 disc), which is what keeps every reachability verdict -- and
+// therefore every route on open ground -- unchanged.
+using ZStepCacheMap = std::unordered_map<uint64_t, std::pair<BotEngine::ZStepPtr, int64_t>>;
+
+class StepReach {
+public:
+	StepReach(Position origin, int32_t radius, uint32_t budget, ZStepCacheMap* cache, uint64_t* hits, uint64_t* misses,
+	          int64_t ttlMs, size_t cacheMax) :
+		origin_(origin), radius_(radius), budget_(budget), cache_(cache), hits_(hits), misses_(misses), ttlMs_(ttlMs),
+		cacheMax_(cacheMax) { }
+
+	// Walk steps to p (p itself or, for a stair you stand beside, a neighbour + 1), or -1.
+	int32_t steps(const Position& p) {
+		if (p.z != origin_.z || botnav::zCheb(origin_, p) > radius_) {
+			return -1;
+		}
+		ensure();
+		return field_ ? field_->stepsTo(p) : -1;
+	}
+	bool reachable(const Position& p) {
+		return steps(p) >= 0;
+	}
+	uint32_t cellsVisited() const {
+		return field_ ? field_->cells : 0;
+	}
+	const BotEngine::ZStepPtr& field() {
+		ensure();
+		return field_;
+	}
+
+private:
+	void ensure() {
+		if (computed_) {
+			return;
+		}
+		computed_ = true;
+		const uint64_t originKey = botTileKey(origin_);
+		const int64_t now = OTSYS_TIME();
+		if (cache_) {
+			auto it = cache_->find(originKey);
+			if (it != cache_->end()) {
+				if (now < it->second.second) {
+					field_ = it->second.first;
+					if (hits_) {
+						++*hits_;
+					}
+					return;
+				}
+				cache_->erase(it);
+			}
+			if (misses_) {
+				++*misses_;
+			}
+		}
+		const auto floodT0 = std::chrono::steady_clock::now();
+		auto owned = std::make_shared<botnav::ZStepField>();
+		const uint8_t z = origin_.z;
+		auto pass = [z](int32_t x, int32_t y) { return zFloodPassableFast(x, y, z); };
+		if (pass(origin_.x, origin_.y)) {
+			owned->build(pass, origin_.x, origin_.y, z, radius_, origin_.x, origin_.y, 0, budget_);
+		} else {
+			for (const auto& d : kNbrOffsets) {
+				const int32_t nx = static_cast<int32_t>(origin_.x) + d[0], ny = static_cast<int32_t>(origin_.y) + d[1];
+				if (pass(nx, ny)) {
+					owned->build(pass, origin_.x, origin_.y, z, radius_, nx, ny, 1, budget_);
+					break;
+				}
+			}
+		}
+		field_ = owned;
+		s_zFloodUsTotal += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::steady_clock::now() - floodT0).count());
+		s_zFloodCellsTotal += owned->cells;
+		s_zFloodCountTotal++;
+		if (cache_ && cacheMax_ > 0) {
+			if (cache_->size() >= cacheMax_) {
+				auto oldest = cache_->begin();
+				for (auto i = cache_->begin(); i != cache_->end(); ++i) {
+					if (i->second.second < oldest->second.second) {
+						oldest = i;
+					}
+				}
+				cache_->erase(oldest);
+				s_zReachEvictions++;
+			}
+			(*cache_)[originKey] = { field_, now + ttlMs_ };
+		}
+	}
+
+	Position origin_;
+	int32_t radius_;
+	uint32_t budget_;
+	ZStepCacheMap* cache_ = nullptr;
+	uint64_t* hits_ = nullptr;
+	uint64_t* misses_ = nullptr;
+	int64_t ttlMs_ = 0;
+	size_t cacheMax_ = 0;
+	bool computed_ = false;
+	BotEngine::ZStepPtr field_;
 };
 
 // ============================================================================
@@ -1445,7 +1649,19 @@ constexpr uint32_t ZCACHE_MAGIC = 0x5A474331; // 'ZGC1'
 // the planner could believe in same-floor routes that A* refuses and in floor hops that lead
 // nowhere. Every cached graph through v10 was built with that flaw baked into its components, so
 // the version must move or the fix would be invisible on any machine with a warm cache.
-constexpr uint32_t ZCACHE_VERSION = 11;
+// v12 (#137) appends the static flood-passability bitmap (botnav::ZPassBitmap): one bit per cell with
+// zFloodPassableAt's answer at build time, read by the planner floods and the component pass. A v11
+// cache has no such section, so it must rebuild once -- the ~21 s synchronous freeze, now shorter
+// because the component pass runs on the bitmap.
+// v13 (#138) appends the whole-map component labels (botnav::ZCompLabels) after the bitmap, keyed by
+// the bitmap's canonical block ids (v12's block order was sweep order, hence the bump).
+// v14 (#139 D-real) appends the walk steps of every plain adjacency entry, keyed by the adjacency's
+// own hash so a changed adjacency recomputes them instead of misreading them.
+// v15 (#225): the flood predicate's cached-tile branch no longer counts blockPathFind items as walls
+// (the live-tile branch never did). Bitmap, components, oracle and step tables all change with it.
+// v16 (#225): ... and it recognises a teleport by its item TYPE, as Item::getTeleport() does, not only by
+// a stored destination (dest-less magic forcefields were passable in the cached branch only).
+constexpr uint32_t ZCACHE_VERSION = 16;
 
 std::string zCachePath() {
 	return "libbot_engine.zgraph.cache";
@@ -1546,7 +1762,7 @@ void BotEngine::buildFishingSpotIndex(const std::vector<Position>& waterCells) {
 					}
 					const int32_t nx = cx + dx, ny = cy + dy;
 					const uint64_t k = (static_cast<uint64_t>(nx) << 20) | static_cast<uint64_t>(ny);
-					if (seen.count(k) || !zFloodPassableAt(nx, ny, p.z)) {
+					if (seen.count(k) || !zFloodPassableFast(nx, ny, p.z)) {
 						continue;
 					}
 					seen.insert(k);
@@ -2015,6 +2231,66 @@ bool BotEngine::loadZGraphCache() {
 		}
 	}
 
+	// ---- v12 (#137): flood-passability bitmap ----
+	// Same all-or-nothing discipline: a short read clears everything and rebuilds.
+	{
+		auto bailPass = [&]() {
+			zPass_.clear();
+			return bailHouse();
+		};
+		uint32_t nBlocks = 0;
+		if (!zcRead(in, nBlocks)) {
+			return bailPass();
+		}
+		zPass_.raw.reserve(nBlocks);
+		for (uint32_t b = 0; b < nBlocks; ++b) {
+			int32_t bsx = 0, bsy = 0;
+			uint8_t bz = 0;
+			uint64_t w[4] = { 0, 0, 0, 0 };
+			if (!zcRead(in, bsx) || !zcRead(in, bsy) || !zcRead(in, bz) || !zcRead(in, w[0]) || !zcRead(in, w[1])
+				|| !zcRead(in, w[2]) || !zcRead(in, w[3])) {
+				return bailPass();
+			}
+			zPass_.addRaw(bsx, bsy, bz, w);
+		}
+		zPass_.finalize();
+		if (zPass_.blockCount() != nBlocks) {
+			return bailPass();
+		}
+		// ---- v13 (#138): component labels, by canonical block id ----
+		auto bailLab = [&]() {
+			zLab_.clear();
+			return bailPass();
+		};
+		uint32_t nComps = 0, nLab = 0, nPool = 0;
+		if (!zcRead(in, nComps) || !zcRead(in, nLab) || nLab != nBlocks) {
+			return bailLab();
+		}
+		zLab_.blockLab.resize(nLab);
+		if (nLab && !in.read(reinterpret_cast<char*>(zLab_.blockLab.data()), static_cast<std::streamsize>(nLab) * sizeof(uint32_t))) {
+			return bailLab();
+		}
+		if (!zcRead(in, nPool) || nPool % 256 != 0) {
+			return bailLab();
+		}
+		zLab_.pool.resize(nPool);
+		if (nPool && !in.read(reinterpret_cast<char*>(zLab_.pool.data()), static_cast<std::streamsize>(nPool) * sizeof(uint32_t))) {
+			return bailLab();
+		}
+		zLab_.components = nComps;
+		zLab_.mixedBlocks = nPool / 256;
+		// ---- v14 (#139): adjacency walk steps (staged; buildZAdjacency checks the key) ----
+		uint32_t nSteps = 0;
+		if (!zcRead(in, zAdjStepsCachedKey_) || !zcRead(in, nSteps)) {
+			return bailLab();
+		}
+		zAdjStepsCached_.resize(nSteps);
+		if (nSteps && !in.read(reinterpret_cast<char*>(zAdjStepsCached_.data()), static_cast<std::streamsize>(nSteps) * sizeof(uint16_t))) {
+			zAdjStepsCached_.clear();
+			return bailLab();
+		}
+	}
+
 	zGraph_.finalize();
 	zGraphReady_ = !zGraph_.empty();
 	if (zGraphReady_) {
@@ -2105,6 +2381,27 @@ void BotEngine::saveZGraphCache() {
 				}
 			}
 		}
+		// ---- v12 (#137): flood-passability bitmap, one record per stored block ----
+		zcWrite(o, zPass_.blockCount());
+		zPass_.forEachBlock([&](int32_t bsx, int32_t bsy, uint8_t bz, uint32_t id) {
+			zcWrite(o, bsx);
+			zcWrite(o, bsy);
+			zcWrite(o, bz);
+			for (int k = 0; k < 4; ++k) {
+				zcWrite(o, zPass_.bits[static_cast<size_t>(id) * 4 + k]);
+			}
+		});
+		// ---- v13 (#138): component labels (block ids are canonical, = the order just written) ----
+		zcWrite(o, zLab_.components);
+		zcWrite(o, static_cast<uint32_t>(zLab_.blockLab.size()));
+		o.write(reinterpret_cast<const char*>(zLab_.blockLab.data()),
+		        static_cast<std::streamsize>(zLab_.blockLab.size() * sizeof(uint32_t)));
+		zcWrite(o, static_cast<uint32_t>(zLab_.pool.size()));
+		o.write(reinterpret_cast<const char*>(zLab_.pool.data()), static_cast<std::streamsize>(zLab_.pool.size() * sizeof(uint32_t)));
+		// ---- v14 (#139): adjacency walk steps + the key of the adjacency they belong to ----
+		zcWrite(o, zAdjStepsKey_);
+		zcWrite(o, static_cast<uint32_t>(zAdjSteps_.size()));
+		o.write(reinterpret_cast<const char*>(zAdjSteps_.data()), static_cast<std::streamsize>(zAdjSteps_.size() * sizeof(uint16_t)));
 		if (!o) {
 			return;
 		}
@@ -2120,11 +2417,24 @@ void BotEngine::buildZPortalGraph() {
 	const int64_t t0 = botMonoMs();
 	s_zPortalBlacklist.clear();
 	s_plannedFc.clear();
+	g_zPassActive = nullptr;
+	zPass_.clear();
+	zLab_.clear();
+	zAdjStepsCached_.clear();
+	zAdjStepsCachedKey_ = 0;
 	// Reuse the cached graph when the map has not changed. This is what keeps /cavebot reload
 	// from freezing the server for ~22s.
 	if (loadZGraphCache()) {
 		g_logger().info("[ZGRAPH] loaded from cache: portals={} anchors={} in {} ms (map unchanged)",
 		                zGraph_.size(), zPortalComponent_.size(), botMonoMs() - t0);
+		g_zPassActive = zPass_.built() ? &zPass_ : nullptr;
+		g_logger().info("[ZPASS] loaded from cache: blocks={} passableCells={} MB={:.1f}", zPass_.blockCount(),
+		                zPass_.passableCells(), zPass_.bytes() / 1048576.0);
+		buildZAdjacency();
+		buildZOracle();
+		if (zAdjStepsComputed_) {
+			saveZGraphCache(); // the cached steps did not match this adjacency: persist the new ones
+		}
 		return;
 	}
 	zGraph_.clear();
@@ -2157,6 +2467,8 @@ void BotEngine::buildZPortalGraph() {
 				if (!floor) {
 					continue;
 				}
+				// #137 B: this sector-floor's passability bits, from the cell the sweep already holds.
+				uint64_t passW[4] = { 0, 0, 0, 0 };
 				for (int32_t i = 0; i < SECTOR_SIZE; ++i) {
 					for (int32_t j = 0; j < SECTOR_SIZE; ++j) {
 						// Upstream #4023 split the floor's (tile, cache) pair grid into a tile grid and
@@ -2167,6 +2479,10 @@ void BotEngine::buildZPortalGraph() {
 						}
 						cellsSeen++;
 						ZCell c { std::move(pairTC.tile), pairTC.cachedTile };
+						if (zFloodPassableCell(c)) {
+							const uint32_t cell = botnav::ZPassBitmap::cellOf(sx + i, sy + j);
+							passW[cell >> 6] |= uint64_t(1) << (cell & 63);
+						}
 						cellPortals.clear();
 						zClassifyCell(sx + i, sy + j, z, c, cellPortals);
 						for (const auto& p : cellPortals) {
@@ -2235,6 +2551,7 @@ void BotEngine::buildZPortalGraph() {
 						}
 					}
 				}
+				zPass_.addRaw(sx / SECTOR_SIZE, sy / SECTOR_SIZE, z, passW);
 			}
 		}
 	}
@@ -2243,6 +2560,13 @@ void BotEngine::buildZPortalGraph() {
 	zGraphReady_ = !zGraph_.empty();
 	g_logger().info("[ZGRAPH] portals={} sectors={} cells={} built in {} ms",
 	                zGraph_.size(), sectorsSeen, cellsSeen, botMonoMs() - t0);
+	{
+		const int64_t tp = botMonoMs();
+		zPass_.finalize();
+		g_zPassActive = zPass_.built() ? &zPass_ : nullptr;
+		g_logger().info("[ZPASS] built: blocks={} passableCells={} MB={:.1f} in {} ms", zPass_.blockCount(),
+		                zPass_.passableCells(), zPass_.bytes() / 1048576.0, botMonoMs() - tp);
+	}
 
 	buildFishingSpotIndex(waterCells);
 	buildHouseInteriorIndex(houseCells);
@@ -2263,6 +2587,7 @@ void BotEngine::buildZPortalGraph() {
 	// floor's walkable cells rather than the whole ~18M-cell map.
 	const int64_t t1 = botMonoMs();
 	zPortalComponent_.clear();
+	zLab_.clear();
 	bool hasPortalOnFloor[MAP_MAX_LAYERS] = {};
 	// Position::z is uint8_t, so a bad landing z (an underflowed z-1 == 255, say) indexes
 	// 239 bytes past this 16-byte array and silently corrupts the neighbouring local —
@@ -2286,32 +2611,38 @@ void BotEngine::buildZPortalGraph() {
 			"the per-floor component pass; this indicates a portal-producer bug",
 			droppedOutOfRange, static_cast<int>(MAP_MAX_LAYERS));
 	}
-	auto key2d = [](int32_t kx, int32_t ky) {
-		return (static_cast<uint32_t>(kx) << 16) | static_cast<uint32_t>(ky);
-	};
 	uint32_t labeledCells = 0, floorsLabeled = 0, componentsTotal = 0;
 	for (uint8_t z = 0; z < MAP_MAX_LAYERS; ++z) {
 		if (!hasPortalOnFloor[z]) {
 			continue;
 		}
 		++floorsLabeled;
-		std::unordered_map<uint32_t, uint32_t> label;
+		// #137: dense labels over the bitmap instead of an unordered_map keyed by cell, and bit tests
+		// instead of zFloodPassableAt. Same scan order (sector sx-major, then cell x-major) and the
+		// same 8-neighbour flood, so the partition AND the component ids are unchanged -- compare the
+		// [ZCOMP] line against a v11 build.
+		ZFloorLabels label(zPass_, z);
 		uint32_t nextComponent = 0;
 		std::vector<std::pair<int32_t, int32_t>> queue;
 		for (int32_t sx = SWEEP_MIN; sx < SWEEP_MAX; sx += SECTOR_SIZE) {
 			for (int32_t sy = SWEEP_MIN; sy < SWEEP_MAX; sy += SECTOR_SIZE) {
-				MapSector* sector = g_game().map.getMapSector(static_cast<uint32_t>(sx), static_cast<uint32_t>(sy));
-				if (!sector || !sector->getFloor(z)) {
-					continue;
+				const int64_t blk = zPass_.blockOf(sx, sy, z);
+				if (blk < 0) {
+					continue; // absent, or no passable cell: nothing to label
 				}
 				for (int32_t i = 0; i < SECTOR_SIZE; ++i) {
 					for (int32_t j = 0; j < SECTOR_SIZE; ++j) {
 						const int32_t x = sx + i, y = sy + j;
-						if (label.count(key2d(x, y)) || !zFloodPassableAt(x, y, z)) {
+						if (!zPass_.bitAt(blk, botnav::ZPassBitmap::cellOf(x, y))) {
+							continue;
+						}
+						uint32_t* s0 = label.slot(x, y);
+						if (*s0 != ZFloorLabels::NONE) {
 							continue;
 						}
 						const uint32_t compId = nextComponent++;
-						label[key2d(x, y)] = compId;
+						*s0 = compId;
+						++label.labelled;
 						queue.clear();
 						queue.push_back({ x, y });
 						while (!queue.empty()) {
@@ -2319,10 +2650,15 @@ void BotEngine::buildZPortalGraph() {
 							queue.pop_back();
 							for (const auto& d : kNbrOffsets) {
 								const int32_t nx = cx + d[0], ny = cy + d[1];
-								if (label.count(key2d(nx, ny)) || !zFloodPassableAt(nx, ny, z)) {
+								if (!zPass_.passable(nx, ny, z)) {
 									continue;
 								}
-								label[key2d(nx, ny)] = compId;
+								uint32_t* ns = label.slot(nx, ny);
+								if (*ns != ZFloorLabels::NONE) {
+									continue;
+								}
+								*ns = compId;
+								++label.labelled;
 								queue.push_back({ nx, ny });
 							}
 						}
@@ -2433,11 +2769,29 @@ void BotEngine::buildZPortalGraph() {
 			}
 		}
 
+		// #138 C': keep this floor's labels (global ids = this floor's base + the local id) instead of
+		// discarding them, compressed per block (see botnav::ZCompLabels).
+		{
+			const auto& fi = zPass_.floors[z];
+			uint32_t cellsBuf[256];
+			for (uint32_t b = 0; b < fi.count; ++b) {
+				const uint32_t* src = &label.lab[static_cast<size_t>(b) * 256];
+				for (int c = 0; c < 256; ++c) {
+					cellsBuf[c] = src[c] == ZFloorLabels::NONE ? botnav::ZCompLabels::NONE : componentsTotal + src[c];
+				}
+				zLab_.setBlock(fi.first + b, cellsBuf);
+			}
+		}
 		labeledCells += static_cast<uint32_t>(label.size());
 		componentsTotal += nextComponent;
 	}
-	g_logger().info("[ZCOMP] floors={} components={} anchors={} labeledCells={} in {} ms",
-	                floorsLabeled, componentsTotal, zPortalComponent_.size(), labeledCells, botMonoMs() - t1);
+	zLab_.components = componentsTotal;
+	if (zLab_.blockLab.size() < zPass_.blockCount()) {
+		zLab_.blockLab.resize(zPass_.blockCount(), botnav::ZCompLabels::NONE);
+	}
+	g_logger().info("[ZCOMP] floors={} components={} anchors={} labeledCells={} mixedBlocks={} labelsMB={:.1f} in {} ms",
+	                floorsLabeled, componentsTotal, zPortalComponent_.size(), labeledCells, zLab_.mixedBlocks,
+	                zLab_.bytes() / 1048576.0, botMonoMs() - t1);
 	{
 		uint32_t kept = 0;
 		for (const auto& [t, v] : fishingSpots_) {
@@ -2446,7 +2800,10 @@ void BotEngine::buildZPortalGraph() {
 		g_logger().info("[BotFish] reachability filter: dropped {} unreachable spot(s), {} remain "
 		                "across {} town(s)", zFishDropped_, kept, fishingSpots_.size());
 	}
-	// Persist so the next reload (and the next restart) skips all of the above.
+	// Persist so the next reload (and the next restart) skips all of the above. After the adjacency:
+	// its walk steps (#139) are part of the cache.
+	buildZAdjacency();
+	buildZOracle();
 	saveZGraphCache();
 }
 
@@ -2674,6 +3031,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		audPath.result("deferred");
 		lastZPlanResult_ = ZPlanResult::DEFERRED;
 		s_zPlanDeferrals++;
+		s_zStat60sShortcut++;
 		auto& st = s_zPlanDeferStreak[forGuid];
 		st.count++;
 		st.lastMs = OTSYS_TIME();
@@ -2699,6 +3057,9 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 	const uint64_t negHashBot = forGuid ? (negHash ^ (forGuid * 0x9e3779b1ull)) : negHash;
 	const int64_t negNow = OTSYS_TIME();
 	for (const uint64_t probe : { negHash, negHashBot }) {
+		if (zPlanBenchNoNeg_) {
+			break; // /cavebot zbench: measure the search, not the cached verdict
+		}
 		auto it = s_zNegCache.find(probe);
 		if (it == s_zNegCache.end()) {
 			continue;
@@ -2713,6 +3074,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 			audPath.result("fail-cached");
 			lastZPlanResult_ = ZPlanResult::FAIL_CACHED;
 			s_zNegHits++;
+			s_zStat60sShortcut++;
 			if (negNow - s_zNegLastLogMs > 30000) {
 				s_zNegLastLogMs = negNow;
 				g_logger().info("[ZPLAN_NEGCACHE] {} suppressed re-plans, {} entries "
@@ -2742,6 +3104,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 				audPath.result("backoff");
 				lastZPlanResult_ = ZPlanResult::BACKOFF;
 				s_zAbortBackoffHits++;
+				s_zStat60sShortcut++;
 				if (negNow - s_zAbortBackoffLastLogMs > 30000) {
 					s_zAbortBackoffLastLogMs = negNow;
 					g_logger().info("[ZPLAN_BACKOFF] {} re-plans suppressed, {} pair(s) backing off "
@@ -2754,13 +3117,29 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		}
 		} // for abKey
 	}
+	// #138 C': provably unreachable pairs are answered before any flood or search. Negative-only: a
+	// "maybe" falls through to the real planner. Not a deferral but a real FAIL (callers may blacklist
+	// or give up exactly as after a failed search), which is why the oracle must never err towards
+	// "unreachable" -- `/cavebot zoracle` checks that falseUnreachable stays 0.
+	if (!zOracleOff_ && zOracleVerdict(from, target) == 2) {
+		audPath.result("fail-oracle");
+		lastZPlanResult_ = ZPlanResult::FAIL;
+		s_zOracleUnreach++;
+		s_zStat60sShortcut++;
+		s_zStat60sOracle++;
+		return false;
+	}
 	// New floods this attempt computes (cache misses) = progress a retry will reuse. See below.
 	const uint64_t reachMissesBefore = zReachMisses_;
+	// #135: cost split of this search (see ZPlanCost).
+	const auto costT0 = std::chrono::steady_clock::now();
+	const uint64_t floodUs0 = s_zFloodUsTotal, floods0 = s_zFloodCountTotal, floodCells0 = s_zFloodCellsTotal;
+	ZPlanCost planCost;
 
-	LocalReach startReach(from, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_,
+	StepReach startReach(from, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_,
+	                     &zReachMisses_, Z_REACH_TTL_MS, Z_REACH_CACHE_MAX);
+	StepReach targetReach(target, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_,
 	                      &zReachMisses_, Z_REACH_TTL_MS, Z_REACH_CACHE_MAX);
-	LocalReach targetReach(target, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_,
-	                       &zReachMisses_, Z_REACH_TTL_MS, Z_REACH_CACHE_MAX);
 	// Declared before legCost so the leg pricer can honour the deadline too (#116). planZRoute
 	// checks its deadline only between batches of 64 settles, and one settle can price several
 	// unlabelled portals, each a fresh flood of up to Z_END_LEG_BUDGET cells -- which is how a
@@ -2769,6 +3148,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 	// see the constant for the worst case). The verdict a timed-out leg returns (-1) never
 	// escapes: planAborted is set, and every consumer below treats an aborted search as "no answer".
 	bool planAborted = false;
+	ZPlanCost legCostStats; // only the leg* branch fields are used
 	int64_t legDeadlineMs = 0; // 0 = no deadline (admin calls); set with pp.deadlineMonoMs below
 	auto legCost = [&, forceGraph](const Position& a, const Position& b) -> int32_t {
 		if (legDeadlineMs != 0 && (planAborted || botnav::zSteadyMs() > legDeadlineMs)) {
@@ -2795,16 +3175,31 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		int32_t cost = -1;
 		if (a == from) {
 			why = "startReach";
-			cost = startReach.reachable(b) ? 10 * botnav::zCheb(a, b) : -1;
+			legCostStats.legStart++;
+			const int32_t st = startReach.steps(b); // #139 D-real: walk steps, not Chebyshev
+			cost = st >= 0 ? 10 * st : -1;
 		} else if (b == target) {
 			why = "targetReach";
-			cost = targetReach.reachable(a) ? 10 * botnav::zCheb(a, b) : -1;
+			legCostStats.legTarget++;
+			const int32_t st = targetReach.steps(a);
+			cost = st >= 0 ? 10 * st : -1;
 		} else {
 			auto ca = zPortalComponent_.find(botTileKey(a));
 			auto cb = zPortalComponent_.find(botTileKey(b));
 			if (ca != zPortalComponent_.end() && cb != zPortalComponent_.end()) {
+				legCostStats.legComp++;
 				why = ca->second == cb->second ? "component=" : "component!=";
-				cost = ca->second == cb->second ? 10 * botnav::zCheb(a, b) : -1;
+				cost = -1;
+				if (ca->second == cb->second) {
+					// #139 D-real: the same steps the adjacency kernel uses (table, else one flood).
+					int32_t st = zInteriorStepsLookup(a, b);
+					if (st == -2) {
+						StepReach r(a, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_, &zReachMisses_, Z_REACH_TTL_MS,
+							Z_REACH_CACHE_MAX);
+						st = r.steps(b);
+					}
+					cost = zStepsCost(st >= 0 ? static_cast<uint16_t>(st) : uint16_t(0xFFFF), botnav::zCheb(a, b));
+				}
 			} else {
 				why = ca == zPortalComponent_.end() && cb == zPortalComponent_.end()
 					? "adhoc(a,b unlabelled)"
@@ -2819,9 +3214,11 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 				// planZRoute is plain Dijkstra with a 4096-portal settle budget, so a deeper goal
 				// settles more portals, and every unlabelled one paid its own up-to-30k-cell
 				// flood. The budget caps expansions, never the cost per expansion.
-				LocalReach adhoc(a, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_,
-				                 &zReachMisses_, Z_REACH_TTL_MS, Z_REACH_CACHE_MAX);
-				cost = adhoc.reachable(b) ? 10 * botnav::zCheb(a, b) : -1;
+				legCostStats.legAdhoc++;
+				StepReach adhoc(a, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_,
+				                &zReachMisses_, Z_REACH_TTL_MS, Z_REACH_CACHE_MAX);
+				const int32_t st = adhoc.steps(b);
+				cost = st >= 0 ? 10 * st : -1;
 			}
 		}
 		if (zPlanTrace_) {
@@ -2868,11 +3265,14 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 	// fresh uncached flood. Exact test, not a heuristic: skipping only when nothing was excluded
 	// cannot change any outcome.
 	uint32_t blacklistExclusions = 0;
-	auto exclude = [this, justUsed, &blacklistExclusions](const botnav::ZPortal& p) {
+	// #224: an admin job slice ignores the blacklist (see zAdminPlanSlice), so a resumed search
+	// never sees it change under it and both kernels of a parity pair price the same graph.
+	const bool useBlacklist = !zAdminSliceMode_;
+	auto exclude = [this, justUsed, useBlacklist, &blacklistExclusions](const botnav::ZPortal& p) {
 		if (justUsed != 0 && botTileKey(p.pos) == justUsed) {
 			return true;
 		}
-		if (zPortalBlacklisted(p.pos)) {
+		if (useBlacklist && !s_zPortalBlacklist.empty() && zPortalBlacklisted(p.pos)) {
 			blacklistExclusions++;
 			return true;
 		}
@@ -2895,7 +3295,46 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		// search budget (#116 review): the settle-cadence check above stays the main cut.
 		legDeadlineMs = pp.deadlineMonoMs + Z_PLAN_LEG_EXTRA_BUDGET_MS;
 	}
-	bool ok = botnav::planZRoute(zGraph_, from, target, hops, pp, legCost, exclude);
+	uint32_t settles1 = 0, legCalls1 = 0, settles2 = 0, legCalls2 = 0;
+	pp.outExpansions = &settles1;
+	pp.outLegCalls = &legCalls1;
+	// #139 D0: the precomputed-adjacency kernel (bit-identical routes; see bot_zcore.hpp). The legCost
+	// trace (`zplan -v`) needs every leg priced through legCost, so it keeps the reference kernel.
+	const bool useAdj = zPlanUseAdj_ && zAdj_.built() && !zPlanTrace_;
+	// #224: an admin job slice (forGuid 0) stops at its slice deadline and both kernels save their
+	// search to resume it next slice. No leg-pricer cut (legDeadlineMs stays 0): a leg priced -1 for
+	// lack of time would poison the saved search.
+	if (zAdminSliceMode_ && forGuid == 0) {
+		pp.deadlineMonoMs = zAdminDeadlineMs_;
+		pp.outAborted = &planAborted;
+		pp.resume = &zAdminResume_;
+	}
+	botnav::ZPlanScratch& scratch = zAdminSliceMode_ ? zAdminScratch_ : zScratch_;
+	uint32_t interiorCalls = 0;
+	auto interiorCost = [&](uint32_t i, uint32_t j, uint32_t e) -> int32_t {
+		// legCost's deadline backstop, amortised: one clock read per 32 interior legs.
+		if (legDeadlineMs != 0 && (planAborted || ((++interiorCalls & 31u) == 0 && botnav::zSteadyMs() > legDeadlineMs))) {
+			planAborted = true;
+			return -1;
+		}
+		const Position& a = zGraph_.at(i).landing;
+		const Position& b = zGraph_.at(j).pos;
+		// legCost's force-placed-landing guard: judged on the tile itself, live.
+		if ((zAdjLandingForced_[i] && !zFloodPassableAt(a.x, a.y, a.z))
+		    || (zAdjPosForced_[j] && !zFloodPassableAt(b.x, b.y, b.z))) {
+			return -1;
+		}
+		legCostStats.legComp++;
+		// #139 D-real: the precomputed walk steps of this entry.
+		return e < zAdjSteps_.size() ? zStepsCost(zAdjSteps_[e], botnav::zCheb(a, b)) : 10 * botnav::zCheb(a, b);
+	};
+	auto runKernel = [&](std::vector<botnav::ZRouteHop>& out, auto&& excl) {
+		return useAdj ? botnav::planZRouteAdj(zGraph_, zAdj_, scratch, from, target, out, pp, legCost, interiorCost, excl)
+		              : botnav::planZRoute(zGraph_, from, target, out, pp, legCost, excl);
+	};
+	bool ok = runKernel(hops, exclude);
+	pp.outExpansions = &settles2;
+	pp.outLegCalls = &legCalls2;
 	if (ok) {
 		// A route found from legs priced before the deadline is a real route even if the leg
 		// pricer timed out on some OTHER branch; keep it.
@@ -2917,7 +3356,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 			return justUsed != 0 && botTileKey(p.pos) == justUsed;
 		};
 		std::vector<botnav::ZRouteHop> hops2;
-		if (botnav::planZRoute(zGraph_, from, target, hops2, pp, legCost, excludeJustUsedOnly)) {
+		if (runKernel(hops2, excludeJustUsedOnly)) {
 			hops = std::move(hops2);
 			ok = true;
 			planAborted = false; // see the note after the first pass
@@ -2959,6 +3398,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 				const int64_t waitMs = std::min(Z_ABORT_BACKOFF_BASE_MS << shift, Z_ABORT_BACKOFF_MAX_MS);
 				e.retryAtMs = nowMs + waitMs;
 				lastZPlanBackoffArmed_ = true;
+				s_zStat60sArmed++;
 				g_logger().info("[ZPLAN_BACKOFF] armed ({},{},{})->({},{},{}) streak={} progress={} "
 					"next attempt in {}ms guid={}{}",
 					from.x, from.y, from.z, target.x, target.y, target.z, e.streak, cacheProgress ? 1 : 0,
@@ -3009,7 +3449,7 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 			s_zNegCache[perBotHash] = ZNegEntry { negSrc, negTgt, forceGraph, expiry, forGuid };
 		}
 	}
-	if (!ok && !planAborted && justUsed == 0) {
+	if (!ok && !planAborted && justUsed == 0 && !zPlanBenchNoNeg_) {
 		if (s_zNegCache.size() >= Z_NEG_CACHE_MAX) {
 			// Cheap reclaim: drop expired entries first, and if none are expired, clear. This is
 			// a miss-cost optimisation, not a correctness structure -- losing it costs one slow
@@ -3023,7 +3463,8 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 		s_zNegCache[negHash] = ZNegEntry { negSrc, negTgt, forceGraph, OTSYS_TIME() + Z_NEG_TTL_MS, 0 };
 	}
 
-	if (planAborted) {
+	zAdminAborted_ = planAborted;
+	if (planAborted && forGuid != 0) {
 		s_zPlanDeferrals++;
 		auto& st = s_zPlanDeferStreak[forGuid];
 		st.count++;
@@ -3045,15 +3486,1284 @@ bool BotEngine::zPlanFullRoute(const Position& from, const Position& target, std
 	}
 	audPath.expanded = static_cast<int64_t>(startReach.cellsVisited() + targetReach.cellsVisited());
 	const int64_t planMs = botMonoMs() - planStart;
+	// #135: record the cost split of this search (it ran: every shortcut returned above).
+	planCost.totalUs = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+		std::chrono::steady_clock::now() - costT0).count());
+	planCost.floodUs = static_cast<uint32_t>(s_zFloodUsTotal - floodUs0);
+	planCost.floods = static_cast<uint32_t>(s_zFloodCountTotal - floods0);
+	planCost.floodCells = static_cast<uint32_t>(s_zFloodCellsTotal - floodCells0);
+	planCost.settles = settles1 + settles2;
+	planCost.legCalls = legCalls1 + legCalls2;
+	planCost.legStart = legCostStats.legStart;
+	planCost.legTarget = legCostStats.legTarget;
+	planCost.legComp = legCostStats.legComp;
+	planCost.legAdhoc = legCostStats.legAdhoc;
+	planCost.hops = static_cast<uint32_t>(hops.size());
+	planCost.result = ok ? "ok" : (planAborted ? "abort" : "fail");
+	s_zLastPlanCost = planCost;
+	if (forGuid != 0) { // live plans only: /cavebot zbench and zplan must not skew the live figures
+		s_zStat60sRuns++;
+		(ok ? s_zStat60sOk : (planAborted ? s_zStat60sAbort : s_zStat60sFail))++;
+		s_zStat60sLegCalls += planCost.legCalls;
+		s_zStat60sSettles += planCost.settles;
+		s_zStat60sAdhoc += planCost.legAdhoc;
+		s_zStat60sTotalUs += planCost.totalUs;
+		s_zStat60sFloodUs += planCost.floodUs;
+		s_zStat60sFloods += planCost.floods;
+		s_zStat60sUsMax = std::max(s_zStat60sUsMax, planCost.totalUs);
+		if (s_zStat60sUs.size() < 4096) {
+			s_zStat60sUs.push_back(planCost.totalUs);
+		}
+	}
 	if (planMs >= Z_PLAN_SLOW_MS) {
 		// The end-leg floods are the only unbounded-ish cost here; report their actual size so
-		// Z_END_LEG_BUDGET can be tuned from evidence rather than guessed at again.
-		g_logger().warn("[ZPLAN_SLOW]{} {}ms ({},{},{})->({},{},{}) hops={} startFlood={} targetFlood={}",
+		// Z_END_LEG_BUDGET can be tuned from evidence rather than guessed at again. #135 adds the
+		// split: settles / legs = the graph search's fan-out, floods / floodMs = the leg pricer.
+		g_logger().warn("[ZPLAN_SLOW]{} {}ms ({},{},{})->({},{},{}) hops={} startFlood={} targetFlood={} "
+			"settles={} legs={} adhoc={} floods={} floodMs={:.1f}",
 			planAborted ? " ABORTED" : "",
 			planMs, from.x, from.y, from.z, target.x, target.y, target.z,
-			hops.size(), startReach.cellsVisited(), targetReach.cellsVisited());
+			hops.size(), startReach.cellsVisited(), targetReach.cellsVisited(),
+			planCost.settles, planCost.legCalls, planCost.legAdhoc, planCost.floods, planCost.floodUs / 1000.0);
 	}
 	return ok;
+}
+
+// #135: the census behind `/cavebot zstat census` (#224: a tick-sliced admin job; ~1-2 s of work on the
+// full map, which used to be one dispatcher freeze). It answers the sizing questions the
+// nav-precompute steps are gated on:
+//   - how many portal endpoints carry no component label, and why (each one costs an ad-hoc flood);
+//   - how many (sector, floor) pairs exist (the RAM of any per-cell static layer: bitmap, labels);
+//   - the planner's fan-out: portals inside each settle's legMax box (what one settle prices today)
+//     versus same-component edges (what a precomputed adjacency would store).
+std::string BotEngine::zCensus() {
+	if (!zGraphReady_) {
+		return "zstat census: portal graph not built";
+	}
+	struct S {
+		int phase = 0;
+		uint32_t i = 0;
+		uint32_t labelled = 0, unlabelled = 0, unlabelledNoPassable = 0, unlabelledMissingTile = 0;
+		std::unordered_map<std::string, uint32_t> unlabelledBy; // "<kind>:<pos|landing>"
+		uint32_t sectors = 0, sectorFloors = 0;
+		std::vector<uint32_t> boxHits;
+		uint64_t boxTotal = 0, sameComp = 0, adhocCand = 0, diffComp = 0;
+	};
+	auto st = std::make_shared<S>();
+	auto job = std::make_unique<ZAdminJob>();
+	job->name = "zstat census";
+	job->step = [this, st, self = job.get()](int64_t deadlineMs) -> bool {
+		S& s = *st;
+		const auto& portals = zGraph_.portals();
+		auto compOf = [this](const Position& p) -> int64_t {
+			auto it = zPortalComponent_.find(botTileKey(p));
+			return it == zPortalComponent_.end() ? -1 : static_cast<int64_t>(it->second);
+		};
+		// ---- unlabelled endpoints ----
+		while (s.phase == 0) {
+			if ((s.i & 63u) == 0 && s.i != 0 && botnav::zSteadyMs() > deadlineMs) {
+				self->progress = fmt::format("endpoints {}/{}", s.i, portals.size());
+				return false;
+			}
+			if (s.i >= portals.size()) {
+				s.phase = 1;
+				s.i = 0;
+				break;
+			}
+			const auto& p = portals[s.i++];
+			for (int end = 0; end < 2; ++end) {
+				const Position& e = end == 0 ? p.pos : p.landing;
+				if (compOf(e) >= 0) {
+					s.labelled++;
+					continue;
+				}
+				s.unlabelled++;
+				s.unlabelledBy[fmt::format("{}:{}", botnav::zPortalKindName(p.kind), end == 0 ? "pos" : "landing")]++;
+				if (!zCellAt(e.x, e.y, e.z).exists()) {
+					s.unlabelledMissingTile++;
+				}
+				bool anyPassable = zFloodPassableAt(e.x, e.y, e.z);
+				for (const auto& d : kNbrOffsets) {
+					anyPassable = anyPassable || zFloodPassableAt(e.x + d[0], e.y + d[1], e.z);
+				}
+				if (!anyPassable) {
+					s.unlabelledNoPassable++;
+				}
+			}
+		}
+		// ---- present (sector, floor) pairs (~1M sector lookups, sliced) ----
+		while (s.phase == 1) {
+			constexpr int32_t SWEEP_MIN = 24576, SWEEP_MAX = 40960; // buildZPortalGraph's sweep extent
+			constexpr uint32_t PER_AXIS = static_cast<uint32_t>((SWEEP_MAX - SWEEP_MIN) / SECTOR_SIZE);
+			if (s.i >= PER_AXIS * PER_AXIS) {
+				s.phase = 2;
+				s.i = 0;
+				s.boxHits.reserve(portals.size());
+				break;
+			}
+			if ((s.i & 1023u) == 0 && botnav::zSteadyMs() > deadlineMs) {
+				self->progress = fmt::format("sectors {}/{}", s.i, PER_AXIS * PER_AXIS);
+				return false;
+			}
+			const int32_t sx = SWEEP_MIN + static_cast<int32_t>(s.i / PER_AXIS) * SECTOR_SIZE;
+			const int32_t sy = SWEEP_MIN + static_cast<int32_t>(s.i % PER_AXIS) * SECTOR_SIZE;
+			s.i++;
+			MapSector* sector = g_game().map.getMapSector(static_cast<uint32_t>(sx), static_cast<uint32_t>(sy));
+			if (!sector) {
+				continue;
+			}
+			s.sectors++;
+			for (uint8_t z = 0; z < MAP_MAX_LAYERS; ++z) {
+				if (sector->getFloor(z)) {
+					s.sectorFloors++;
+				}
+			}
+		}
+		// ---- planner fan-out per settle ----
+		while (s.phase == 2) {
+			if ((s.i & 7u) == 0 && s.i != 0 && botnav::zSteadyMs() > deadlineMs) {
+				self->progress = fmt::format("fan-out {}/{}", s.i, portals.size());
+				return false;
+			}
+			if (s.i >= portals.size()) {
+				s.phase = 3;
+				break;
+			}
+			const uint32_t i = s.i++;
+			const auto& p = portals[i];
+			const int64_t ca = compOf(p.landing);
+			uint32_t hits = 0;
+			zGraph_.forEachOnFloorNear(p.landing.z, p.landing, Z_LEG_MAX, [&](uint32_t j, const botnav::ZPortal& q) {
+				if (j == i) {
+					return;
+				}
+				hits++;
+				const int64_t cb = compOf(q.pos);
+				if (ca < 0 || cb < 0) {
+					s.adhocCand++;
+				} else if (ca == cb) {
+					s.sameComp++;
+				} else {
+					s.diffComp++;
+				}
+			});
+			s.boxHits.push_back(hits);
+			s.boxTotal += hits;
+		}
+		auto& boxHits = s.boxHits;
+		std::sort(boxHits.begin(), boxHits.end());
+		auto pct = [&](double q) -> uint32_t {
+			return boxHits.empty() ? 0 : boxHits[std::min(boxHits.size() - 1, static_cast<size_t>(q * boxHits.size()))];
+		};
+		// ---- reach cache footprint (libstdc++ unordered_set<uint64_t>: 16 B node + ~16 B malloc
+		// overhead per cell, plus the bucket array) ----
+		uint64_t cacheCells = 0, cacheBytes = 0;
+		for (const auto& [key, entry] : zReachCache_) {
+			if (entry.first) {
+				cacheCells += entry.first->cells;
+				cacheBytes += entry.first->bytes();
+			}
+		}
+		const uint32_t labelled = s.labelled, unlabelled = s.unlabelled;
+		std::string out = fmt::format(
+			"[ZCENSUS] portals={} endpoints={} labelled={} unlabelled={} ({:.1f}%) noPassableIn3x3={} missingTile={}\n",
+			portals.size(), labelled + unlabelled, labelled, unlabelled,
+			labelled + unlabelled ? 100.0 * unlabelled / (labelled + unlabelled) : 0.0, s.unlabelledNoPassable,
+			s.unlabelledMissingTile);
+		std::vector<std::pair<std::string, uint32_t>> by(s.unlabelledBy.begin(), s.unlabelledBy.end());
+		std::sort(by.begin(), by.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+		out += "[ZCENSUS] unlabelled by kind:end:";
+		for (const auto& [k, n] : by) {
+			out += fmt::format(" {}={}", k, n);
+		}
+		out += fmt::format("\n[ZCENSUS] sectors={} sectorFloors={} (1 bit/cell = {:.1f} MB, 1 B/cell = {:.1f} MB)\n",
+			s.sectors, s.sectorFloors, s.sectorFloors * 256.0 / 8 / 1048576.0, s.sectorFloors * 256.0 / 1048576.0);
+		out += fmt::format("[ZCENSUS] fan-out per settle (portals in the legMax={} box): avg={:.0f} p50={} p90={} p99={} max={} | "
+			"sameCompEdges={} ({:.1f} MB at 8 B) diffComp={} adhocCandidates={}\n",
+			Z_LEG_MAX, portals.empty() ? 0.0 : static_cast<double>(s.boxTotal) / portals.size(), pct(0.5), pct(0.9), pct(0.99),
+			boxHits.empty() ? 0 : boxHits.back(), s.sameComp, s.sameComp * 8.0 / 1048576.0, s.diffComp, s.adhocCand);
+		out += fmt::format("[ZCENSUS] reachCache entries={}/{} cells={} approxMB={:.1f} evictions={} hits={} misses={} | "
+			"floods computed={} avgCells={:.0f} avgUs={:.0f} usPerCell={:.2f}",
+			zReachCache_.size(), Z_REACH_CACHE_MAX, cacheCells, cacheBytes / 1048576.0, s_zReachEvictions, zReachHits_,
+			zReachMisses_, s_zFloodCountTotal,
+			s_zFloodCountTotal ? static_cast<double>(s_zFloodCellsTotal) / s_zFloodCountTotal : 0.0,
+			s_zFloodCountTotal ? static_cast<double>(s_zFloodUsTotal) / s_zFloodCountTotal : 0.0,
+			s_zFloodCellsTotal ? static_cast<double>(s_zFloodUsTotal) / s_zFloodCellsTotal : 0.0);
+		self->result = std::move(out);
+		return true;
+	};
+	return zJobStart(std::move(job));
+}
+
+// #213: the justUsed guard means "the portal this bot just came through", and the per-bot negative
+// and backoff entries were recorded under it. After a teleport that history describes a place the bot
+// is no longer at, and it actively hurts: the nav213 wave climbed the wrong stair because an operator
+// teleport sent the bot back to the temple 36 s after it took (32350,32246,7), so the guard excluded
+// the ONLY stair whose landing reaches the target, the plan failed (and was cached as a per-bot
+// negative), and the greedy fallback picked the nearest stair into an isolated room. Ping-pong needs
+// continuous walking; a jump breaks it. Called from commandResetWalk (operator teleport / goto / pin)
+// and from processBot's unexpected-teleport branch when no floor change is in progress.
+bool BotEngine::zForgetBotPlanHistory(uint32_t guid, const char* reason) {
+	const bool justUsed = s_zLastPortalUsed.erase(guid) > 0;
+	const size_t neg = std::erase_if(s_zNegCache, [guid](const auto& kv) { return kv.second.guid == guid; });
+	const size_t backoff = std::erase_if(s_zAbortBackoff, [guid](const auto& kv) { return kv.second.guid == guid; });
+	const bool hop = s_plannedHop.erase(guid) > 0;
+	s_zLegPlan.erase(guid);
+	s_zPlanWait.erase(guid);
+	const bool any = justUsed || neg > 0 || backoff > 0 || hop;
+	if (any) {
+		g_logger().info("[ZPLAN_FORGET] guid={} reason={} justUsed={} negPerBot={} backoffPerBot={} plannedHop={}", guid,
+			reason, justUsed ? 1 : 0, neg, backoff, hop ? 1 : 0);
+	}
+	return any;
+}
+
+// #139 D0: rebuild the precomputed same-floor portal adjacency from the graph and the component
+// labels. Runs on every graph load (cache hit or rebuild); it is a pure function of the two, so it is
+// not persisted and needs no ZCACHE_VERSION bump. Logged as [ZADJ] with its size and build time.
+BotEngine::ZStepPtr BotEngine::zWalkStepsFrom(const Position& origin) {
+	if (!zGraphReady_) {
+		return nullptr;
+	}
+	StepReach r(origin, Z_LEG_MAX, Z_END_LEG_BUDGET, &zReachCache_, &zReachHits_, &zReachMisses_, Z_REACH_TTL_MS,
+		Z_REACH_CACHE_MAX);
+	return r.field();
+}
+
+int32_t BotEngine::zInteriorStepsLookup(const Position& a, const Position& b) const {
+	auto it = zLandingToPortal_.find(botTileKey(a));
+	if (it == zLandingToPortal_.end() || zAdjSteps_.size() != zAdj_.to.size()) {
+		return -2;
+	}
+	const uint32_t i = it->second;
+	for (uint32_t e = zAdj_.start[i]; e < zAdj_.start[i + 1]; ++e) {
+		const uint32_t t = zAdj_.to[e];
+		if (!(t & botnav::ZPortalAdjacency::ADHOC) && zGraph_.at(t).pos == b) {
+			return zAdjSteps_[e] == 0xFFFF ? -1 : zAdjSteps_[e];
+		}
+	}
+	return -2;
+}
+
+void BotEngine::buildZAdjacency() {
+	const int64_t t0 = botMonoMs();
+	zAdj_.clear();
+	zAdjLandingForced_.clear();
+	zAdjPosForced_.clear();
+	if (zGraph_.empty()) {
+		return;
+	}
+	const auto& portals = zGraph_.portals();
+	// The SAME lookup legCost's interior branch uses: the exact anchor key, no neighbour fallback
+	// (the build already projected each anchor's label).
+	uint32_t deadEndpoints = 0;
+	zAdj_.build(zGraph_, Z_LEG_MAX, [this, &deadEndpoints](const Position& p) -> int64_t {
+		auto it = zPortalComponent_.find(botTileKey(p));
+		if (it != zPortalComponent_.end()) {
+			return static_cast<int64_t>(it->second);
+		}
+		// D0b: unlabelled. DEAD when nothing in its 3x3 is flood-passable (see ZPortalAdjacency). #139:
+		// judged on the bitmap -- the floods' own model -- so the adjacency is a pure function of the
+		// zcache and the persisted per-entry walk steps stay aligned with it.
+		if (zFloodPassableFast(p.x, p.y, p.z)) {
+			return -1;
+		}
+		for (const auto& d : kNbrOffsets) {
+			if (zFloodPassableFast(p.x + d[0], p.y + d[1], p.z)) {
+				return -1;
+			}
+		}
+		++deadEndpoints;
+		return botnav::ZPortalAdjacency::DEAD;
+	});
+	zAdjLandingForced_.resize(portals.size());
+	zAdjPosForced_.resize(portals.size());
+	zLandingToPortal_.clear();
+	for (uint32_t i = 0; i < portals.size(); ++i) {
+		zAdjLandingForced_[i] = zForcedLandings_.count(botTileKey(portals[i].landing)) ? 1 : 0;
+		zAdjPosForced_[i] = zForcedLandings_.count(botTileKey(portals[i].pos)) ? 1 : 0;
+		zLandingToPortal_.emplace(botTileKey(portals[i].landing), i);
+	}
+	// ---- #139 D-real: walk steps per plain entry ----
+	{
+		uint64_t key = 1469598103934665603ull ^ zAdj_.to.size();
+		for (const uint32_t t : zAdj_.to) {
+			key = (key ^ t) * 1099511628211ull;
+		}
+		zAdjStepsKey_ = key;
+		zAdjStepsComputed_ = false;
+		const int64_t ts = botMonoMs();
+		if (!zAdjStepsCached_.empty() && zAdjStepsCachedKey_ == key && zAdjStepsCached_.size() == zAdj_.to.size()) {
+			zAdjSteps_ = std::move(zAdjStepsCached_);
+		} else {
+			zAdjSteps_.assign(zAdj_.to.size(), 0xFFFF);
+			botnav::ZStepField f;
+			for (uint32_t i = 0; i < portals.size(); ++i) {
+				const uint32_t e0 = zAdj_.start[i], e1 = zAdj_.start[i + 1];
+				if (e0 == e1) {
+					continue;
+				}
+				const Position& o = portals[i].landing;
+				const uint8_t z = o.z;
+				auto pass = [z](int32_t x, int32_t y) { return zFloodPassableFast(x, y, z); };
+				bool seeded = false;
+				if (pass(o.x, o.y)) {
+					f.build(pass, o.x, o.y, z, Z_LEG_MAX, o.x, o.y, 0, Z_END_LEG_BUDGET);
+					seeded = true;
+				} else {
+					for (const auto& d : kNbrOffsets) {
+						if (pass(o.x + d[0], o.y + d[1])) {
+							f.build(pass, o.x, o.y, z, Z_LEG_MAX, o.x + d[0], o.y + d[1], 1, Z_END_LEG_BUDGET);
+							seeded = true;
+							break;
+						}
+					}
+				}
+				for (uint32_t e = e0; e < e1; ++e) {
+					if (!seeded || (zAdj_.to[e] & botnav::ZPortalAdjacency::ADHOC)) {
+						continue;
+					}
+					const int32_t st = f.stepsTo(portals[zAdj_.to[e]].pos);
+					zAdjSteps_[e] = st >= 0 && st < 0xFFFF ? static_cast<uint16_t>(st) : uint16_t(0xFFFF);
+				}
+			}
+			zAdjStepsComputed_ = true;
+		}
+		zAdjStepsCached_.clear();
+		zAdjStepsCached_.shrink_to_fit();
+		uint32_t unreached = 0, longer = 0;
+		for (uint32_t i = 0; i < portals.size(); ++i) {
+			for (uint32_t e = zAdj_.start[i]; e < zAdj_.start[i + 1]; ++e) {
+				if (zAdj_.to[e] & botnav::ZPortalAdjacency::ADHOC) {
+					continue;
+				}
+				if (zAdjSteps_[e] == 0xFFFF) {
+					unreached++;
+				} else if (zAdjSteps_[e] * 2 > 3 * botnav::zCheb(portals[i].landing, portals[zAdj_.to[e] & ~botnav::ZPortalAdjacency::ADHOC].pos)) {
+					longer++;
+				}
+			}
+		}
+		g_logger().info("[ZADJ_STEPS] entries={} {} in {} ms: outsideWindow={} stepsOver1.5xCheb={} MB={:.1f}", zAdjSteps_.size(),
+			zAdjStepsComputed_ ? "computed" : "from cache", botMonoMs() - ts, unreached, longer,
+			zAdjSteps_.size() * 2 / 1048576.0);
+	}
+	g_logger().info("[ZADJ] portals={} entries={} adhoc={} deadDropped={} deadEndpointProbes={} avgPerPortal={:.0f} MB={:.1f} "
+		"built in {} ms",
+		portals.size(), zAdj_.to.size(), zAdj_.adhocEntries, zAdj_.deadDropped, deadEndpoints,
+		portals.empty() ? 0.0 : static_cast<double>(zAdj_.to.size()) / portals.size(),
+		(zAdj_.bytes() + zAdjLandingForced_.size() * 2) / 1048576.0, botMonoMs() - t0);
+}
+
+// #138 C': the negative-only connectivity oracle. For every portal, every component in the 3x3 of its
+// tile is united with every component in the 3x3 of its landing (see botnav::ZCompOracle for why that
+// is a superset of the planner's reach). Rebuilt at every graph load: ~28k portals x 18 lookups.
+void BotEngine::buildZOracle() {
+	const int64_t t0 = botMonoMs();
+	zOracle_ = botnav::ZCompOracle {};
+	if (!zLab_.built() || zLab_.components == 0 || !zPass_.built()) {
+		g_logger().warn("[ZORACLE] not built: no component labels");
+		return;
+	}
+	zOracle_.init(zLab_.components);
+	uint32_t portalsUsed = 0;
+	std::vector<uint32_t> comps;
+	auto collect = [&](const Position& p) {
+		for (int k = -1; k < 8; ++k) {
+			const int32_t x = p.x + (k < 0 ? 0 : kNbrOffsets[k][0]);
+			const int32_t y = p.y + (k < 0 ? 0 : kNbrOffsets[k][1]);
+			const int64_t c = zLab_.at(zPass_, x, y, p.z);
+			if (c >= 0) {
+				comps.push_back(static_cast<uint32_t>(c));
+			}
+		}
+	};
+	for (const auto& p : zGraph_.portals()) {
+		comps.clear();
+		collect(p.pos);
+		collect(p.landing);
+		for (size_t k = 1; k < comps.size(); ++k) {
+			zOracle_.unite(comps[0], comps[k]);
+		}
+		portalsUsed += comps.empty() ? 0 : 1;
+	}
+	const uint32_t groups = zOracle_.flatten();
+	g_logger().info("[ZORACLE] components={} groups={} portalsUsed={}/{} labelsMB={:.1f} mixedBlocks={} built in {} ms",
+		zLab_.components, groups, portalsUsed, zGraph_.size(), zLab_.bytes() / 1048576.0, zLab_.mixedBlocks, botMonoMs() - t0);
+}
+
+// The planner's own reach rules, read off the labels: the start flood is seeded from `from` or, when
+// that is impassable, from its FIRST passable neighbour (LocalReach::ensure); a target is reached
+// through itself or any neighbour (LocalReach::reachable). Unreachable only when no component around
+// the target shares the start seed's group.
+int BotEngine::zOracleVerdict(const Position& from, const Position& target) const {
+	if (!zOracle_.built()) {
+		return 0;
+	}
+	int64_t seed = zLab_.at(zPass_, from.x, from.y, from.z);
+	if (seed < 0 && !zPass_.passable(from.x, from.y, from.z)) {
+		for (int k = 0; k < 8; ++k) {
+			const int32_t x = from.x + kNbrOffsets[k][0], y = from.y + kNbrOffsets[k][1];
+			if (zPass_.passable(x, y, from.z)) {
+				seed = zLab_.at(zPass_, x, y, from.z); // the flood's seed; -1 if that floor is unlabelled
+				break;
+			}
+		}
+	}
+	if (seed < 0) {
+		return 0;
+	}
+	const uint32_t want = zOracle_.rep(static_cast<uint32_t>(seed));
+	bool anyTarget = false;
+	for (int k = -1; k < 8; ++k) {
+		const int32_t x = target.x + (k < 0 ? 0 : kNbrOffsets[k][0]);
+		const int32_t y = target.y + (k < 0 ? 0 : kNbrOffsets[k][1]);
+		if (!zPass_.passable(x, y, target.z)) {
+			continue;
+		}
+		const int64_t c = zLab_.at(zPass_, x, y, target.z);
+		if (c < 0) {
+			return 0; // a passable cell on an unlabelled floor: no verdict
+		}
+		anyTarget = true;
+		if (zOracle_.rep(static_cast<uint32_t>(c)) == want) {
+			return 1;
+		}
+	}
+	return anyTarget ? 2 : 0;
+}
+
+// ============================================================================
+// #224: tick-sliced admin nav jobs (see ZAdminJob in bot_engine_impl.hpp)
+// ============================================================================
+
+std::string BotEngine::zJobStart(std::unique_ptr<ZAdminJob> job) {
+	if (zJob_) {
+		return fmt::format("[ZJOB] busy: '{}' is running ({}; {} slices so far) -- wait, or `zjob cancel`", zJob_->name,
+			zJob_->progress.empty() ? std::string("starting") : zJob_->progress, zJob_->slices);
+	}
+	if (!zGraphReady_) {
+		return "[ZJOB] portal graph not built";
+	}
+	job->startedMs = botMonoMs();
+	const std::string name = job->name;
+	zJob_ = std::move(job);
+	zAdminResume_.reset();
+	zJobGraphTag_ = { zGraph_.portals().data(), zGraph_.size() };
+	g_logger().info("[ZJOB] started '{}' (slice {} ms per tick)", name, Z_ADMIN_SLICE_MS);
+	return fmt::format("[ZJOB] queued '{}': runs {} ms per bot tick; the result goes to the journal and to `/cavebot zjob`",
+		name, Z_ADMIN_SLICE_MS);
+}
+
+void BotEngine::zJobTick() {
+	ZAdminJob& job = *zJob_;
+	auto finish = [&](std::string result) {
+		const double wallS = static_cast<double>(botMonoMs() - job.startedMs) / 1000.0;
+		result += fmt::format("\n[ZJOB] '{}' done: slices={} workMs={:.0f} maxSliceMs={:.1f} (cpu {:.1f}) wallS={:.1f}", job.name,
+			job.slices, static_cast<double>(job.workUs) / 1000.0, job.maxSliceUs / 1000.0, job.maxSliceCpuUs / 1000.0, wallS);
+		g_logger().info("{}", result);
+		zJobLast_ = std::move(result);
+		zJob_.reset();
+		zAdminResume_.reset();
+	};
+	// A graph rebuild (or a cache reload) between two slices invalidates every saved portal index.
+	if (!zGraphReady_ || zJobGraphTag_.first != zGraph_.portals().data() || zJobGraphTag_.second != zGraph_.size()) {
+		finish(fmt::format("[ZJOB] '{}' cancelled: the portal graph changed under it", job.name));
+		return;
+	}
+	const auto t0 = std::chrono::steady_clock::now();
+	const uint64_t cpu0 = botThreadCpuUs();
+	const bool done = job.step(botnav::zSteadyMs() + Z_ADMIN_SLICE_MS);
+	const uint64_t cpuUs = botThreadCpuUs() - cpu0;
+	const auto us = static_cast<uint64_t>(
+		std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count());
+	job.slices++;
+	job.workUs += us;
+	if (us > job.maxSliceUs) {
+		job.maxSliceUs = static_cast<uint32_t>(std::min<uint64_t>(us, UINT32_MAX));
+		job.maxSliceCpuUs = static_cast<uint32_t>(std::min<uint64_t>(cpuUs, UINT32_MAX));
+	}
+	if (done) {
+		finish(std::move(job.result));
+	}
+}
+
+std::string BotEngine::zJobCommand(const std::string& arg) {
+	if (arg == "cancel") {
+		if (!zJob_) {
+			return "[ZJOB] nothing running";
+		}
+		const std::string name = zJob_->name;
+		zJob_.reset();
+		zAdminResume_.reset();
+		g_logger().info("[ZJOB] '{}' cancelled by command", name);
+		return fmt::format("[ZJOB] '{}' cancelled", name);
+	}
+	if (zJob_) {
+		return fmt::format("[ZJOB] running '{}' for {:.1f} s: {} | slices={} workMs={:.0f} maxSliceMs={:.1f}", zJob_->name,
+			static_cast<double>(botMonoMs() - zJob_->startedMs) / 1000.0,
+			zJob_->progress.empty() ? std::string("starting") : zJob_->progress, zJob_->slices,
+			static_cast<double>(zJob_->workUs) / 1000.0, zJob_->maxSliceUs / 1000.0);
+	}
+	return zJobLast_.empty() ? std::string("[ZJOB] idle, no result yet") : "[ZJOB] idle; last result:\n" + zJobLast_;
+}
+
+int BotEngine::zAdminPlanSlice(const Position& from, const Position& to, std::vector<botnav::ZRouteHop>& hops, bool useAdj,
+                               int64_t deadlineMs, ZPlanCost& acc) {
+	// Both kernels resume their search across slices (the first runner restarted the adjacency
+	// kernel with a growing budget and then handed failing plans to the slower reference kernel:
+	// zoracle 200 took ~30 min and its slices reached 33 ms).
+	const bool savedUseAdj = zPlanUseAdj_;
+	zPlanUseAdj_ = useAdj;
+	zPlanBenchNoNeg_ = true;
+	zAdminSliceMode_ = true;
+	zAdminAborted_ = false;
+	zAdminDeadlineMs_ = deadlineMs;
+	s_zLastPlanCost = ZPlanCost {};
+	const bool ok = zPlanFullRoute(from, to, hops);
+	zAdminSliceMode_ = false;
+	zPlanBenchNoNeg_ = false;
+	zPlanUseAdj_ = savedUseAdj;
+	const ZPlanCost& c = s_zLastPlanCost;
+	acc.totalUs += c.totalUs;
+	acc.floodUs += c.floodUs;
+	acc.floods += c.floods;
+	acc.floodCells += c.floodCells;
+	acc.settles += c.settles;
+	acc.legCalls += c.legCalls;
+	acc.legStart += c.legStart;
+	acc.legTarget += c.legTarget;
+	acc.legComp += c.legComp;
+	acc.legAdhoc += c.legAdhoc;
+	if (!ok && zAdminAborted_) {
+		return -1;
+	}
+	zAdminResume_.reset();
+	acc.hops = static_cast<uint32_t>(hops.size());
+	acc.result = ok ? "ok" : "fail";
+	return ok ? 1 : 0;
+}
+
+// `/cavebot zoracle [N]` (default 200, max 2000): the oracle against the real planner. Pairs are drawn
+// two ways -- near random portal landings (|dz| <= 2, Chebyshev <= 120: mostly routable) and random
+// passable cells on the same or an adjacent floor (mostly not) -- and each is planned as an admin call
+// with the oracle OFF. falseUnreachable (oracle "unreachable", planner found a route) must be 0.
+// #224: a tick-sliced job (the admin plans run in slices, see zAdminPlanSlice).
+std::string BotEngine::zOracleCheck(uint32_t samples) {
+	if (!zGraphReady_ || !zOracle_.built()) {
+		return "[ZORACLE_CHECK] graph or oracle not built";
+	}
+	struct S {
+		std::mt19937 rng { 138 };
+		std::uniform_int_distribution<uint32_t> pickPortal, pickBlock, pickCell { 0, 255 };
+		std::vector<std::array<int32_t, 3>> blockXYZ; // block id -> (sx, sy, z), for the random-cell sampler
+		uint32_t samples = 0, s = 0, tested = 0, routed = 0, oracleUnreach = 0, falseUnreach = 0, missed = 0, noVerdict = 0;
+		uint64_t oracleNs = 0, failUs = 0, failRuns = 0;
+		bool inPlan = false;
+		int verdict = 0;
+		Position from, to;
+		std::vector<botnav::ZRouteHop> hops;
+		ZPlanCost cost;
+		std::string detail;
+	};
+	auto st = std::make_shared<S>();
+	st->samples = samples;
+	st->pickPortal = std::uniform_int_distribution<uint32_t>(0, static_cast<uint32_t>(zGraph_.portals().size() - 1));
+	st->pickBlock = std::uniform_int_distribution<uint32_t>(0, zPass_.blockCount() - 1);
+	st->blockXYZ.resize(zPass_.blockCount());
+	zPass_.forEachBlock([&](int32_t bsx, int32_t bsy, uint8_t bz, uint32_t id) {
+		st->blockXYZ[id] = { bsx, bsy, bz };
+	});
+	auto job = std::make_unique<ZAdminJob>();
+	job->name = fmt::format("zoracle {}", samples);
+	job->step = [this, st, self = job.get()](int64_t deadlineMs) -> bool {
+		S& s = *st;
+		const auto& portals = zGraph_.portals();
+		auto passableNear = [this](const Position& p, Position& out) {
+			for (int k = -1; k < 8; ++k) {
+				const int32_t x = p.x + (k < 0 ? 0 : kNbrOffsets[k][0]), y = p.y + (k < 0 ? 0 : kNbrOffsets[k][1]);
+				if (zPass_.passable(x, y, p.z)) {
+					out = Position(static_cast<uint16_t>(x), static_cast<uint16_t>(y), p.z);
+					return true;
+				}
+			}
+			return false;
+		};
+		auto randomCell = [&](Position& out, int32_t nearZ) {
+			for (int t = 0; t < 512; ++t) {
+				const uint32_t b = s.pickBlock(s.rng);
+				const auto& xyz = s.blockXYZ[b];
+				if (nearZ >= 0 && std::abs(xyz[2] - nearZ) > 1) {
+					continue;
+				}
+				const uint32_t c0 = s.pickCell(s.rng);
+				for (uint32_t c = 0; c < 256; ++c) {
+					const uint32_t cc = (c0 + c) & 255;
+					if (zPass_.bitAt(b, cc)) {
+						out = Position(static_cast<uint16_t>(xyz[0] * 16 + static_cast<int32_t>(cc & 15)),
+						               static_cast<uint16_t>(xyz[1] * 16 + static_cast<int32_t>(cc >> 4)), static_cast<uint8_t>(xyz[2]));
+						return true;
+					}
+				}
+			}
+			return false;
+		};
+		while (botnav::zSteadyMs() <= deadlineMs) {
+			if (!s.inPlan) {
+				if (s.s >= s.samples * 16 || s.tested >= s.samples) {
+					break;
+				}
+				const uint32_t si = s.s++;
+				Position from, to;
+				if (si % 2 == 0) {
+					const Position& li = portals[s.pickPortal(s.rng)].landing;
+					if (!passableNear(li, from)) {
+						continue;
+					}
+					bool found = false;
+					for (int t = 0; t < 64 && !found; ++t) {
+						const Position& lj = portals[s.pickPortal(s.rng)].landing;
+						found = std::abs(static_cast<int32_t>(lj.z) - static_cast<int32_t>(li.z)) <= 2 && botnav::zCheb(li, lj) <= 120
+							&& !(lj == li) && passableNear(lj, to);
+					}
+					if (!found) {
+						continue;
+					}
+				} else if (!randomCell(from, -1) || !randomCell(to, from.z)) {
+					continue;
+				}
+				s.tested++;
+				s.from = from;
+				s.to = to;
+				const auto a = std::chrono::steady_clock::now();
+				s.verdict = zOracleVerdict(from, to);
+				s.oracleNs += static_cast<uint64_t>(
+					std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - a).count());
+				s.cost = ZPlanCost {};
+				s.inPlan = true;
+			}
+			const bool savedOff = zOracleOff_;
+			zOracleOff_ = true;
+			const int r = zAdminPlanSlice(s.from, s.to, s.hops, zPlanUseAdj_, deadlineMs, s.cost);
+			zOracleOff_ = savedOff;
+			if (r < 0) {
+				self->progress = fmt::format("{}/{} pairs", s.tested - 1, s.samples);
+				return false;
+			}
+			s.inPlan = false;
+			const bool ok = r == 1;
+			s.routed += ok ? 1 : 0;
+			if (!ok) {
+				s.failUs += s.cost.totalUs;
+				s.failRuns++;
+			}
+			s.noVerdict += s.verdict == 0 ? 1 : 0;
+			if (s.verdict == 2) {
+				s.oracleUnreach++;
+				if (ok) {
+					s.falseUnreach++;
+					if (s.falseUnreach <= 8) {
+						s.detail += fmt::format("\n[ZORACLE_CHECK] FALSE-UNREACHABLE ({},{},{})->({},{},{}) hops={}", s.from.x,
+							s.from.y, s.from.z, s.to.x, s.to.y, s.to.z, s.hops.size());
+					}
+				}
+			} else if (!ok) {
+				s.missed++; // planner failed, the oracle had no proof (leg length, direction, budget...)
+			}
+		}
+		if (s.inPlan || (s.s < s.samples * 16 && s.tested < s.samples)) {
+			self->progress = fmt::format("{}/{} pairs", s.tested, s.samples);
+			return false;
+		}
+		self->result = fmt::format("[ZORACLE_CHECK] tested={} routed={} oracleUnreachable={} falseUnreachable={} "
+			"failedWithoutProof={} noVerdict={} oracleNsAvg={:.0f} plannerFailUsAvg={:.0f} : {}{}",
+			s.tested, s.routed, s.oracleUnreach, s.falseUnreach, s.missed, s.noVerdict,
+			s.tested ? static_cast<double>(s.oracleNs) / s.tested : 0.0,
+			s.failRuns ? static_cast<double>(s.failUs) / static_cast<double>(s.failRuns) : 0.0,
+			s.falseUnreach == 0 ? "PASS" : "FAIL", s.detail);
+		return true;
+	};
+	return zJobStart(std::move(job));
+}
+
+// #137 B: `/cavebot zpass parity [z]`. Every present cell of the sweep box: the live predicate vs the
+// bitmap. Right after a rebuild the answer must be 0 mismatches (both come from the same function on
+// the same tiles). After a cache load days later, the expected residue is player-moved items, mostly
+// inside houses -- reported by category so a real predicate drift (the 063a6c301 windows class)
+// stands out from it. Also times both predicates per cell. #224: a tick-sliced job, one (sector,
+// floor) of 256 cells per unit.
+std::string BotEngine::zPassParity(int32_t onlyZ) {
+	if (!zPass_.built()) {
+		return "[ZPASS_PARITY] bitmap not built";
+	}
+	struct S {
+		int32_t onlyZ = -1;
+		uint32_t sectorIdx = 0; // (sx, sy) in sweep order
+		int32_t z = 0;
+		uint64_t cells = 0, livePass = 0, bitPass = 0, liveOnly = 0, bitOnly = 0, inHouse = 0, materialized = 0;
+		uint64_t liveNs = 0, bitNs = 0;
+		std::string samples;
+		int shown = 0, shownBit = 0;
+	};
+	auto st = std::make_shared<S>();
+	st->onlyZ = onlyZ;
+	auto job = std::make_unique<ZAdminJob>();
+	job->name = fmt::format("zpass parity {}", onlyZ < 0 ? std::string("all") : std::to_string(onlyZ));
+	job->step = [this, st, self = job.get()](int64_t deadlineMs) -> bool {
+		S& s = *st;
+		constexpr int32_t SWEEP_MIN = 24576, SWEEP_MAX = 40960; // buildZPortalGraph's sweep box
+		constexpr uint32_t PER_AXIS = static_cast<uint32_t>((SWEEP_MAX - SWEEP_MIN) / SECTOR_SIZE);
+		uint32_t probes = 0;
+		while (s.sectorIdx < PER_AXIS * PER_AXIS) {
+			if ((++probes & 1023u) == 0 && botnav::zSteadyMs() > deadlineMs) {
+				self->progress = fmt::format("sector {}/{} cells={} mismatches={}", s.sectorIdx, PER_AXIS * PER_AXIS, s.cells,
+					s.liveOnly + s.bitOnly);
+				return false;
+			}
+			const int32_t sx = SWEEP_MIN + static_cast<int32_t>(s.sectorIdx / PER_AXIS) * SECTOR_SIZE;
+			const int32_t sy = SWEEP_MIN + static_cast<int32_t>(s.sectorIdx % PER_AXIS) * SECTOR_SIZE;
+			MapSector* sector = g_game().map.getMapSector(static_cast<uint32_t>(sx), static_cast<uint32_t>(sy));
+			if (!sector || s.z >= static_cast<int32_t>(MAP_MAX_LAYERS)) {
+				s.sectorIdx++;
+				s.z = 0;
+				continue;
+			}
+			const int32_t z = s.z;
+			if ((s.onlyZ >= 0 && z != s.onlyZ) || !sector->getFloor(static_cast<uint8_t>(z))) {
+				s.z++;
+				continue;
+			}
+			if (botnav::zSteadyMs() > deadlineMs) {
+				self->progress = fmt::format("sector {}/{} cells={} mismatches={}", s.sectorIdx, PER_AXIS * PER_AXIS, s.cells,
+					s.liveOnly + s.bitOnly);
+				return false; // this floor not started: done next slice
+			}
+			s.z++;
+			for (int32_t i = 0; i < SECTOR_SIZE; ++i) {
+				for (int32_t j = 0; j < SECTOR_SIZE; ++j) {
+					const int32_t x = sx + i, y = sy + j;
+					const auto a = std::chrono::steady_clock::now();
+					const bool live = zFloodPassableAt(x, y, z);
+					const auto b = std::chrono::steady_clock::now();
+					const bool bit = zPass_.passable(x, y, z);
+					const auto c = std::chrono::steady_clock::now();
+					s.liveNs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(b - a).count());
+					s.bitNs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(c - b).count());
+					++s.cells;
+					s.livePass += live ? 1 : 0;
+					s.bitPass += bit ? 1 : 0;
+					if (live == bit) {
+						continue;
+					}
+					(live ? s.liveOnly : s.bitOnly)++;
+					const ZCell zc = zCellAt(x, y, z);
+					const uint32_t houseId = zc.tile ? (zc.tile->getHouse() ? zc.tile->getHouse()->getId() : 0)
+					                                 : (zc.cached ? zc.cached->houseId : 0);
+					s.inHouse += houseId != 0 ? 1 : 0;
+					s.materialized += zc.tile ? 1 : 0;
+					// #225: 10 samples per direction, with the cell's item ids, so a predicate drift (one
+					// kind of item, both directions) reads differently from world changes since the build.
+					int& shownDir = live ? s.shown : s.shownBit;
+					if (shownDir++ < 10) {
+						std::string ids;
+						if (zc.tile) {
+							if (const auto* items = zc.tile->getItemList()) {
+								for (const auto& it : *items) {
+									ids += fmt::format(" {}", it->getID());
+								}
+							}
+						} else if (zc.cached) {
+							for (const auto& it : zc.cached->items) {
+								ids += fmt::format(" {}", it->id);
+							}
+						}
+						s.samples += fmt::format("  ({},{},{}) live={} bitmap={} house={} materialized={} items:{}\n", x, y, z, live ? 1 : 0,
+							bit ? 1 : 0, houseId, zc.tile ? 1 : 0, ids.empty() ? std::string(" -") : ids);
+					}
+				}
+			}
+		}
+		self->result = fmt::format("[ZPASS_PARITY] floors={} cells={} livePassable={} bitmapPassable={} mismatches={} (liveOnly={} "
+			"bitmapOnly={} inHouse={} materialized={}) liveNsPerCell={:.0f} bitmapNsPerCell={:.1f}\n{}",
+			s.onlyZ < 0 ? std::string("all") : std::to_string(s.onlyZ), s.cells, s.livePass, s.bitPass, s.liveOnly + s.bitOnly,
+			s.liveOnly, s.bitOnly, s.inHouse, s.materialized,
+			s.cells ? static_cast<double>(s.liveNs) / static_cast<double>(s.cells) : 0.0,
+			s.cells ? static_cast<double>(s.bitNs) / static_cast<double>(s.cells) : 0.0, s.samples);
+		return true;
+	};
+	return zJobStart(std::move(job));
+}
+
+// #139 D0: live parity behind `/cavebot zparity [N]` (#224: default 3, max 20, a tick-sliced job).
+// Samples N (start, target) pairs next to random portal landings (|dz| <= 2, Chebyshev <= 120, so
+// most pairs need the graph), plans each with the reference kernel (twice: the first run warms the
+// reach cache, the second is timed) and with the adjacency kernel, as admin calls (no negative cache,
+// no blacklist), and counts verdict/route mismatches. The reference search resumes across slices, so
+// its ~1 s per plan no longer freezes the server; usRef/usAdj are summed over each plan's slices.
+std::string BotEngine::zParity(uint32_t samples) {
+	if (!zGraphReady_ || !zAdj_.built()) {
+		return "zparity: graph or adjacency not built";
+	}
+	struct S {
+		std::mt19937 rng { 213 };
+		std::uniform_int_distribution<uint32_t> pick;
+		uint32_t samples = 0, s = 0, tested = 0, routed = 0, mismatches = 0;
+		uint64_t usRef = 0, usAdj = 0, legsRef = 0, legsAdj = 0;
+		int phase = 0; // 0 sample, 1 ref (warm), 2 ref (timed), 3 adj
+		Position from, to;
+		std::vector<botnav::ZRouteHop> hRef, hRef2, hAdj;
+		bool okRef = false;
+		ZPlanCost c1, c2, c3;
+		std::string detail;
+	};
+	auto st = std::make_shared<S>();
+	st->samples = samples;
+	st->pick = std::uniform_int_distribution<uint32_t>(0, static_cast<uint32_t>(zGraph_.portals().size() - 1));
+	auto job = std::make_unique<ZAdminJob>();
+	job->name = fmt::format("zparity {}", samples);
+	job->step = [this, st, self = job.get()](int64_t deadlineMs) -> bool {
+		S& s = *st;
+		const auto& portals = zGraph_.portals();
+		auto passableNear = [](const Position& p, Position& out) {
+			if (zFloodPassableAt(p.x, p.y, p.z)) {
+				out = p;
+				return true;
+			}
+			for (const auto& d : kNbrOffsets) {
+				if (zFloodPassableAt(p.x + d[0], p.y + d[1], p.z)) {
+					out = Position(static_cast<uint16_t>(p.x + d[0]), static_cast<uint16_t>(p.y + d[1]), p.z);
+					return true;
+				}
+			}
+			return false;
+		};
+		while (botnav::zSteadyMs() <= deadlineMs) {
+			if (s.phase == 0) {
+				if (s.s >= s.samples * 8 || s.tested >= s.samples) {
+					break;
+				}
+				s.s++;
+				const Position& li = portals[s.pick(s.rng)].landing;
+				Position from, to;
+				if (!passableNear(li, from)) {
+					continue;
+				}
+				bool found = false;
+				for (int t = 0; t < 64 && !found; ++t) {
+					const Position& lj = portals[s.pick(s.rng)].landing;
+					if (std::abs(static_cast<int32_t>(lj.z) - static_cast<int32_t>(li.z)) <= 2 && botnav::zCheb(li, lj) <= 120
+					    && !(lj == li) && passableNear(lj, to)) {
+						found = true;
+					}
+				}
+				if (!found) {
+					continue;
+				}
+				s.tested++;
+				s.from = from;
+				s.to = to;
+				s.c1 = s.c2 = s.c3 = ZPlanCost {};
+				s.phase = 1;
+			}
+			std::vector<botnav::ZRouteHop>& hops = s.phase == 1 ? s.hRef : (s.phase == 2 ? s.hRef2 : s.hAdj);
+			ZPlanCost& acc = s.phase == 1 ? s.c1 : (s.phase == 2 ? s.c2 : s.c3);
+			const int r = zAdminPlanSlice(s.from, s.to, hops, s.phase == 3, deadlineMs, acc);
+			if (r < 0) {
+				self->progress = fmt::format("pair {}/{} {}", s.tested, s.samples, s.phase == 3 ? "adj" : "ref");
+				return false;
+			}
+			if (s.phase == 1) {
+				s.okRef = r == 1;
+				s.phase = 2;
+				continue;
+			}
+			if (s.phase == 2) {
+				s.usRef += s.c2.totalUs;
+				s.legsRef += s.c2.legCalls;
+				s.phase = 3;
+				continue;
+			}
+			const bool okAdj = r == 1;
+			s.usAdj += s.c3.totalUs;
+			s.legsAdj += s.c3.legCalls;
+			bool same = s.okRef == okAdj && s.hRef.size() == s.hAdj.size();
+			for (size_t k = 0; same && k < s.hRef.size(); ++k) {
+				same = s.hRef[k].portalIdx == s.hAdj[k].portalIdx;
+			}
+			s.routed += s.okRef ? 1 : 0;
+			if (!same) {
+				s.mismatches++;
+				if (s.mismatches <= 8) {
+					s.detail += fmt::format("\n[ZPARITY] MISMATCH ({},{},{})->({},{},{}) ref={}/{} adj={}/{}", s.from.x, s.from.y,
+						s.from.z, s.to.x, s.to.y, s.to.z, s.okRef ? "ok" : "no", s.hRef.size(), okAdj ? "ok" : "no", s.hAdj.size());
+				}
+			}
+			s.phase = 0;
+		}
+		if (s.phase != 0 || (s.s < s.samples * 8 && s.tested < s.samples)) {
+			self->progress = fmt::format("pair {}/{}", s.tested, s.samples);
+			return false;
+		}
+		const double t = s.tested ? static_cast<double>(s.tested) : 1.0;
+		self->result = fmt::format(
+			"[ZPARITY] tested={} routed={} mismatches={} usRef={:.0f} usAdj={:.0f} speedup={:.1f}x legsRef={:.0f} legsAdj={:.0f} : {}{}",
+			s.tested, s.routed, s.mismatches, static_cast<double>(s.usRef) / t, static_cast<double>(s.usAdj) / t,
+			s.usAdj ? static_cast<double>(s.usRef) / static_cast<double>(s.usAdj) : 0.0, static_cast<double>(s.legsRef) / t,
+			static_cast<double>(s.legsAdj) / t, s.mismatches == 0 ? "PASS" : "FAIL", s.detail);
+		return true;
+	};
+	return zJobStart(std::move(job));
+}
+
+// `/cavebot zbench x1,y1,z1 x2,y2,z2 [N] [cold]`: replay one pair as an admin plan N times (default 3,
+// max 20) and report each run's cost split, summed over its slices. `cold` drops the shared reach
+// cache before the first run, so run 1 = a cold plan and runs 2..N = warm. #224: a tick-sliced job
+// (under `zkernel ref` one run is ~1 s of work).
+std::string BotEngine::zBenchStart(const Position& from, const Position& to, int runs, bool cold) {
+	if (!zGraphReady_) {
+		return "zbench: portal graph not built";
+	}
+	struct S {
+		Position from, to;
+		int runs = 3, i = 0;
+		bool cold = false, started = false;
+		std::vector<botnav::ZRouteHop> hops;
+		ZPlanCost c;
+		std::string out;
+	};
+	auto st = std::make_shared<S>();
+	st->from = from;
+	st->to = to;
+	st->runs = runs;
+	st->cold = cold;
+	st->out = fmt::format("[ZBENCH] ({},{},{})->({},{},{}) runs={} kernel={}{}\n", from.x, from.y, from.z, to.x, to.y, to.z, runs,
+		zPlanUseAdj_ ? "adj" : "ref", cold ? " (cold start)" : "");
+	auto job = std::make_unique<ZAdminJob>();
+	job->name = fmt::format("zbench ({},{},{})->({},{},{}) x{}", from.x, from.y, from.z, to.x, to.y, to.z, runs);
+	job->step = [this, st, self = job.get()](int64_t deadlineMs) -> bool {
+		S& s = *st;
+		if (!s.started) {
+			s.started = true;
+			if (s.cold) {
+				zReachCache_.clear();
+			}
+		}
+		while (s.i < s.runs && botnav::zSteadyMs() <= deadlineMs) {
+			const int r = zAdminPlanSlice(s.from, s.to, s.hops, zPlanUseAdj_, deadlineMs, s.c);
+			if (r < 0) {
+				break;
+			}
+			const ZPlanCost& c = s.c;
+			s.out += fmt::format("[ZBENCH] run={} result={} hops={} totalUs={} floodUs={} searchUs={} floods={} floodCells={} "
+				"settles={} legs={} (start={} target={} comp={} adhoc={})",
+				s.i + 1, c.result, c.hops, c.totalUs, c.floodUs, c.totalUs > c.floodUs ? c.totalUs - c.floodUs : 0, c.floods,
+				c.floodCells, c.settles, c.legCalls, c.legStart, c.legTarget, c.legComp, c.legAdhoc);
+			if (s.i == 0 && !s.hops.empty()) {
+				s.out += " route:";
+				for (const auto& h : s.hops) {
+					s.out += fmt::format(" {}@({},{},{})", botnav::zPortalKindName(h.portal.kind), h.portal.pos.x, h.portal.pos.y,
+						h.portal.pos.z);
+				}
+			}
+			s.out += "\n";
+			s.c = ZPlanCost {};
+			s.i++;
+		}
+		if (s.i < s.runs) {
+			self->progress = fmt::format("run {}/{}", s.i + 1, s.runs);
+			return false;
+		}
+		self->result = std::move(s.out);
+		return true;
+	};
+	return zJobStart(std::move(job));
+}
+
+// ============================================================================
+// #140: whole-map sparse navdump (v3) for offline POI-route generation/validation
+// ============================================================================
+
+// The dump flags of one cell, WITHOUT materialising it (live tile when one exists, else the BasicTile
+// cache, exactly like the zgraph sweep). NAV_WALKABLE is the bot A*'s static answer: what
+// getPathfindingTile's queryAdd (FLAG_PATHFINDING | FLAG_IGNOREFIELDDAMAGE | FLAG_IGNOREBLOCKITEM)
+// returns for a bot with no creature on the tile -- ground present, not a floor change or teleport,
+// no IMMOVABLE blockSolid item (moveable ones are pushed; blockPathFind is ignored), not one of the
+// two scripted bot-avoid teleporters. The region dumps used canWalkTo on materialised tiles, which
+// also counted the creature standing there; the world dump deliberately does not.
+static uint8_t zNavDumpFlags(const ZCell& c, int32_t x, int32_t y, int32_t z) {
+	if (!c.exists()) {
+		return 0;
+	}
+	bool hasGround = false, fc = false, tp = false, pz = false, house = false, door = false, solidImmovable = false;
+	auto item = [&](uint16_t id, bool uniqueId) {
+		const ItemType& t = Item::items[id];
+		if (t.blockSolid && (!t.movable || uniqueId)) {
+			solidImmovable = true;
+		}
+		if (!door && BotEngine::getDoorTable().count(id) && !BotEngine::isKeyLockedDoorId(id)) {
+			door = true;
+		}
+	};
+	if (c.tile) {
+		const auto& g = c.tile->getGround();
+		hasGround = g != nullptr;
+		fc = c.tile->hasFlag(TILESTATE_FLOORCHANGE);
+		tp = c.tile->hasFlag(TILESTATE_TELEPORT);
+		pz = c.tile->hasFlag(TILESTATE_PROTECTIONZONE);
+		house = c.tile->getHouse() != nullptr;
+		if (g) {
+			item(g->getID(), g->hasAttribute(ItemAttribute_t::UNIQUEID));
+		}
+		if (const auto* items = c.tile->getItemList()) {
+			for (const auto& it : *items) {
+				item(it->getID(), it->hasAttribute(ItemAttribute_t::UNIQUEID));
+			}
+		}
+	} else {
+		const BasicTile* bt = c.cached;
+		hasGround = bt->ground != nullptr;
+		fc = cachedFcFlags(bt) != 0;
+		pz = (bt->flags & TILESTATE_PROTECTIONZONE) != 0;
+		house = bt->houseId != 0;
+		if (bt->ground) {
+			item(bt->ground->id, bt->ground->uniqueId != 0);
+		}
+		for (const auto& it : bt->items) {
+			item(it->id, it->uniqueId != 0);
+			if (Item::items[it->id].isTeleport() || it->destX != 0 || it->destY != 0) {
+				tp = true; // the type, like Item::getTeleport() (see zFloodPassableCell)
+			}
+		}
+	}
+	const bool botAvoidTeleporter = (x == 32131 && y == 31361 && z == 12) || (x == 33158 && y == 32634 && z == 8); // tile.cpp
+	uint8_t f = 0;
+	if (hasGround) {
+		f |= botnav::NAV_HAS_GROUND;
+	}
+	if (fc) {
+		f |= botnav::NAV_FLOORCHANGE;
+	}
+	if (tp) {
+		f |= botnav::NAV_TELEPORT;
+	}
+	if (pz) {
+		f |= botnav::NAV_PROTECTIONZONE;
+	}
+	if (door) {
+		f |= botnav::NAV_DOOR;
+	}
+	if (house) {
+		f |= botnav::NAV_HOUSE;
+	}
+	if (hasGround && !fc && !tp && !solidImmovable && !botAvoidTeleporter) {
+		f |= botnav::NAV_WALKABLE;
+	}
+	return f;
+}
+
+// #227: the scripted-interaction half of a cell (see botnav::NavTriggerFlag), from the same live tile or
+// BasicTile cache as zNavDumpFlags. Position-registered MoveEvents are added once, from the registry, at
+// the tail. Action ids / unique ids are what the Lua map loaders (lever, door_quest, teleport_item ...)
+// stamp on the items a script answers to; the Actions registry itself is private to stock canary, so a
+// carried id is the evidence, and a MoveEvent keyed on it upgrades the cell to a step-in trigger.
+static uint8_t zNavDumpTrigger(const ZCell& c, uint16_t& aidOut) {
+	aidOut = 0;
+	if (!c.exists()) {
+		return 0;
+	}
+	uint8_t f = 0;
+	auto item = [&](uint16_t aid, uint16_t uid) {
+		if (aid != 0) {
+			f |= botnav::NAV_TRIG_USE;
+			if (aidOut == 0) {
+				aidOut = aid;
+			}
+			if (g_moveEvents().hasActionId(aid)) {
+				f |= botnav::NAV_TRIG_STEP;
+			}
+		}
+		if (uid != 0) {
+			f |= botnav::NAV_TRIG_USE;
+			if (g_moveEvents().hasUniqueId(uid)) {
+				f |= botnav::NAV_TRIG_STEP;
+			}
+		}
+	};
+	if (c.tile) {
+		auto live = [&](const std::shared_ptr<Item>& it) {
+			item(it->getAttribute<uint16_t>(ItemAttribute_t::ACTIONID), it->getAttribute<uint16_t>(ItemAttribute_t::UNIQUEID));
+		};
+		if (const auto& g = c.tile->getGround()) {
+			live(g);
+		}
+		if (const auto* items = c.tile->getItemList()) {
+			for (const auto& it : *items) {
+				live(it);
+			}
+		}
+	} else {
+		const BasicTile* bt = c.cached;
+		if (bt->ground) {
+			item(bt->ground->actionId, bt->ground->uniqueId);
+		}
+		for (const auto& it : bt->items) {
+			item(it->actionId, it->uniqueId);
+		}
+	}
+	return f;
+}
+
+// `/cavebot dumpnav world [file]`: the whole sweep box as a v3 sparse dump (default
+// navdump_world.bin in the server's working directory). A tick-sliced job: one (sector, floor) of
+// 256 cells per unit, streamed to disk as it goes; the portal section is the live graph itself, and
+// the anchors are every temple and every city POI.
+std::string BotEngine::navDumpWorldStart(const std::string& path) {
+	if (!zGraphReady_) {
+		return "dumpnav world: portal graph not built";
+	}
+	struct S {
+		std::string path;
+		botnav::NavDumpSparseWriter w;
+		uint32_t sectorIdx = 0;
+		int32_t z = 0;
+		uint64_t cells = 0, walkable = 0, fc = 0, house = 0;
+		bool scanned = false;
+		std::vector<botnav::NavTrigger> triggers; // #227
+	};
+	// Refuse while another job runs BEFORE opening: begin() truncates, and a repeated command (the
+	// manager re-ran one row 9 times at startup, #227) used to zero the head of the dump the running
+	// job was still writing -- the job then reported OK over a file no reader could parse.
+	if (zJob_) {
+		return fmt::format("[ZJOB] busy: '{}' is running ({}) -- wait, or `zjob cancel`", zJob_->name,
+			zJob_->progress.empty() ? std::string("starting") : zJob_->progress);
+	}
+	auto st = std::make_shared<S>();
+	st->path = path;
+	if (!st->w.begin(path)) {
+		return fmt::format("dumpnav world: cannot open {}", path);
+	}
+	auto job = std::make_unique<ZAdminJob>();
+	job->name = fmt::format("dumpnav world {}", path);
+	job->step = [this, st, self = job.get()](int64_t deadlineMs) -> bool {
+		S& s = *st;
+		constexpr int32_t SWEEP_MIN = 24576, SWEEP_MAX = 40960; // buildZPortalGraph's sweep box
+		constexpr uint32_t PER_AXIS = static_cast<uint32_t>((SWEEP_MAX - SWEEP_MIN) / SECTOR_SIZE);
+		static_assert(SECTOR_SIZE == botnav::NAVDUMP_BLOCK, "the v3 block is one map sector");
+		uint32_t probes = 0;
+		uint8_t cells[256];
+		while (s.sectorIdx < PER_AXIS * PER_AXIS) {
+			if ((++probes & 1023u) == 0 && botnav::zSteadyMs() > deadlineMs) {
+				self->progress = fmt::format("sector {}/{} blocks={}", s.sectorIdx, PER_AXIS * PER_AXIS, s.w.blocks);
+				return false;
+			}
+			const int32_t sx = SWEEP_MIN + static_cast<int32_t>(s.sectorIdx / PER_AXIS) * SECTOR_SIZE;
+			const int32_t sy = SWEEP_MIN + static_cast<int32_t>(s.sectorIdx % PER_AXIS) * SECTOR_SIZE;
+			MapSector* sector = g_game().map.getMapSector(static_cast<uint32_t>(sx), static_cast<uint32_t>(sy));
+			if (!sector || s.z >= static_cast<int32_t>(MAP_MAX_LAYERS)) {
+				s.sectorIdx++;
+				s.z = 0;
+				continue;
+			}
+			const int32_t z = s.z;
+			if (!sector->getFloor(static_cast<uint8_t>(z))) {
+				s.z++;
+				continue;
+			}
+			if (botnav::zSteadyMs() > deadlineMs) {
+				self->progress = fmt::format("sector {}/{} blocks={}", s.sectorIdx, PER_AXIS * PER_AXIS, s.w.blocks);
+				return false;
+			}
+			s.z++;
+			bool any = false;
+			for (int32_t j = 0; j < SECTOR_SIZE; ++j) {
+				for (int32_t i = 0; i < SECTOR_SIZE; ++i) {
+					const int32_t x = sx + i, y = sy + j;
+					const ZCell cell = zCellAt(x, y, z);
+					const uint8_t f = zNavDumpFlags(cell, x, y, z);
+					cells[(j << 4) | i] = f;
+					if (f != 0) {
+						uint16_t aid = 0;
+						if (const uint8_t tf = zNavDumpTrigger(cell, aid)) {
+							s.triggers.push_back({ x, y, z, tf, aid });
+						}
+					}
+					if (f != 0) {
+						any = true;
+						s.cells++;
+						s.walkable += (f & botnav::NAV_WALKABLE) ? 1 : 0;
+						s.fc += (f & (botnav::NAV_FLOORCHANGE | botnav::NAV_TELEPORT)) ? 1 : 0;
+						s.house += (f & botnav::NAV_HOUSE) ? 1 : 0;
+					}
+				}
+			}
+			if (any) {
+				s.w.addBlock(sx / SECTOR_SIZE, sy / SECTOR_SIZE, z, cells);
+			}
+		}
+		if (!s.scanned) {
+			s.scanned = true; // the tail and the file close get a slice of their own
+			self->progress = "writing the tail";
+			return false;
+		}
+		// Tail: the live graph's portals (exactly what the planner uses), temples, city POIs, NPCs.
+		botnav::NavDump meta;
+		for (const auto& p : zGraph_.portals()) {
+			botnav::NavPortal np;
+			np.x = p.pos.x;
+			np.y = p.pos.y;
+			np.z = p.pos.z;
+			np.lx = p.landing.x;
+			np.ly = p.landing.y;
+			np.lz = p.landing.z;
+			np.kind = static_cast<uint8_t>(p.kind);
+			np.goesDown = p.goesDown ? 1 : 0;
+			meta.portals.push_back(np);
+		}
+		for (const auto& [townId, town] : g_game().map.towns.getTowns()) {
+			const auto tp = town->getTemplePosition();
+			meta.anchors.push_back({ tp.x, tp.y, tp.z, fmt::format("{}:temple:{}", town->getName(), townId) });
+		}
+		for (const auto& [townId, pois] : cityPOIs_) {
+			for (const auto& poi : pois) {
+				meta.anchors.push_back({ poi.pos.x, poi.pos.y, poi.pos.z, fmt::format("town{}:poi:{}", townId, poi.name) });
+			}
+		}
+		for (const auto& npc : g_game().getNpcs()) {
+			if (npc) {
+				const Position np = npc->getPosition();
+				meta.npcs.push_back({ np.x, np.y, np.z, npc->getName() });
+			}
+		}
+		// #227 triggers: the swept cells' carried ids, plus every position-registered MoveEvent
+		// (the elemental-shrine entrances register positions, not ids), merged onto one record.
+		{
+			std::map<std::tuple<int32_t, int32_t, int32_t>, size_t> at;
+			for (size_t k = 0; k < s.triggers.size(); ++k) {
+				at[{ s.triggers[k].x, s.triggers[k].y, s.triggers[k].z }] = k;
+			}
+			for (const auto& [pos, list] : g_moveEvents().getPositionsMap()) {
+				(void)list;
+				const auto key = std::make_tuple(static_cast<int32_t>(pos.x), static_cast<int32_t>(pos.y), static_cast<int32_t>(pos.z));
+				if (auto it = at.find(key); it != at.end()) {
+					s.triggers[it->second].flags |= botnav::NAV_TRIG_STEP;
+				} else {
+					at[key] = s.triggers.size();
+					s.triggers.push_back({ pos.x, pos.y, pos.z, botnav::NAV_TRIG_STEP, 0 });
+				}
+			}
+			meta.triggers = std::move(s.triggers);
+		}
+		const bool ok = s.w.finish(meta);
+		std::error_code ec;
+		const auto bytes = std::filesystem::file_size(s.path, ec);
+		self->result = fmt::format("[DUMPNAV] v3 world {} -> {} : blocks={} cells={} walkable={} fc={} house={} portals={} anchors={} "
+			"npcs={} triggers={} bounds=({},{},{})-({},{},{}) {:.1f} MB",
+			ok ? "OK" : "WRITE FAILED", s.path, s.w.blocks, s.cells, s.walkable, s.fc, s.house, meta.portals.size(),
+			meta.anchors.size(), meta.npcs.size(), meta.triggers.size(), s.w.minX, s.w.minY, s.w.minZ, s.w.maxX, s.w.maxY, s.w.maxZ,
+			ec ? 0.0 : static_cast<double>(bytes) / 1048576.0);
+		return true;
+	};
+	return zJobStart(std::move(job));
 }
 
 bool BotEngine::zPlanNextHop(BotState& bot, const Position& target, ZPlannedHop& out, bool forceGraph) {

@@ -2386,7 +2386,61 @@ bool BotEngine::startCityRoute(BotState& bot, const std::string& srcPOI, const s
 	resetTpRewindBudget(bot.guid);
 	castLog(bot, fmt::format("ROUTE: {} -> {} ({} waypoints)",
 		s_lastRouteSource[bot.guid], dstPOI, bot.cityRouteWps.size()));
+	// #229: live only (the virtual twin loads through loadCityRouteCore and never gets here).
+	if (auto rit = s_routeResumeAfterWake.find(bot.guid); rit != s_routeResumeAfterWake.end()) {
+		const bool fresh = OTSYS_TIME() - rit->second < 60000;
+		s_routeResumeAfterWake.erase(rit);
+		if (fresh) {
+			resumeCityRouteAfterWake(bot);
+		}
+	}
 	return true;
+}
+
+void BotEngine::resumeCityRouteAfterWake(BotState& bot) {
+	const auto& wps = bot.cityRouteWps;
+	if (wps.empty()) {
+		return;
+	}
+	const Position at = bot.currentPos;
+	auto cheb = [&](const Position& p) {
+		return std::max(std::abs(static_cast<int32_t>(p.x) - static_cast<int32_t>(at.x)),
+			std::abs(static_cast<int32_t>(p.y) - static_cast<int32_t>(at.y)));
+	};
+	if (wps.front().pos.z == at.z && cheb(wps.front().pos) <= 3) {
+		return; // at the start already: the ordinary case
+	}
+	// Distance alone is the bug: both lanes of a U are within a few tiles. The step field is the
+	// walker's own reach from here (same rules and cache as the planner's floods), so a waypoint
+	// behind the wall reads unreachable or far, however close it looks.
+	const ZStepPtr field = zWalkStepsFrom(at);
+	if (!field) {
+		return;
+	}
+	int32_t best = -1;
+	size_t bestIdx = 0;
+	for (size_t i = 0; i < wps.size(); ++i) {
+		if (wps[i].pos.z != at.z) {
+			continue;
+		}
+		const int32_t st = field->stepsTo(wps[i].pos);
+		// `<=`: of equally near waypoints take the later one (further along the journey).
+		if (st >= 0 && (best < 0 || st <= best)) {
+			best = st;
+			bestIdx = i;
+		}
+	}
+	if (best < 0 || bestIdx == 0) {
+		g_logger().info("[ROUTE_RESUME] {} town={} {}>{} wp 1/{} kept ({} to wp1, {})", bot.name, bot.townId,
+			s_lastRouteSource[bot.guid], bot.lastRouteDestination, wps.size(), cheb(wps.front().pos),
+			best < 0 ? "no waypoint on this floor walkable from here" : "wp1 is the nearest by walk");
+		return;
+	}
+	bot.cityRouteIdx = bestIdx;
+	s_routeWpTimer.erase(bot.guid);
+	g_logger().info("[ROUTE_RESUME] {} town={} {}>{} resumed at wp {}/{} ({} walk steps; wp1 was {} tiles away)",
+		bot.name, bot.townId, s_lastRouteSource[bot.guid], bot.lastRouteDestination, bestIdx + 1, wps.size(), best,
+		cheb(wps.front().pos));
 }
 
 // ============================================================================
