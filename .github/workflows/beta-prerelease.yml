@@ -106,15 +106,61 @@ jobs:
         ref: ${{ needs.check.outputs.sha }}
         persist-credentials: false
 
+    # GCC 13 comes from the ubuntu-toolchain-r PPA on Launchpad, which answers 503 at times
+    # (apt-get update only warns; the failure then reads "Unable to locate package gcc-13").
+    # The PPA's .debs are kept in the Actions cache, so a run normally never contacts
+    # Launchpad: it installs those files and takes everything else from the Ubuntu mirror.
+    # Launchpad is only used, with retries, when the cache is gone or no longer installs.
+    - name: Restore the GCC 13 packages
+      id: gcc13-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/gcc13-debs
+        key: gcc13-debs-jammy-v1-${{ github.run_id }}
+        restore-keys: gcc13-debs-jammy-v1-
+
     - name: Install the toolchain
+      id: toolchain
       run: |
         set -euo pipefail
-        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-        sudo apt-get update
-        sudo apt-get install -y gcc-13 g++-13 ninja-build ccache pkg-config autoconf automake libtool binutils
+        BASE="ninja-build ccache pkg-config autoconf automake libtool binutils"
+        FROM_PPA=true
+        if ls $HOME/gcc13-debs/*.deb > /dev/null 2>&1; then
+          sudo apt-get update
+          if sudo apt-get install -y $HOME/gcc13-debs/*.deb $BASE; then
+            FROM_PPA=false; echo "GCC 13 installed from the cached packages (Launchpad not used)."
+          else
+            echo "::warning::the cached GCC 13 packages did not install; falling back to the PPA"
+          fi
+        fi
+        if [ "$FROM_PPA" = true ]; then
+          sudo add-apt-repository -y --no-update ppa:ubuntu-toolchain-r/test
+          rm -rf $HOME/gcc13-debs && mkdir -p $HOME/gcc13-debs/partial
+          for i in 1 2 3 4 5 6 7 8; do
+            # Download into $HOME/gcc13-debs first (only what the runner lacks: the PPA packages),
+            # then install from there, so the same files can be cached for the next run.
+            sudo apt-get update \
+              && sudo apt-get install -y --download-only -o Dir::Cache::archives="$HOME/gcc13-debs" \
+                   gcc-13 g++-13 libstdc++6 \
+              && sudo apt-get install -y $HOME/gcc13-debs/*.deb $BASE && break
+            [ "$i" = 8 ] && { echo "::error::toolchain PPA still unavailable after 8 attempts"; exit 1; }
+            echo "::warning::toolchain install failed (attempt $i), retrying in $((i * 60))s"; sleep $((i * 60))
+          done
+          sudo rm -rf $HOME/gcc13-debs/partial $HOME/gcc13-debs/lock
+          sudo chown -R "$(id -u):$(id -g)" $HOME/gcc13-debs
+          ls $HOME/gcc13-debs
+        fi
+        echo "from_ppa=$FROM_PPA" >> "$GITHUB_OUTPUT"
         gcc-13 --version | head -n 1
         ldd --version | head -n 1
         cmake --version | head -n 1
+
+    - name: Save the GCC 13 packages
+      if: steps.toolchain.outputs.from_ppa == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/gcc13-debs
+        key: gcc13-debs-jammy-v1-${{ github.run_id }}
 
     - name: vcpkg baseline
       run: echo "VCPKG_COMMIT=$(jq -r '."builtin-baseline"' vcpkg.json)" >> "$GITHUB_ENV"
@@ -572,6 +618,15 @@ jobs:
         path: srv-map/otservbr.otbm
         key: ${{ env.MAP_KEY }}
 
+    # The GCC 13 libstdc++ from the packages the Linux job cached (see "Restore the GCC 13
+    # packages" there), so the boot test does not depend on Launchpad either.
+    - name: Restore the GCC 13 packages
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/gcc13-debs
+        key: gcc13-debs-jammy-v1-${{ github.run_id }}
+        restore-keys: gcc13-debs-jammy-v1-
+
     - name: Prepare the server
       run: |
         set -euo pipefail
@@ -580,8 +635,22 @@ jobs:
         fi
         cp srv-map/otservbr.otbm srv/data-otservbr-global/world/otservbr.otbm
         # Runtime: the binary needs the GCC 13 libstdc++ (Ubuntu 22.04: toolchain PPA).
-        strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep -q "$(grep -oP 'glibcxx=\K.*' srv/BUILD_INFO)" || {
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test && sudo apt-get update && sudo apt-get install -y libstdc++6; }
+        NEED=$(grep -oP 'glibcxx=\K.*' srv/BUILD_INFO)
+        have() { strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep -q "$NEED"; }
+        if ! have; then
+          DEBS=$(ls "$HOME"/gcc13-debs/{libstdc++6,libgcc-s1,gcc-13-base}_*.deb 2> /dev/null || true)
+          if [ -n "$DEBS" ] && sudo apt-get install -y $DEBS && have; then
+            echo "libstdc++6 installed from the cached packages (Launchpad not used)."
+          else
+            echo "::warning::no usable cached libstdc++6; falling back to the PPA"
+            sudo add-apt-repository -y --no-update ppa:ubuntu-toolchain-r/test
+            for i in 1 2 3 4 5 6 7 8; do
+              sudo apt-get update && sudo apt-get install -y libstdc++6 && have && break
+              [ "$i" = 8 ] && { echo "::error::GCC 13 libstdc++ still unavailable after 8 attempts"; exit 1; }
+              echo "::warning::libstdc++6 install failed (attempt $i), retrying in $((i * 60))s"; sleep $((i * 60))
+            done
+          fi
+        fi
         mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE canary DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;"
         mysql -h 127.0.0.1 -uroot canary < dl/canary-bots-beta-fresh.sql
         cd srv
@@ -741,7 +810,24 @@ jobs:
         unzip -p out/canary-bots-beta-sql.zip canary-bots-beta-sql/upgrade-files.txt > upgrade_files
         DATE=$(gh api "repos/$REPO/commits/$SHA" --jq .commit.committer.date)
         python3 .github/beta/beta_sql.py notes --repo "$REPO" --sha "$SHA" --date "$DATE" \
-          --baseline-tag "$BASELINE_TAG" --build-info build_info --upgrade-files upgrade_files > notes.md
+          --baseline-tag "$BASELINE_TAG" --build-info build_info --upgrade-files upgrade_files > body.md
+        # beta_sql.py comes from the beta commit; its first line names the commit only. Replace it
+        # with a header that also says what the commit is and when this build was made, and fix
+        # the cadence wording (daily cron, not per push).
+        SUBJECT=$(gh api "repos/$REPO/commits/$SHA" --jq '.commit.message | split("\n")[0]')
+        BAR='\|'; SUBJECT=${SUBJECT//|/$BAR}   # a "|" in the subject would split the table cell
+        BUILT=$(date -u '+%Y-%m-%d %H:%M UTC')
+        RUN_URL="$GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID"
+        {
+          echo "Automated build of the \`beta\` branch."
+          echo
+          echo "| | |"
+          echo "|---|---|"
+          echo "| **Commit** | [\`${SHA:0:9}\`](https://github.com/$REPO/commit/$SHA): $SUBJECT |"
+          echo "| **Committed** | $(date -u -d "$DATE" '+%Y-%m-%d %H:%M UTC') |"
+          echo "| **Built** | $BUILT ([run $GITHUB_RUN_ID]($RUN_URL)) |"
+          tail -n +2 body.md | sed 's/rebuilt on every push to `beta`/rebuilt once a day whenever `beta` has new commits/'
+        } > notes.md
         cat notes.md
 
     # Assets and notes first, the tag last: if anything fails, the tag still points at
@@ -772,9 +858,15 @@ jobs:
           gh release edit "$TAG" -R "$REPO" --title "$TITLE" --notes-file notes.md --prerelease --latest=false
           move_tag
           # A release whose tag was deleted turns into a draft: publish it again.
-          if [ "$(gh release view "$TAG" -R "$REPO" --json isDraft --jq .isDraft)" = "true" ]; then
-            gh release edit "$TAG" -R "$REPO" --draft=false --prerelease --latest=false
+          # The release page shows published_at, which an edit never changes (it would keep the
+          # first publish date forever). Publishing a draft stamps it anew, so pass through draft
+          # once: a second or two in which the assets are not public.
+          if [ "$(gh release view "$TAG" -R "$REPO" --json isDraft --jq .isDraft)" != "true" ]; then
+            gh release edit "$TAG" -R "$REPO" --draft=true > /dev/null
           fi
+          gh release edit "$TAG" -R "$REPO" --draft=false --prerelease --latest=false
+          echo "Release date now: $(gh release view "$TAG" -R "$REPO" --json publishedAt --jq .publishedAt)" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
         else
           move_tag
           gh release create "$TAG" -R "$REPO" --title "$TITLE" --notes-file notes.md --prerelease --latest=false out/*
