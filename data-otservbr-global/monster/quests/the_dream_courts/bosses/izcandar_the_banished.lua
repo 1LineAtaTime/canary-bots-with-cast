@@ -13,9 +13,15 @@ monster.outfit = {
 	lookMount = 0,
 }
 
+monster.events = {
+	"dreamCourtsDeath",
+	"izcandarThink",
+}
+
 monster.bosstiary = {
 	bossRaceId = 1699,
 	bossRace = RARITY_NEMESIS,
+	storage = Storage.Quest.U12_00.TheDreamCourts.DreamScar.IzcandarTimer,
 }
 
 monster.health = 320000
@@ -24,11 +30,6 @@ monster.race = "blood"
 monster.corpse = 6068
 monster.speed = 125
 monster.manaCost = 0
-
-monster.events = {
-	"dreamCourtsDeath",
-	"izcandarThink",
-}
 
 monster.changeTarget = {
 	interval = 4000,
@@ -92,7 +93,7 @@ monster.loot = {
 	{ name = "giant sapphire", chance = 3130 },
 	{ id = 282, chance = 33330 }, -- giant shimmering pearl
 	{ name = "gold ingot", chance = 33330 },
-	{ name = "gold token", chance = 71880 },
+	{ name = "gold token", chance = 75000 },
 	{ name = "green gem", chance = 21880, maxCount = 2 },
 	{ name = "huge chunk of crude iron", chance = 33330 },
 	{ name = "izcandar's snow globe", chance = 3130 },

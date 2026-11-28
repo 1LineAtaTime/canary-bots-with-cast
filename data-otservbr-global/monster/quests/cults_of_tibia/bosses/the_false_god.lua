@@ -76,8 +76,8 @@ monster.loot = {
 	{ id = 282, chance = 26900 }, -- giant shimmering pearl (brown)
 	{ name = "magic sulphur", chance = 18920 },
 	{ name = "mino shield", chance = 17620 },
-	{ name = "silver token", chance = 1732 },
-	{ name = "gold token", chance = 1532 },
+	{ name = "silver token", chance = 50000 },
+	{ name = "gold token", chance = 14290 },
 	{ name = "gold coin", chance = 100000, maxCount = 200 },
 	{ name = "platinum coin", chance = 29840, maxCount = 30 },
 	{ name = "piece of hell steel", chance = 12370, maxCount = 9 },
@@ -96,7 +96,7 @@ monster.loot = {
 	{ name = "small amethyst", chance = 12259, maxCount = 10 },
 	{ name = "energy bar", chance = 16872, maxCount = 3 },
 	{ name = "ultimate health potion", chance = 27652, maxCount = 10 },
-	{ name = "great mana potion", chance = 33721, maxCount = 10 },
+	{ id = 238, chance = 33721, maxCount = 10 }, -- great mana potion
 	{ name = "great spirit potion", chance = 25690, maxCount = 5 },
 	{ name = "piece of royal steel", chance = 15890 },
 	{ name = "execowtioner axe", chance = 7890 },

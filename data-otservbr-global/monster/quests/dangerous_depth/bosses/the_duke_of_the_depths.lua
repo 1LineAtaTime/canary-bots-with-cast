@@ -79,7 +79,7 @@ monster.loot = {
 	{ name = "stone skin amulet", chance = 100000 },
 	{ id = 27713, chance = 100000 }, -- heavy crystal fragment
 	{ name = "wand of inferno", chance = 75000 },
-	{ name = "great mana potion", chance = 64580, maxCount = 18 },
+	{ id = 238, chance = 64580, maxCount = 18 }, -- great mana potion
 	{ name = "blue crystal shard", chance = 60420 },
 	{ name = "fire axe", chance = 58330 },
 	{ name = "ultimate health potion", chance = 52080, maxCount = 18 },
@@ -92,7 +92,7 @@ monster.loot = {
 	{ name = "slightly rusted helmet", chance = 20830 },
 	{ name = "green gem", chance = 18750 },
 	{ name = "slightly rusted shield", chance = 18750 },
-	{ name = "silver token", chance = 16670 },
+	{ name = "silver token", chance = 9280 },
 	{ name = "giant tentacle", chance = 16670 },
 	{ name = "yellow gem", chance = 16670 },
 	{ name = "blue gem", chance = 16670 },
@@ -104,7 +104,7 @@ monster.loot = {
 	{ name = "small topaz", chance = 10420 },
 	{ name = "small emerald", chance = 10420 },
 	{ name = "muck rod", chance = 10420 },
-	{ name = "gold token", chance = 10420 },
+	{ name = "gold token", chance = 31960 },
 	{ name = "crystal coin", chance = 6250 },
 	{ name = "gnome shield", chance = 4170 },
 	{ name = "crystalline armor", chance = 4170 },
@@ -112,7 +112,7 @@ monster.loot = {
 	{ name = "terra mantle", chance = 2080 },
 	{ name = "violet gem", chance = 2080 },
 	{ name = "gnome legs", chance = 3390 },
-	{ name = "gnomish cuirass", chance = 3390 },
+	{ name = "gnomish footwraps", chance = 3390 },
 }
 
 monster.attacks = {

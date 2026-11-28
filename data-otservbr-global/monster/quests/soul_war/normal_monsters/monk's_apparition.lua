@@ -2,18 +2,18 @@ local mType = Game.createMonsterType("Monk's Apparition")
 local monster = {}
 
 monster.description = "a monk's apparition"
-monster.experience = 28600
+monster.experience = 18870
 monster.outfit = {
 	lookType = 1824,
-	lookHead = 114,
-	lookBody = 48,
-	lookLegs = 114,
-	lookFeet = 95,
-	lookAddons = 1,
+	lookHead = 38,
+	lookBody = 76,
+	lookLegs = 78,
+	lookFeet = 78,
+	lookAddons = 2,
 	lookMount = 0,
 }
 
-monster.raceId = 1946
+monster.raceId = 2636
 monster.Bestiary = {
 	class = "Undead",
 	race = BESTY_RACE_UNDEAD,
@@ -29,7 +29,7 @@ monster.Bestiary = {
 monster.health = 25000
 monster.maxHealth = 25000
 monster.race = "blood"
-monster.corpse = 6081
+monster.corpse = 111
 monster.speed = 235
 monster.manaCost = 0
 
@@ -77,52 +77,50 @@ monster.light = {
 monster.voices = {
 	interval = 5000,
 	chance = 10,
-	{ text = "Healing is what I do best.", yell = false },
+	{ text = "I am you. Just better!", yell = false },
 	{ text = "I'll take your place when you are gone.", yell = false },
 }
 
 monster.loot = {
-	{ name = "crystal coin", chance = 80700 },
-	{ name = "terra rod", chance = 17540 },
-	{ name = "great mana potion", chance = 17110, maxCount = 3 },
-	{ name = "blue gem", chance = 12720 },
-	{ name = "green gem", chance = 6580 },
-	{ name = "stone skin amulet", chance = 4820 },
-	{ name = "glacier amulet", chance = 3510 },
-	{ name = "sacred tree amulet", chance = 3070 },
-	{ name = "springsprout rod", chance = 2190 },
-	{ name = "underworld rod", chance = 2190 },
-	{ name = "platinum amulet", chance = 1750 },
-	{ name = "glacier robe", chance = 880 },
-	{ id = 23544, chance = 440 }, -- collar of red plasma
+	{ name = "crystal coin", chance = 76610 },
+	{ name = "ultimate health potion", chance = 9010 },
+	{ name = "epee", chance = 6870 },
+	{ name = "green gem", chance = 4940 },
+	{ name = "violet gem", chance = 3860 },
+	{ name = "glacier amulet", chance = 3860 },
+	{ name = "crystal mace", chance = 2360 },
+	{ name = "giant sword", chance = 1720 },
+	{ name = "stone skin amulet", chance = 1500 },
+	{ name = "crown shield", chance = 640 },
 	{ name = "bag you desire", chance = 15 },
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -850 },
-	{ name = "combat", interval = 3000, chance = 31, type = COMBAT_ICEDAMAGE, minDamage = -1080, maxDamage = -1300, range = 7, radius = 4, shootEffect = CONST_ANI_ICE, effect = CONST_ME_BIGCLOUDS, target = true },
-	{ name = "ice chain", interval = 9500, chance = 37, minDamage = -1100, maxDamage = -1300, range = 7 },
-	{ name = "combat", interval = 4000, chance = 55, type = COMBAT_HOLYDAMAGE, minDamage = -1100, maxDamage = -1250, range = 7, shootEffect = CONST_ANI_HOLY, effect = CONST_ME_HOLYDAMAGE, target = true },
-	{ name = "combat", interval = 3000, chance = 23, type = COMBAT_HOLYDAMAGE, minDamage = -1250, maxDamage = -1400, radius = 4, effect = CONST_ME_HOLYAREA, target = false },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -900 },
+	{ name = "combat", interval = 3000, chance = 26, type = COMBAT_ICEDAMAGE, minDamage = -840, maxDamage = -1000, range = 7, radius = 4, shootEffect = CONST_ANI_ICE, effect = CONST_ME_BIGCLOUDS, target = true },
+	{ name = "ice chain", interval = 9500, chance = 34, minDamage = -1050, maxDamage = -1300, range = 7 },
+	{ name = "combat", interval = 5000, chance = 52, type = COMBAT_HOLYDAMAGE, minDamage = -1050, maxDamage = -1300, range = 7, shootEffect = CONST_ANI_HOLY, effect = CONST_ME_HOLYDAMAGE, target = true },
+	{ name = "combat", interval = 4000, chance = 14, type = COMBAT_HOLYDAMAGE, minDamage = -1100, maxDamage = -1400, radius = 4, effect = CONST_ME_HOLYAREA, target = false },
+	{ name = "combat", interval = 3000, chance = 19, type = COMBAT_PHYSICALDAMAGE, minDamage = -850, maxDamage = -1000, radius = 4, effect = CONST_ME_GROUNDSHAKER, target = false },
+	{ name = "destroy magic walls", interval = 1000, chance = 30 },
 }
 
 monster.defenses = {
 	defense = 100,
 	armor = 100,
 	mitigation = 3.04,
-	-- { name = "combat", interval = 2000, chance = 25, type = COMBAT_HEALING, minDamage = 1000, maxDamage = 1100, effect = CONST_ME_MAGIC_BLUE, target = false },
 }
 
 monster.elements = {
-	{ type = COMBAT_PHYSICALDAMAGE, percent = 20 },
+	{ type = COMBAT_PHYSICALDAMAGE, percent = 50 },
 	{ type = COMBAT_ENERGYDAMAGE, percent = 0 },
 	{ type = COMBAT_EARTHDAMAGE, percent = 0 },
-	{ type = COMBAT_FIREDAMAGE, percent = -10 },
+	{ type = COMBAT_FIREDAMAGE, percent = -20 },
 	{ type = COMBAT_LIFEDRAIN, percent = 0 },
 	{ type = COMBAT_MANADRAIN, percent = 0 },
 	{ type = COMBAT_DROWNDAMAGE, percent = 0 },
-	{ type = COMBAT_ICEDAMAGE, percent = 0 },
-	{ type = COMBAT_HOLYDAMAGE, percent = 40 },
+	{ type = COMBAT_ICEDAMAGE, percent = 10 },
+	{ type = COMBAT_HOLYDAMAGE, percent = 0 },
 	{ type = COMBAT_DEATHDAMAGE, percent = -20 },
 }
 

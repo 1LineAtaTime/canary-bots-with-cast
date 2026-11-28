@@ -1,0 +1,52 @@
+name: Import Crystal monsters into Canary
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - crystal-items-monsters-migration
+
+permissions:
+  contents: write
+
+jobs:
+  import-monsters:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone current Crystal Server
+        run: git clone --depth 1 https://github.com/zimbadev/crystalserver.git .crystalserver
+
+      - name: Verify Crystal monster source
+        run: test -d .crystalserver/data-global/monster
+
+      - name: Import Crystal monster definitions
+        run: python3 tools/migration/import_monsters.py
+
+      - name: Validate imported monsters
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('data-otservbr-global/monster_id_map.json')
+          rows = json.loads(p.read_text())
+          assert rows, 'no monster definitions imported'
+          assert len({r['name'].lower() for r in rows}) == len(rows), 'duplicate monster names in Crystal source'
+          for r in rows:
+              assert Path(r['canary_path']).exists(), r['canary_path']
+          assert Path('data-otservbr-global/CRYSTAL_CANARY_MONSTER_MIGRATION.md').exists()
+          print(f'validated {len(rows)} monster definitions')
+          PY
+
+      - name: Commit imported monster data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f data-otservbr-global/monster data-otservbr-global/monster_id_map.json data-otservbr-global/CRYSTAL_CANARY_MONSTER_MIGRATION.md
+          if git diff --cached --quiet; then
+            echo 'No monster changes to commit.'
+          else
+            git commit -m 'data: import Crystal monster definitions'
+            git push origin HEAD:crystal-items-monsters-migration
+          fi

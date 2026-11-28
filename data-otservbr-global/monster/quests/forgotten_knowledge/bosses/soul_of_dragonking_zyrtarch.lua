@@ -73,8 +73,8 @@ monster.voices = {
 }
 
 monster.loot = {
-	{ id = 22721, chance = 100000 }, -- gold token
-	{ id = 22516, chance = 100000 }, -- silver token
+	{ id = 22721, chance = 22000 }, -- gold token
+	{ id = 22516, chance = 18520 }, -- silver token
 	{ id = 3031, chance = 97000, maxCount = 100 }, -- gold coin
 	{ id = 3031, chance = 97000, maxCount = 100 }, -- gold coin
 	{ id = 3037, chance = 1000 }, -- yellow gem
@@ -107,6 +107,7 @@ monster.loot = {
 	{ id = 11692, chance = 300, unique = true }, -- snake god's sceptre
 	{ id = 3035, chance = 90000, maxCount = 6 }, -- platinum coin
 	{ id = 3030, chance = 3000, maxCount = 5 }, -- small ruby
+	{ name = "zaoan monk robe", chance = 500 },
 }
 
 monster.attacks = {

@@ -78,8 +78,8 @@ monster.loot = {
 	{ name = "berserker", chance = 8920 },
 	{ name = "abyss hammer", chance = 7620 },
 	{ name = "skull helmet", chance = 9700 },
-	{ name = "silver token", chance = 2732 },
-	{ name = "gold token", chance = 1532 },
+	{ name = "silver token", chance = 30770 },
+	{ name = "gold token", chance = 23080 },
 	{ name = "gold coin", chance = 100000, maxCount = 200 },
 	{ name = "platinum coin", chance = 29840, maxCount = 25 },
 	{ name = "yellow gem", chance = 29460 },
@@ -95,7 +95,7 @@ monster.loot = {
 	{ name = "small amethyst", chance = 12259, maxCount = 10 },
 	{ name = "energy bar", chance = 16872, maxCount = 3 },
 	{ name = "ultimate health potion", chance = 27652, maxCount = 10 },
-	{ name = "great mana potion", chance = 33721, maxCount = 10 },
+	{ id = 238, chance = 33721, maxCount = 10 }, -- great mana potion
 	{ name = "great spirit potion", chance = 25690, maxCount = 5 },
 	{ id = 23542, chance = 12798 }, -- collar of blue plasma
 	{ name = "piece of royal steel", chance = 15890 },

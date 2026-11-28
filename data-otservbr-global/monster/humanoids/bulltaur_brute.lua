@@ -1,7 +1,7 @@
 local mType = Game.createMonsterType("Bulltaur Brute")
 local monster = {}
 
-monster.description = "a Bulltaur Brute"
+monster.description = "a bulltaur brute"
 monster.experience = 4700
 monster.outfit = {
 	lookType = 1717,
@@ -13,35 +13,36 @@ monster.outfit = {
 	lookMount = 0,
 }
 
-monster.health = 6560
-monster.maxHealth = 6560
-monster.race = "blood"
-monster.corpse = 44709
-monster.speed = 170
-monster.manaCost = 0
-
 monster.raceId = 2447
 monster.Bestiary = {
 	class = "Humanoid",
 	race = BESTY_RACE_HUMANOID,
 	toKill = 2500,
 	FirstUnlock = 100,
-	SecondUnlock = 1000,
+	SecondUnlock = 2000,
 	CharmsPoints = 50,
 	Stars = 4,
-	Occurrence = 0,
-	Locations = "Bulltaurs Lair",
+	Occurrence = 1,
+	Locations = "Demonwar Crypt.",
 }
 
+monster.health = 6560
+monster.maxHealth = 6560
+monster.race = "blood"
+monster.corpse = 44708
+monster.speed = 175
+monster.manaCost = 0
+
 monster.changeTarget = {
-	interval = 2000,
+	interval = 4000,
 	chance = 10,
 }
 
 monster.strategiesTarget = {
-	nearest = 80,
+	nearest = 70,
 	health = 10,
-	damage = 10,
+	damage = 60,
+	random = 10,
 }
 
 monster.flags = {
@@ -54,7 +55,7 @@ monster.flags = {
 	illusionable = false,
 	canPushItems = true,
 	canPushCreatures = true,
-	staticAttackChance = 90,
+	staticAttackChance = 80,
 	targetDistance = 1,
 	runHealth = 0,
 	healthHidden = false,
@@ -71,38 +72,35 @@ monster.light = {
 
 monster.voices = {
 	interval = 5000,
-	chance = 10,
-	{ text = "It's hammer time!", yell = false },
-	{ text = "I'll do some downsizing!", yell = false },
-	{ text = "This will be a smash hit!!", yell = false },
+	chance = 30,
+	{ text = "This will be a smash hit!!", yell = true },
+	{ text = "It's hammer time!", yell = true },
+	{ text = "I'll do some downsizing!", yell = true },
 }
 
 monster.loot = {
-	{ id = 3035, chance = 53709, maxCount = 33 },
-	{ id = 44736, chance = 16095 },
-	{ id = 44738, chance = 13883 },
-	{ id = 9057, chance = 10239, maxCount = 3 },
-	{ id = 44737, chance = 9718 },
-	{ id = 21175, chance = 2950 },
-	{ id = 3097, chance = 2516 },
-	{ id = 3048, chance = 1432 },
-	{ id = 3036, chance = 1258 },
-	{ id = 3041, chance = 954 },
-	{ id = 3040, chance = 824 },
-	{ id = 3322, chance = 694 },
-	{ id = 32769, chance = 607 },
+	{ name = "platinum coin", chance = 5000, maxCount = 6 },
+	{ name = "small topaz", chance = 1200, maxCount = 5 },
+	{ name = "platinum coin", chance = 3533, maxCount = 7 },
+	{ id = 44736, chance = 4545 }, -- stealth ring
+	{ id = 44737, chance = 4545 }, -- stealth ring
+	{ id = 44738, chance = 4545 }, -- stealth ring
+	{ name = "might ring", chance = 14285 },
+	{ name = "mino shield", chance = 840 },
+	{ name = "dragon hammer", chance = 420 },
+	{ id = 3041, chance = 4545 }, -- stealth ring
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = -170, maxDamage = -300 },
-	{ name = "combat", interval = 2000, chance = 15, type = COMBAT_PHYSICALDAMAGE, minDamage = -450, maxDamage = -600, range = 3, radius = 1, target = true, effect = CONST_ME_SLASH },
-	{ name = "combat", interval = 2000, chance = 15, type = COMBAT_DEATHDAMAGE, minDamage = -400, maxDamage = -500, range = 3, radius = 1, target = true, effect = CONST_ME_MORTAREA },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 90, maxDamage = -290 },
+	{ name = "combat", interval = 2000, chance = 20, type = COMBAT_DEATHDAMAGE, minDamage = -150, maxDamage = -550, range = 3, radius = 1, shootEffect = 11, effect = 18, target = false },
+	{ name = "combat", interval = 2000, chance = 15, type = COMBAT_PHYSICALDAMAGE, minDamage = -100, maxDamage = -500, length = 1, spread = 0, effect = 216, target = true },
 }
 
 monster.defenses = {
-	defense = 100,
+	defense = 30,
 	armor = 78,
-	mitigation = 2.22,
+	mitigation = 1.22,
 }
 
 monster.elements = {
@@ -119,10 +117,9 @@ monster.elements = {
 }
 
 monster.immunities = {
-	{ type = "paralyze", condition = true },
+	{ type = "paralyze", condition = false },
 	{ type = "outfit", condition = false },
 	{ type = "invisible", condition = true },
-	{ type = "drunk", condition = true },
 	{ type = "bleed", condition = false },
 }
 

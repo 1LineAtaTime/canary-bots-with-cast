@@ -21,7 +21,8 @@ monster.speed = 115
 monster.manaCost = 0
 
 monster.events = {
-	"RatmiralBlackwhiskersDeath",
+	"ratmiralDeath",
+	"ratmiralHealth",
 }
 
 monster.changeTarget = {
@@ -64,9 +65,9 @@ monster.light = {
 }
 
 monster.summon = {
-	maxSummons = 4,
+	maxSummons = 1,
 	summons = {
-		{ name = "elite pirat", chance = 30, interval = 1000 },
+		{ name = "tibianus", chance = 100, interval = 2000, count = 1 },
 	},
 }
 
@@ -84,7 +85,6 @@ monster.loot = {
 	{ id = 238, chance = 30000, minCount = 1, maxCount = 19 }, -- great mana potion
 	{ id = 23373, chance = 25000, minCount = 1, maxCount = 19 }, -- ultimate mana potion
 	{ id = 7440, chance = 22000, minCount = 1, maxCount = 9 }, -- mastermind potion
-	{ id = 51302, chance = 22000, minCount = 1, maxCount = 9 }, -- transcendence potion
 	{ id = 7443, chance = 20000, minCount = 1, maxCount = 9 }, -- bullseye potion
 	{ id = 35572, chance = 17000, minCount = 3, maxCount = 102 }, -- pirate coin
 	{ id = 7439, chance = 16000, minCount = 1, maxCount = 9 }, -- berserk potion
@@ -101,7 +101,6 @@ monster.loot = {
 	{ id = 35515, chance = 890 }, -- throwing axe
 	{ id = 35517, chance = 890 }, -- bast legs
 	{ id = 35516, chance = 890 }, -- exotic legs
-	{ id = 50186, chance = 890 }, -- jungle survivor legs
 	{ id = 35518, chance = 890 }, -- jungle bow
 	{ id = 35524, chance = 890 }, -- jungle quiver
 	{ id = 35514, chance = 890 }, -- jungle flail
@@ -109,13 +108,14 @@ monster.loot = {
 	{ id = 35522, chance = 890 }, -- jungle wand
 	{ id = 35519, chance = 890 }, -- makeshift boots
 	{ id = 35520, chance = 890 }, -- make-do boots
+	{ id = 50270, chance = 890 }, -- bambus jo
+	{ id = 50186, chance = 890 }, -- jungle survivor legs
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = -270, maxDamage = -500 },
-	{ name = "combat", interval = 2000, chance = 40, type = COMBAT_PHYSICALDAMAGE, minDamage = -300, maxDamage = -600, range = 7, shootEffect = CONST_ANI_WHIRLWINDCLUB, target = true },
-	{ name = "combat", interval = 2000, chance = 40, type = COMBAT_LIFEDRAIN, minDamage = -300, maxDamage = -600, radius = 4, effect = CONST_ME_MAGIC_RED, target = false },
-	{ name = "combat", interval = 2000, chance = 30, type = COMBAT_LIFEDRAIN, minDamage = -600, maxDamage = -1000, length = 4, spread = 0, effect = CONST_ME_SOUND_PURPLE, target = false },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = -400, maxDamage = -1000 },
+	{ name = "ratmiral fire wave", interval = 2000, chance = 35 },
+	{ name = "ratmiral ball", interval = 2000, chance = 20 },
 }
 
 monster.defenses = {

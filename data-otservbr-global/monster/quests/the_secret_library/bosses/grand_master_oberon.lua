@@ -78,14 +78,14 @@ monster.loot = {
 	{ name = "falcon mace", chance = 500, maxCount = 1 },
 	{ name = "grant of arms", chance = 500, maxCount = 1 },
 	{ name = "falcon bow", chance = 350, maxCount = 1 },
-	{ name = "falcon circlet", chance = 350, maxCount = 1 },
+	{ id = 28714, chance = 350, maxCount = 1 },
 	{ name = "falcon coif", chance = 350, maxCount = 1 },
 	{ name = "falcon rod", chance = 350, maxCount = 1 },
 	{ name = "falcon wand", chance = 350, maxCount = 1 },
-	{ name = "falcon sai", chance = 300, maxCount = 1 },
 	{ name = "falcon shield", chance = 200, maxCount = 1 },
 	{ name = "falcon greaves", chance = 200, maxCount = 1 },
 	{ name = "falcon plate", chance = 200, maxCount = 1 },
+	{ name = "falcon sai", chance = 200, maxCount = 1 },
 }
 
 monster.attacks = {
@@ -122,13 +122,12 @@ monster.immunities = {
 	{ type = "bleed", condition = false },
 }
 
-mType.onSpawn = function(monster, spawnPosition)
-	monster:setStorageValue(GrandMasterOberonConfig.Storage.Asking, 1)
-	monster:setStorageValue(GrandMasterOberonConfig.Storage.Life, 1)
-end
-
 mType.onThink = function(monster, interval)
-	if monster:getStorageValue(GrandMasterOberonConfig.Storage.Life) <= GrandMasterOberonConfig.AmountLife then
+	if monster:getStorageValue(GrandMasterOberonConfig.Storage.Life) == -1 then
+		monster:setStorageValue(GrandMasterOberonConfig.Storage.Life, 0)
+	end
+	local currentLifeStorage = monster:getStorageValue(GrandMasterOberonConfig.Storage.Life)
+	if currentLifeStorage < GrandMasterOberonConfig.AmountLife then
 		local percentageHealth = (monster:getHealth() * 100) / monster:getMaxHealth()
 		if percentageHealth <= 20 then
 			SendOberonAsking(monster)

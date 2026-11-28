@@ -83,11 +83,10 @@ monster.loot = {
 	{ id = 3053, chance = 1000 }, -- time ring
 	{ name = "tower shield", chance = 620 },
 	{ name = "titan axe", chance = 1540 },
-	{ name = "jade conical hat", chance = 1150 },
 	{ name = "bonebreaker", chance = 1150 },
 	{ name = "strong health potion", chance = 14285, maxCount = 2 },
 	{ name = "strong mana potion", chance = 15000, maxCount = 2 },
-	{ name = "great mana potion", chance = 15920, maxCount = 2 },
+	{ id = 238, chance = 15920, maxCount = 2 }, -- great mana potion
 	{ name = "great health potion", chance = 15000, maxCount = 2 },
 	{ name = "mana potion", chance = 14285, maxCount = 3 },
 	{ name = "terra boots", chance = 2850 },
@@ -99,6 +98,7 @@ monster.loot = {
 	{ name = "crystalline spikes", chance = 14540 },
 	{ name = "drill bolt", chance = 7692, maxCount = 5 },
 	{ name = "envenomed arrow", chance = 10230, maxCount = 10 },
+	{ name = "jade conical hat", chance = 1000 },
 }
 
 monster.attacks = {

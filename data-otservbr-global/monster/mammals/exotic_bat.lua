@@ -74,7 +74,7 @@ monster.voices = {
 
 monster.loot = {
 	{ name = "platinum coin", chance = 100000, maxCount = 4 },
-	{ name = "great mana potion", chance = 30000, maxCount = 2 },
+	{ id = 238, chance = 30000, maxCount = 2 }, -- great mana potion
 	{ name = "terra amulet", chance = 6000 },
 	{ name = "dark mushroom", chance = 15000, maxCount = 6 },
 	{ name = "green mushroom", chance = 10300, maxCount = 5 },
@@ -83,15 +83,14 @@ monster.loot = {
 }
 
 monster.attacks = {
-	{ name = "melee", interval = 2000, chance = 100, minDamage = -10, maxDamage = -130 },
-	{ name = "combat", interval = 2000, chance = 15, type = COMBAT_EARTHDAMAGE, minDamage = -90, maxDamage = -170, length = 5, spread = 2, effect = CONST_ME_GREEN_RINGS, target = false },
-	{ name = "combat", interval = 2000, chance = 10, type = COMBAT_PHYSICALDAMAGE, minDamage = -70, maxDamage = -170, range = 7, radius = 3, effect = CONST_ME_YELLOW_RINGS, target = true },
+	{ name = "melee", interval = 2000, chance = 100, minDamage = 0, maxDamage = -100 },
+	{ name = "combat", interval = 2000, chance = 15, type = COMBAT_EARTHDAMAGE, minDamage = -80, maxDamage = -150, length = 5, spread = 2, effect = CONST_ME_GREEN_RINGS, target = false },
+	{ name = "combat", interval = 2000, chance = 10, type = COMBAT_PHYSICALDAMAGE, minDamage = -60, maxDamage = -150, range = 7, radius = 3, effect = CONST_ME_YELLOW_RINGS, target = true },
 }
 
 monster.defenses = {
 	defense = 40,
 	armor = 40,
-	mitigation = 1.18,
 }
 
 monster.elements = {

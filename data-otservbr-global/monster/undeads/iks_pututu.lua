@@ -74,8 +74,7 @@ monster.voices = {
 }
 
 monster.loot = {
-	{ name = "gold coin", chance = 100000, maxCount = 89 },
-	{ name = "platinum coin", chance = 100000, maxCount = 3 },
+	{ name = "gold coin", chance = 100000, maxCount = 389 },
 	{ id = 281, chance = 7100 }, -- giant shimmering pearl (green)
 	{ name = "tiger eye", chance = 6910 },
 	{ name = "strong mana potion", chance = 6360, maxCount = 2 },
@@ -85,6 +84,7 @@ monster.loot = {
 	{ name = "gold-brocaded cloth", chance = 1780 },
 	{ name = "gold ingot", chance = 960 },
 	{ name = "broken iks headpiece", chance = 70 },
+	{ id = 50150, chance = 560 }, -- ring of orange plasma
 }
 
 monster.attacks = {
