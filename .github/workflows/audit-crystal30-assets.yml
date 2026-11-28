@@ -1,0 +1,36 @@
+name: Audit Crystal 15.30 assets
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - crystal-items-monsters-migration
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Audit appearances and migrated items
+        run: python3 tools/migration/audit_crystal30_assets.py
+
+      - name: Validate audit output
+        run: |
+          test -s data/items/appearances.dat
+          test -s data/items/CRYSTAL_CANARY_ASSET_AUDIT.md
+
+      - name: Commit audit report
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+users.noreply.github.com'
+          git add -f data/items/CRYSTAL_CANARY_ASSET_AUDIT.md
+          if git diff --cached --quiet; then
+            echo 'No audit changes.'
+          else
+            git commit -m 'audit: Crystal 15.30 appearances and item assets'
+            git push origin HEAD:crystal-items-monsters-migration
+          fi
